@@ -67,19 +67,20 @@ Dropping durable knowledge at a week boundary is the one failure this design can
 
 ## Procedure
 
-`SK=.claude/skills/hub-rotate/scripts`, `SCR=<a scratch dir>`.
+`SK=.claude/skills/hub-rotate/scripts`, `SCR=<a scratch dir>`. `orbit` is `.claude/orbit-kb/bin/orbit`, the door
+to every store; `orbit hub ledger ARGS` runs the ledger command ARGS (hubflow.py is its engine).
 
 0. **Pre-flight.** Every session that writes into the hub is idle (`ListAgents`; ask busy ones by
    `SendMessage` to reach a stopping point). `git status`: a peer's in-progress file inside a week
    dir is passed with `--leave <path>` and left for its owner. Check `W0/WEEK.md` line 1 is the week
    that just ended. Commit `flow/jsonl/` if dirty.
 1. **Citation baseline.** `python3 $SK/check-citations.py > $SCR/citations-before.tsv`
-2. **Triage.** `python3 .claude/scripts/hubflow.py rotate --week-start <today's Monday>` lists the
+2. **Triage.** `.claude/orbit-kb/bin/orbit hub ledger rotate --week-start <today's Monday>` lists the
    `untriaged` due items and exits 1 until each has a disposition. For each one, read
-   `hubflow.py show ID` (its capsule comes first) and record one:
-   `hubflow.py triage ID keep|lapse|capsule|escalate --note "why"`. Before a lapse, check that the
+   `orbit hub ledger show ID` (its capsule comes first) and record one:
+   `orbit hub ledger triage ID keep|lapse|capsule|escalate --note "why"`. Before a lapse, check that the
    tracker holds the ticket's state. An item that outlived its context gets
-   `hubflow.py capsule ID --summary "…"` and then `triage ID capsule`. hubflow turns an agent's
+   `orbit hub ledger capsule ID --summary "…"` and then `triage ID capsule`. hubflow turns an agent's
    keep or lapse of a blocking item into `escalate`. List the escalated items for the human in the
    report: they stay open until the human decides. Rerun the dry run until it exits 0.
 3. **Mechanical rename.** `python3 $SK/rotate.py --dry-run --leave …`, then `python3 $SK/rotate.py --leave …`.
@@ -88,18 +89,22 @@ Dropping durable knowledge at a week boundary is the one failure this design can
    `--leave` files' unstaged edits in); `--verify` on the line before proves the index holds only
    the rotation.
 4. **Editorial lanes.** New `W0/WEEK.md` (rewritten, never copied). Move live week dirs with
-   tombstones. **Spec KBs and tools.** `hubflow.py rotate` lists `spec_kbs_untriaged:`: each spec KB
+   tombstones. **Spec KBs and tools.** `orbit hub ledger rotate` lists `spec_kbs_untriaged:`: each spec KB
    at `specs/<slug>/` whose ticket is closed needs one decision (archive, capsule, keep or
    escalate). Before it, propose each lasting outcome of the ticket to the project KB (a rule or a
    decision that must outlive the ticket; `.claude/orbit-kb/bin/orbit-kb help project`), and list the
    proposals in the report for the human, who ratifies them. Then record the decision:
-   `hubflow.py spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
+   `orbit hub ledger spec-triage <slug> ... --note "why"`; archive is `git rm -r specs/<slug>`.
+   **Orphans.** `.claude/orbit-kb/bin/orbit hub orphans` lists each open item with no live chain to
+   a project goal. The rotation asks for one decision on each orphan: name its goal (`ref ID add
+   goal:<id>`), link it to the item it serves, or close it. Write to the ledger through
+   `orbit hub ledger ARGS` (the door).
    Then prune the unused bespoke tools: a tool in `TECHNOLOGIES.md` (or the memory file the hub
    names) that no open spec KB pins and that has no listed use since the last rotation. Record a
    triage decision for each. Never prune a model or proof that an open spec KB pins. Move
    `outbound-staging/` items: sent → `W1/reports/`, unsent → `W0/outbound-staging/`
    with a dated note why. Read `W1/reports/` for lost facts.
-5. **Flow db.** `hubflow.py rotate --week-start <today's Monday> --yes`. Put the triaged (with their
+5. **Flow db.** `orbit hub ledger rotate --week-start <today's Monday> --yes`. Put the triaged (with their
    dispositions), escalated, lapsed and pruned ids in the commit message. Run it after step 3.
    It lapses each `summary` row that is 28 days old by itself (`lapsed:`); none needs a triage.
 6. **Citations after.** `python3 $SK/check-citations.py > $SCR/citations-after.tsv` and compare with the

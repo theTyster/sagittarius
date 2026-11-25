@@ -97,7 +97,8 @@ checkout is live at once.
 ## 3. Quick start: "Make the button purple"
 
 This walk-through is a real session. Every command and every output line is a
-copy from a run on 2026-10-16. A file `button.css` holds `.buy { color: blue; }`,
+copy from a run on 2026-11-25 (UTC) with orbit-kb 0.8.0, in an agent session. `SESSION` stands
+for the id of that session. A file `button.css` holds `.buy { color: blue; }`,
 and a file `ticket.md` holds the ticket. Both files are in the KB directory.
 The digest in step 7 depends on the text of your `ticket.md`.
 
@@ -106,12 +107,22 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```text
    $ orbit-kb init purple --request 'Make the button purple.' --uses build
    /tmp/purple/kb.pl
+   Next: add the goal, the claims and the checks. Vocabulary: orbit-kb help core.
    ```
 
 2. Go into the KB directory: `cd purple`. All commands that follow find the
    KB from the current directory.
 
-3. Add a claim, the request text that it cites, and a check of the claim:
+3. Add the goal: what the human hopes to accomplish. The agent drafts it here, so its author
+   is `agent`. The goal takes nothing as given: `no_premises`.
+
+   ```text
+   $ orbit-kb add "goal(g1, feature, agent, 'The Buy button is purple.')" "no_premises(g1)"
+   goal(g1, feature, agent, 'The Buy button is purple.').
+   no_premises(g1).
+   ```
+
+4. Add a claim, the request text that it cites, and a check of the claim:
 
    ```text
    $ orbit-kb add "claim(c1, introduce, 'The Buy button is purple.')" "cites(c1, 'Make the button purple.')" "check(k1, c1)" "checks_that(k1, 'The Buy button is purple on the page.')"
@@ -122,14 +133,6 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```
 
    The label `introduce` means "false now, and it must become true".
-
-4. Add the change that serves the claim:
-
-   ```text
-   $ orbit-kb add "change(ch1, 'button.css: set the color to purple.')" "serves(ch1, c1)"
-   change(ch1, 'button.css: set the color to purple.').
-   serves(ch1, c1).
-   ```
 
 5. A wrong fact causes a rejection. Nothing is written, and the exit code is 1:
 
@@ -166,7 +169,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
    ```
 
 9. Run the check before the change. It must fail first, because the label of
-   `c1` is `introduce`:
+   `c1` is `introduce`. This run is the control: it shows that the check can fail.
 
    ```text
    $ orbit-kb run k1 -- grep -q purple button.css
@@ -178,31 +181,51 @@ The digest in step 7 depends on the text of your `ticket.md`.
 
    Both commands exit 1.
 
-10. Change `button.css` to `.buy { color: rebeccapurple; }`. Then run the
-    check again:
+10. Change `button.css` to `.buy { color: rebeccapurple; }`. Record the change that serves
+    the claim, after the red run. Then run the check again:
 
     ```text
+    $ orbit-kb add "change(ch1, 'button.css: set the color to purple.')" "serves(ch1, c1)"
+    change(ch1, 'button.css: set the color to purple.').
+    actor(ch1, unknown, 'SESSION').
+    change_at(ch1, '2026-11-25T00:31:01Z').
+    serves(ch1, c1).
     $ orbit-kb run k1 -- grep -q purple button.css
     run 2 k1 pass (exit 0) log=/tmp/purple/runs/2-k1.log
     ```
 
-11. Query `done`. No question waits for a human:
+11. Query `done`. The check passes, and the ticket is not done: only the human judges that
+    the goal is satisfied. Show the result to the human. The human records the judgment (on
+    the Desk, or with `judge`). From an agent session, `judge --by human` needs the human's
+    words in `--note`:
 
     ```text
+    $ orbit-kb query done
+    false
+    $ orbit-kb show blocking
+    Blocking:
+    - goal_unjudged g1: the human has not judged that goal g1 is satisfied. Show the result to the human. The human records it on the Desk (Goal satisfied), or with: orbit-kb judge g1 satisfied --by human: The Buy button is purple.
+    $ orbit-kb judge g1 satisfied --by human --note 'Yes, that is the purple I wanted.'
+    attest(a3, judgment, g1, satisfied, human, '2026-11-25T00:31:11Z').
+    actor(a3, unknown, 'SESSION').
+    note(a3, 'Yes, that is the purple I wanted.').
     $ orbit-kb query done
     true
     $ orbit-kb query 'to_ask(Q)'
     false
     ```
 
-12. The human does not agree with claim `c1`. Record the divergence, and a
+    No question waits for a human.
+
+12. Later the human does not agree with claim `c1`. Record the divergence, and a
     note that describes it:
 
     ```text
     $ orbit-kb attest divergence c1 'claim(c1)' --by human
-    attest(a3, divergence, c1, claim(c1), human, '2026-10-16T21:59:43Z').
-    $ orbit-kb add "note(a3, 'The human wants a darker purple.')"
-    note(a3, 'The human wants a darker purple.').
+    attest(a4, divergence, c1, claim(c1), human, '2026-11-25T00:31:11Z').
+    actor(a4, unknown, 'SESSION').
+    $ orbit-kb add "note(a4, 'The human wants a darker purple.')"
+    note(a4, 'The human wants a darker purple.').
     ```
 
 13. Query the questions to ask. A contested claim opens all of its questions:
@@ -216,7 +239,7 @@ The digest in step 7 depends on the text of your `ticket.md`.
 14. Record the answer of the human to `q1`. The answer is not the default:
 
     ```text
-    $ orbit-kb add "answer(q1, indigo, human)"
+    $ orbit-kb add "answer(q1, indigo, human)" --by human
     answer(q1, indigo, human).
     ```
 
@@ -234,27 +257,64 @@ The digest in step 7 depends on the text of your `ticket.md`.
     - to_ask q2: ask question q2 now: Does the hover color change too? (a question about claim c1)
     ```
 
-16. Lint the KB, and print the report:
+16. Lint the KB, and print the report. The two warnings block nothing: the goal names no
+    project goal above it, and no reviewer verified the claim.
 
     ```text
     $ orbit-kb lint
-    Summary: 0 error(s), 0 warning(s).
+    W14 g1: This goal names no goal above it. Add supports(G, project(PG)) for the project goal that it supports, or supports(G, G2) for a goal of this KB. It blocks nothing.
+    WR1 c1: No fresh-eyes verdict verifies this claim yet. A reviewer of another role and session must rerun a check of the claim after its last change (orbit-kb run --as ROLE), then record an upheld verdict that rests on that run (attest disproof --rests-on). orbit-kb report lists the review. This does not block done.
+    Summary: 0 error(s), 2 warning(s).
     $ orbit-kb report
     # Delivered:
       - (Write what you delivered here.)
 
-    # Claims:
-      - c1 **introduce**: The Buy button is purple. Status: fulfilled. Checks: k1 (passed).
+    # KB:
+      - /tmp/purple
+      - Request r1, word for word: Make the button purple.
 
-    # Guesses:
-      - q2: Does the hover color change too?
-        - The default is yes. No human answered it.
+    # Signals:
+      - questions: no.
+      - divergence: yes.
+        - a4: a divergence on claim c1 (attested by the human).
+      - someone else built: no.
+      - burns: no.
+      - handoff: no.
+      - effort: no.
+
+    # Hypothesis:
+      - Goal g1 (the agent): The Buy button is purple.
+        - Kind: feature.
+        - Premises: none.
+        - No hypothesis: the claims hang on the goal.
+
+    # Claims:
+      - c1 **introduce**: The Buy button is purple.
+        - Status: fulfilled.
+        - Control of check k1: run 1 failed before the change.
+        - Checks: k1 (passed).
+
+    # Review:
+      - c1: no verdict.
+      - Not independently verified: c1.
+
+    # Formal:
+      - None. No claim has a formal statement.
+
+    # Residual:
+      - **Wanted:**
+        - q2: Does the hover color change too?
+          - The default is yes. No human answered it.
+      - **Happens:**
+        - None. Every current claim has a check.
+      - **Follows:**
+        - None. No claim has a formal statement.
 
     # Disclosures:
       - None.
 
-    # Not checked:
-      - None. Every current claim has a check.
+    # Waivers:
+      - None.
 
     # Open:
       - **ask**: Ask question q2 now
@@ -268,22 +328,34 @@ The `kb.pl` file after step 16:
 ```prolog
 uses([build]).
 request(r1, 'Make the button purple.').
+% Made by orbit-kb 0.8.0.
+goal(g1, feature, agent, 'The Buy button is purple.').
+no_premises(g1).
 claim(c1, introduce, 'The Buy button is purple.').
 cites(c1, 'Make the button purple.').
 check(k1, c1).
-change(ch1, 'button.css: set the color to purple.').
-serves(ch1, c1).
+checks_that(k1, 'The Buy button is purple on the page.').
 question(q1, c1, 'Which shade of purple?').
 assumed(q1, rebeccapurple).
 question(q2, c1, 'Does the hover color change too?').
 assumed(q2, yes).
 subject(s1, 'ticket.md', 'sha256:6f2a6395ccceef334e4e8f37a147facff03474208405b9533f12976298a4c0a4').
 ticket(s1).
-attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-10-16T21:59:43Z').
-attest(a2, test_result, k1, result(k1, 2, pass), script, '2026-10-16T21:59:43Z').
-attest(a3, divergence, c1, claim(c1), human, '2026-10-16T21:59:43Z').
-note(a3, 'The human wants a darker purple.').
+attest(a1, test_result, k1, result(k1, 1, fail), script, '2026-11-25T00:31:01Z').
+actor(a1, unknown, 'SESSION').
+change(ch1, 'button.css: set the color to purple.').
+actor(ch1, unknown, 'SESSION').
+change_at(ch1, '2026-11-25T00:31:01Z').
+serves(ch1, c1).
+attest(a2, test_result, k1, result(k1, 2, pass), script, '2026-11-25T00:31:01Z').
+actor(a2, unknown, 'SESSION').
+attest(a3, judgment, g1, satisfied, human, '2026-11-25T00:31:11Z').
+actor(a3, unknown, 'SESSION').
+note(a3, 'Yes, that is the purple I wanted.').
+attest(a4, divergence, c1, claim(c1), human, '2026-11-25T00:31:11Z').
+actor(a4, unknown, 'SESSION').
 answer(q1, indigo, human).
+note(a4, 'The human wants a darker purple.').
 ```
 
 ## 4. KB layout on disk
@@ -899,8 +971,17 @@ Exit: 0. 2 on an unknown topic, or on E1 or E2 in a source file.
 ### `report`
 
 Prints a skeleton of a delivery report with these sections: `Delivered:`,
-`Claims:`, `Guesses:`, `Disclosures:`, `Waivers:` (with the `build` module),
-`Not checked:`, `Open:`, `To land:`.
+`Claims:`, `Residual:`, `Disclosures:`, `Waivers:` (with the `build` module),
+`Open:`, `To land:`. `Residual:` is what could still show the work wrong, and that
+nobody tested. It has three lists, one for each question of the prompt. `Wanted:` has
+each default that no human answered, and each current hypothesis that an agent wrote
+and no human adopted. `Happens:` has each premise that nobody checked, and each current
+claim with no check. `Follows:` has each formal statement of a current claim that is
+stated and not proved: no Lean proof of the claim counts, and no trusted model decided it.
+With the `build` module, each claim of `Claims:` that is not a `preserve` claim says for
+each of its checks if the control was seen: `Control of check k1: run 1 failed before
+the change.` or `Control of check k1: not seen.` The run is named by its number, as `run` prints it. A check with a `known_when` fact adds, directly after its control line,
+`Known when the rule of check k1 was chosen: TEXT`.
 You write `Delivered` and `To land` yourself. Step 16 of section 3 shows an
 example. The text is plain Markdown that also reads as raw text (D16 c4). Each
 section has a heading, `# Claims:`, and a blank line before the next heading.
@@ -922,9 +1003,12 @@ and id of its target, its due time, and whether it is in force or lapsed.
 check, or a question), and each proof that no longer counts. With the `build`
 module, when no claim is current, `Open:` says `**no claim**: No claim is
 current`, because `done` is false without a current claim (D17). When no question
-has a default, `Guesses:` says `None. No question has a default.` It says that a
-human answered every question only when a question with a default exists. When
-no claim is current, `Not checked:` says `None. No claim is current.`
+has a default, `Wanted:` says `None. No question has a default, and no hypothesis waits
+for the human.` It says that a human answered every question only when a question with a
+default exists. `Follows:` says `S states claim C. No proof.` for a statement and `M states
+claim C. No trusted model decided it.` for a model. `Formal:` names each such statement too
+(`C: statement S. Stated, not proved.`), so it says `None` only when no claim has one. When
+no claim is current, `Happens:` says `None. No claim is current.`
 With the `discovery` module, a `Vote:` section comes before `To land:` (D14).
 Until the human votes in the current round, it says only whether the agent
 voted, and it does not show the agent's choice or the formal artifacts' vote.
@@ -945,7 +1029,9 @@ works from `file://`. It shows:
   link to `runs/N-CHECK.log`). Its evidence expands below it: citations,
   examples, divergences with their notes, disclosures, waivers with the due
   time, questions, and notes. It starts open when the claim needs attention;
-- the guesses, disclosures, waivers, `Not checked:`, and `Vote:` lines, and
+- the `Residual:` lists (a claim with no check in `Happens:` and a formal statement in
+  `Follows:` have the link "See claim" to their claim),
+  the disclosures, waivers, and `Vote:` lines, and
   the plain text at the end.
 
 The page is built from the lines that `report` prints, so the two always say
@@ -1263,6 +1349,21 @@ dropped edit.
 Exit: 0 (one line per drop, or `- Nothing was dropped by date.`). 2 with no
 hub, a project KB outside the hub, or an item that the ledger refuses (no
 session).
+
+### `hub query`, `hub ledger`, `hub stores`, `hub files`, `hub orphans`, `drop-goal`, `s1-record`
+
+The door to every store of a hub (CONTRACT D63 to D69; `orbit-kb help hub`). The command has two
+names, `orbit` and `orbit-kb`: one program.
+
+- `orbit hub query 'GOAL' [-n N] [--hub DIR]`: one query over the ledger (`item/5`, `item_ref/3`,
+  `item_link/3`), the spec KBs (`ticket/2`, `ticket_fact/2`), the project KB (`project_fact/1`),
+  the files (`store_file/3`) and the tracker pointers (`tracker_ref/2`). The rules are in `hub.pl`.
+- `orbit hub ledger ARGS...`: runs the hub's `hubflow.py` with ARGS; its output and exit code.
+- `orbit hub stores`; `orbit hub files memory|weeks|bespoke`: counts, and files with a sha256.
+- `orbit hub orphans`: the open items with no live chain to a project goal, the rows whose work
+  is over, the reports on a done ticket, and what rested on a dropped project goal.
+- `orbit drop-goal G --by human --note TEXT`: the owner drops a goal of the project KB.
+- `orbit s1-record [--session S] [--dir KB] --json`: the record of the active ticket for System 1.
 
 ### `project archive --superseded-before DATE [--root DIR]`
 
@@ -2199,3 +2300,39 @@ they are documented, not fixed:
   burn. Only the Lean sources and the Lake configuration files are hashed.
 - `uses` rewrites `kb.pl` as UTF-8. An invalid UTF-8 byte anywhere in the
   file becomes U+FFFD, with a warning from SWI-Prolog.
+
+## The records of 0.8.0: goal, hypotheses, predictions
+
+Contract: `kb/CONTRACT.md` D50 to D54. Help: `orbit-kb help core`.
+
+- Facts: `goal/4`, `hypothesis/4` (a hypothesis under a goal), `supports/2`, `defeating_case/3`,
+  `untempered/3`, `predicts/2`, `defeat/3`, `adoption_cited/2`, `carried/2`. `hypothesis/3` is the 0.7.2
+  form of the goal: it still loads, and each form is computed from the other when a KB is read.
+- Rules: `goal_current/1`, `hypothesis_state/2`, `hypothesis_current/1`, `hypothesis_adopted/1`,
+  `hypothesis_retired/1`, `hypothesis_defeated/1`, `tempered/1`, `not_tempered/1`, `claim_of_goal/1`,
+  `current/1` (changed), `hypothesis_guess/1`, `rests_on/2`, `rests_up/2`, `goal_unsupported/1`.
+- Attestation types: `adoption` (human), `retirement` (human or agent).
+- Commands: `adopt H --by human`, `retire H --reason TEXT`, `rests ID`, `show hypotheses`.
+- Lint: W13 (not tempered), W14 (a goal names no goal above it), W15 (two hypotheses predict one claim),
+  W16 (unplaced claim), E21 (predicts on a preserve claim). W14 and W16 only in a KB made by 0.8.0 or later.
+
+Stage 2 of 0.8.0, experiments and verdicts (CONTRACT D55 to D62; `orbit-kb help build`):
+
+- Facts: `unresolved_because/2`, `procedure/2`, `measurement_premise/3`, `known_when/2`, `case_against/2`,
+  `formal_statement/2`, `could_change/2`, `behavior_conflict/2`, `names/2`, `carried/2`, `upgraded/2`,
+  `done_before_upgrade/2`. A `test_result` is `pass`, `fail` or `unresolved`.
+- Rules: `experiment/3`, `verdict/2`, `latest_run/2`, `check_unresolved/1`, `verdict_stale/2`, `counts/2`,
+  `fulfilled/1` (changed), `control/1`, `conflict_open/1`, `location_confirmed/1`, `to_discovery/1`,
+  `goal_satisfied/1`, `goal_unjudged/1`, `case_unplaced/1`, `formal_unaccepted/2`, `behavior_open/1`,
+  `before_goal/2`, `not_carried/1`, `done` (changed), `done_072` and the other `*_072` rules of 0.7.2,
+  `kb_before_upgrade`, `done_before_upgrade`.
+- Blocking terms: `check_unresolved(K)`, `verdict_stale(K)`, `conflict_unlocated(A)`,
+  `location_unconfirmed(L)`, `case_unplaced(J)`, `goal_unjudged(G)`, `behavior_open(B)`, `not_carried(A)`.
+- Attestation types: `measurement`, `location`, `confirmation` (human or agent), `judgment` (human).
+- Commands: `run K [--timeout SECS] [--expect sat|unsat] -- CMD`, `locate RUN WHERE --evidence TEXT`,
+  `confirm LOC --note TEXT`, `judge G satisfied|not-satisfied --by human`, `judge G case TEXT
+  wanted|not-wanted --by human`, `judge S accepts C --by human`, `show experiments [ID]`, `show stale`.
+- Lint: W17 (a check with no procedure and no run), W18 (a formal statement with no claim or no
+  `could_change`; only in a KB made by 0.8.0 or later).
+- Test of the grandfather rule on real KBs: `kb/tests/compare_hub_kbs.sh OLD_TOOL NEW_TOOL SPECS_DIR`.
+

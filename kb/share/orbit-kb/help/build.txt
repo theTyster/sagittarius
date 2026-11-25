@@ -87,7 +87,7 @@ FULFILL: fulfillment in both directions (verify)
     This records what it saw: the ticket, the KB stamp, and the diff (review_saw).
   - It reruns every check of each claim itself:
       ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb run --as review k1 -- CMD
-  - It records one verdict for every current claim, with what it tried, and the runs that
+  - It records one disproof result for every current claim, with what it tried, and the runs that
     the verdict rests on:
       ORBIT_KB_WRITER=review-<task> ORBIT_KB_ROLE=review orbit-kb attest disproof c1 "verdict(c1, upheld('what I tried'))" --as review --rests-on a12
     upheld(Text), refuted(Text), inconclusive(Text), or abstained(Text).
@@ -105,7 +105,7 @@ FULFILL: fulfillment in both directions (verify)
   there. Do not polish beyond the claims.
 
 DISPROVE (verify, and in discovery): before you deliver a burned claim, or when you doubt any
-claim, try to break it within a small budget. Record one disproof verdict (orbit-kb help core).
+claim, try to break it within a small budget. Record one disproof result (orbit-kb help core).
 
 Burns: prove the claim in Lean
   A universal claim, or one that the human asked to prove, needs a Lean proof.
@@ -121,7 +121,7 @@ Burns: prove the claim in Lean
   1. Write Lean definitions of the behavior. State the claim as a theorem.
   2. Add #eval examples. Show them to the human as a table.
   3. Search for a counterexample (for example Plausible) before you prove.
-     If you find one, record lean_result with verdict(C, refuted('THE CASE')) and ask the human.
+     If you find one, record lean_result with the result verdict(C, refuted('THE CASE')) and ask the human.
   4. Prove the theorem. Then: orbit-kb prove C FILE THEOREM
      It records the proof only if the theorem has no sorry, no native_decide, and no
      axiom of its own, and if the kernel accepts it again. Nothing else records a proof.
@@ -154,28 +154,40 @@ When the human says that it is wrong (as the prompt says)
   - Someone misread the intent: a part of the result did not match what the human asked for
     at the time. Shift up, and record a divergence on its claim:
       orbit-kb attest divergence C 'claim(C)'      and a note that says what differed.
-    Then decide which is wrong, the build or the hypothesis (step 1 below).
+    Then locate the conflict: the build, the measurement, or a premise or the hypothesis
+    (step 1 below).
   - The intent moved: the result matched, and the human now wants a part of it changed.
     Nobody misread. For that part, record a new claim that supersedes the old one, and record
     no divergence against the old claim: it was right when it was made. The claims that the
     human liked stay, and their checks stay.
       orbit-kb add "claim(c2, introduce, 'NEW TEXT')" "supersedes(c2, c1)" "check(k2, c2)" "checks_that(k2, 'what it checks, in plain words')"
   - The new wish adds to the result and changes nothing in it: it is a new ticket, with its
-    own hypothesis (and its own KB when a signal comes). This KB keeps what is open in it.
+    own goal (and its own KB when a signal comes). This KB keeps what is open in it.
   If you cannot tell whether you misread or the intent moved, do not guess. Say so, and treat
   it as a divergence.
-  On the light path, shift up now: start a KB with the request, the hypothesis and its
-  premises (or no_premises), then your claims and the checks so far: orbit-kb shift does it
-  in one command (orbit-kb help shift).
+  On the light path, shift up now: start a KB with the request, the goal and its premises
+  (or no_premises), the hypothesis under it, then your claims and the checks so far:
+  orbit-kb shift does it in one command (orbit-kb help shift).
   After a divergence:
-  1. Decide which is wrong. When a check fails and the hypothesis still reads true, the build
-     is wrong: fix the build. When the human wants a case that the hypothesis rejects, or
-     rejects a case that it accepts, the hypothesis must change. If the answer says what it
-     changes to ("only on this page"), restate it: the new hypothesis supersedes the old one.
-     Show it, and go on:
-       orbit-kb add "hypothesis(h2, feature, 'NEW TEXT')" "no_premises(h2)" "supersedes(h2, h1)"
-     Only when you can no longer say what the hypothesis changes to, the ticket is a report
-     again: orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
+  1. Locate the conflict first, with the evidence. A conflict does not say what is wrong.
+     - In the build: the build does not do what the hypothesis says. Fix the build. The
+       hypothesis stays current.
+     - In the measurement: the check, or a premise of its measurement, is wrong. Repair the
+       experiment, and run it again.
+     - In a premise or in the hypothesis: the build does what the hypothesis says, and the
+       claim still conflicts. This location counts only when a party that did not build
+       confirms it (a reviewer, a fresh-eyes subagent, or the human). Then the hypothesis is
+       defeated, and the ticket goes to discovery, which tempers a new one. You do not write
+       the new hypothesis. Propose the location, and the other party confirms it:
+         orbit-kb locate RUN hypothesis:hy1 --evidence 'WHAT CONFLICTS'
+       (THE LOCATION OF A CONFLICT, below.) Then hand the ticket to discovery.
+     - The human corrects the goal and says what it changes to ("only on this page"): record
+       goal g2 in the words of the human. It supersedes g1. Carry over each hypothesis, claim
+       and run that still counts. Show the new goal, and go on:
+         orbit-kb add "goal(g2, feature, human, 'THE HUMAN'S WORDS')" "no_premises(g2)" "supersedes(g2, g1)"
+         orbit-kb add "carried(hy1, g2)" "carried(c1, g2)"     one for each record that still counts
+     Only when you can no longer say what the goal changes to, the ticket is a report again:
+     orbit-kb uses discovery, and go back to discovery (orbit-kb help discovery, BACK).
   2. Record the human's answer: answer(Q, Answer, human). Defaults that conflict with it are
      now defeated.
   3. Query to_ask(Q). Ask that small cluster, not every dormant question.
@@ -221,3 +233,76 @@ A result from CI or the tracker (pin it in the spec; the spec does not own it)
 Verdicts for disproof (orbit-kb help core): upheld(Text), refuted(Text), inconclusive(Text),
 abstained(Text). Name the runs with --rests-on.
 Do not weaken a claim to absorb a counterexample. Record it, and ask the human.
+
+EXPERIMENTS AND VERDICTS (0.8.0)
+An experiment is one test of one claim, and it has exactly one verdict: meets, conflicts, or
+unresolved. orbit-kb query 'experiment(E, Kind, C)' and 'verdict(E, V)' give it for a test run,
+a counted model result, a Lean proof, the approval of a demo, and a judgment of the human.
+  orbit-kb run K [--timeout SECS] [--expect sat|unsat] -- CMD ...
+      exit 0: pass (meets). Another exit: fail (conflicts). Unresolved, with exit 1 and the line
+      "run N K unresolved (exit E) log=...": exit 77 (the check could not decide), a kill by a
+      signal (also exit 137, 143), a run over --timeout, and with --expect a solver that answers
+      unknown or timeout. run writes unresolved_because(A, Text). Nobody types a result.
+      A crash is not a kill: a command that dies by SIGSEGV, SIGABRT, SIGBUS, SIGFPE or SIGILL
+      is a fail. Exit 124 (the timeout of coreutils) is a fail too: a time limit belongs in
+      orbit-kb run --timeout SECS, which records the run as unresolved.
+  procedure(K, Text)                 how the experiment is carried out (else: the command of the run)
+  measurement_premise(MP, K, Text)   a premise of the measurement, such as the error of the clock
+  known_when(K, Text)                what was known when the claim and the rule were chosen
+  orbit-kb attest measurement MP "false('why')"    the premise was found false: each earlier run of
+                                     K gets the verdict unresolved, and K owes a new run
+  orbit-kb show experiments [ID]     the claim, the procedure, the measurement premises, what was
+                                     known, the observation and the verdict of each experiment
+  orbit-kb show stale                each last run that is older than a change that serves its claim
+An unresolved verdict fulfils nothing and defeats nothing: blocking(check_unresolved(K)), not
+check_failing(K). A verdict counts only for the state that it observed: after a later change that
+serves the claim (change_at), the claim is not fulfilled until the check runs again:
+blocking(verdict_stale(K)). A change with no change time makes no run stale.
+
+THE LOCATION OF A CONFLICT (0.8.0)
+A conflicting last run of a check of a current claim needs a location before anything is reopened:
+blocking(conflict_unlocated(A)). The red run of an introduce or a retire claim before any change
+that serves the claim is the control (control(A)): it needs no location.
+  orbit-kb locate RUN build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT
+  orbit-kb confirm LOCATION --note TEXT --as ROLE      (or --by human)
+  build         it stays with build; the hypothesis stays current; nothing goes to discovery.
+  measurement, premise, hypothesis, claim: blocking(location_unconfirmed(L)) until a pane that
+                did not build confirms it (its role and its session both differ from the actor
+                of every change of the KB), or the human does.
+  measurement, confirmed: the verdict of the run is unresolved, and the check owes a new run.
+  premise or hypothesis, confirmed: the hypothesis is defeated; to_discovery(H) lists it.
+  claim (a ticket with no hypothesis), confirmed: to_discovery(C); the goal is not defeated.
+
+THE JUDGMENT OF THE HUMAN (0.8.0)
+Only the human judges (--by human). A judgment changes the verdict of no experiment.
+  orbit-kb judge G satisfied|not-satisfied --by human [--note 'the words']
+  orbit-kb judge G case 'TEXT' wanted|not-wanted --by human [--note 'the words']
+  orbit-kb judge S accepts C --by human [--note 'the words']   the formal statement S says what claim C means
+The note keeps the words of the human on the record: note(A, WORDS). In an agent session (CLAUDECODE,
+AI_AGENT or CLAUDE_CODE_SESSION_ID is set), judge and adopt --by human need --note.
+A ticket is done when nothing holds it up and the latest judgment of its goal says satisfied:
+blocking(goal_unjudged(G)). A ticket that states no goal is not done: blocking(goal_missing)
+(lint EB1). Add goal(g1, KIND, AUTHOR, 'TEXT') with its premises, and the human judges it. A KB
+from before the upgrade never gets goal_missing. A case that the human judged not wanted is recorded against the
+hypothesis that allowed it: orbit-kb add 'case_against(J, H)' defeats H. With a current hypothesis
+and no case_against: blocking(case_unplaced(J)); the case goes to discovery. A waiver works as
+before: a waived check covers its claim until the due time. formal_statement(S, C) and
+could_change(S, Text) describe a formal statement (lint W18); report lists each one that the human
+has not accepted.
+
+SOUND BASIS, AND A CHANGE OF THE GOAL (0.8.0)
+over(X): Conflict (Sound Basis): change X serves no claim. Its behavior is open for review.
+behavior_conflict(B, Text): a behavior that no claim names changed or broke. Do not edit the old
+test: record the conflict. blocking(behavior_open(B)) until a current claim names it
+(names(C, B)) or a human waives it.
+When a goal/4 fact replaces a goal (supersedes(G1, G0)), each hypothesis, claim and run that stands
+before it in kb.pl counts for G1 only with carried(X, G1) (a carried hypothesis brings its claims; a
+run never comes along by itself). not_carried(X) lists the rest; blocking(not_carried(A)) names a
+run that its claim needs.
+
+DONE BEFORE THE UPGRADE (0.8.0)
+A KB that a version before 0.8.0 made, and that was done by the rules of 0.7.2, stays done. The
+first write of this version records upgraded(V, Time), and done_before_upgrade(V, Time) when it was
+done. In such a ticket the judgment of the goal is not asked for, and a verdict is stale only by
+a change after the upgrade; show open and show stale list "stale (done before the upgrade)". An
+open KB from before the upgrade gets the new rules at once.

@@ -44,7 +44,7 @@ def c1():
     phil = read("docs/PHILOSOPHY.md")
     para = flat(block(phil, "Most work needs little process", "\n\n"))
     if "effort" not in para:
-        return "PHILOSOPHY principle 7 does not list effort with the other signals"
+        return "PHILOSOPHY (section \"Start light\" of \"The orbit\") does not list effort with the other signals"
     return None
 
 

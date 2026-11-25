@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """0.3.0 c_sg5b (suggestion 5): each term has one meaning in the texts that an agent reads.
 
-The philosophy (principle 13): "Give each term one meaning." The audits of 2026-11-11 (findings K13,
+The philosophy (section "The protocol": "Each word has one meaning."). The audits of 2026-11-11 (findings K13,
 K17, M14, M19, S-c10, D14) found old terms that now clash with a new meaning, or that name a thing
 that is gone. This check fails when a text that an agent reads uses one of them. For each use it
 prints the file, the line, the retired term, and the term to use:
@@ -41,6 +41,11 @@ TERMS = [
      "a hypothesis is written wide: the default is the widest reading", '"wide"'),
     ("SIGNAL", re.compile(r"\bSIGNAL\b"),
      "the move SIGNAL is RESTATE; \"signal\" means one of the six signals", '"RESTATE"'),
+    # 0.8.0 scientific-method-overhaul c11: the definition of the hypothesis of 0.7.2
+    ("closest statement of the intent", re.compile(r"closest\s+statement\s+of\s+the\s+intent", re.I),
+     "the statement of the intent is the goal; a hypothesis is a claim about an avenue to it", '"the goal"'),
+    ("law of its ticket", re.compile(r"\blaw\s+of\s+(its|the)\s+ticket", re.I),
+     "several hypotheses can be current, and one case can defeat each", '"the goal" (what the claims serve)'),
 ]
 
 HISTORY = re.compile(r"renamed from|\bretired\b|\bwas\s+(the\s+)?(move\s+)?(SIGNAL|trigger|scoped|Lean model)", re.I)

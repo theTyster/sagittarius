@@ -26,18 +26,20 @@
 # Formal:
   - None. No claim has a formal statement.
 
-# Guesses:
-  - None. No question has a default.
+# Residual:
+  - **Wanted:**
+    - None. No question has a default, and no hypothesis waits for the human.
+  - **Happens:**
+    - c1: Claim one
+      - It has no check.
+  - **Follows:**
+    - None. No claim has a formal statement.
 
 # Disclosures:
   - None.
 
 # Waivers:
   - None.
-
-# Not checked:
-  - c1: Claim one
-    - It has no check.
 
 # Open:
   - **under**: Claim c1 is current but not fulfilled: Claim one

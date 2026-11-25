@@ -629,6 +629,16 @@ EOF
 kb_init() {  # kb_init DIR [uses]: a KB made by the CLI itself
     okb init "$1" --request 'Test request' --uses "${2:-build}" >/dev/null 2>&1 || note "setup: init failed: $(snip "$err")"
 }
+# give_goal [DIR]: review G1 (0.8.0): a ticket states its goal, and done needs the human's judgment
+# of it (blocking goal_missing, goal_unjudged; lint EB1). A test whose KB is about something else
+# gets a goal that the human judged satisfied, in the fact form that judge writes, so that it tests
+# what it tested before G1.
+give_goal() {
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\nattest(j0, judgment, g0, satisfied, human, '2026-10-15T09:00:00Z').\n" >> "${1:-$K}/kb.pl"
+}
+give_goal_only() {  # give_goal_only [DIR]: the goal with no judgment (a test that counts the attestations, or needs no done)
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\n" >> "${1:-$K}/kb.pl"
+}
 oadd() { okb --dir "$K" add "$@"; }
 mkclaim() { use_proto "mkclaim.${1:-build}"; }   # standard small KB in $K made through the CLI
 mkclaim_fresh() {  # the setup behind mkclaim. It runs once per suite, in a prototype (use_proto).
@@ -671,7 +681,7 @@ t_I7() { K=$T/new; okb init "$K"; rc_is 2 "init without a request is a usage err
 t_I8() { K=$T/new; okb init "$K" --request a; okb --dir "$K" lint; rc_is 0 "a fresh KB has no lint error"; okb --dir "$K" query 'current(X)'; rc_is 1 "no claims yet"; }
 
 # ================================================================ U: uses
-t_U1() { K=$T/k; kb_init "$K" discovery; oadd "claim(c1, introduce, 'Floor')" "cites(c1, 'floor')" >/dev/null
+t_U1() { K=$T/k; kb_init "$K" discovery; give_goal; oadd "claim(c1, introduce, 'Floor')" "cites(c1, 'floor')" >/dev/null
          rejects nobuild 'change/2' add "change(x1, 'Edit')"
          sed 1d "$K/kb.pl" > "$T/.tail.before"
          okb --dir "$K" uses build; rc_is 0; out_has '^uses\(\[discovery, ?build\]\)\.$'
@@ -710,7 +720,7 @@ t_U8() { # uses holds the KB lock: while another process holds kb.lock, uses wai
          wait "$hold"; wait "$u" || note "uses exited $?: $(snip "$(<"$T/.u")")"
          head -1 "$K/kb.pl" | grep -Eq '^uses\(\[discovery, ?build\]\)\.$' || note "line 1 after the lock: $(head -1 "$K/kb.pl")"; }
 t_U9() { # the new module can add lint findings, so uses tells the agent to lint
-         K=$T/k; kb_init "$K" build
+         K=$T/k; kb_init "$K" build; give_goal
          oadd "claim(c1, preserve, 'Old')" "cites(c1, 'x')" "claim(c2, preserve, 'New')" "cites(c2, 'x')" "supersedes(c2, c1)" >/dev/null
          echo x > "$K/s.txt"; okb --dir "$K" subject s1 "$K/s.txt" >/dev/null; okb --dir "$K" attest divergence s1 'claim(c1)' >/dev/null
          okb --dir "$K" lint; rc_is 0 "clean before"
@@ -749,17 +759,17 @@ t_A24() { mkclaim; rejects emptywords 'E20|checks_that' add "claim(c2, preserve,
 t_A25() { mkclaim; printf "checks_that(k2, 'two stays true on the page').\n" >> "$K/kb.pl"   # words already in the KB (ids are unique, so a fixture)
           oadd "claim(c2, preserve, 'Two stays true')" "cites(c2, 'two')" "check(k2, c2)"; rc_is 0 "a new check(k2, c2) when the KB has checks_that(k2, _)"; has_fact "$K/kb.pl" "check(k2, c2)"
           rejects othercheck 'E20|checks_that' add "claim(c3, preserve, 'Three stays true')" "cites(c3, 'three')" "check(k3, c3)"; }
-t_A26() { mkclaim; printf "claim(c2, preserve, 'Two stays true').\ncites(c2, 'two').\ncheck(k2, c2).\n" >> "$K/kb.pl"
+t_A26() { mkclaim; give_goal; printf "claim(c2, preserve, 'Two stays true').\ncites(c2, 'two').\ncheck(k2, c2).\n" >> "$K/kb.pl"
           okb --dir "$K" lint; rc_is 0 "an old check with no words still lints (W12 is a warning)"; any_has 'W12' "lint W12 names it"
           rejects newcheck 'E20' add "claim(c3, preserve, 'Three')" "cites(c3, 'three')" "check(k3, c3)"; }
 
 # ================================================================ D: rule heads (T26: the declare command is gone; add takes no decl term)
 # A head of rules.pl is declared by its first clause. Lint checks it as it checked a declared head.
 old_decl() { printf '%s\n' "$1" >> "$K/kb.pl"; }   # a decl/4 line as an older KB has it (declare wrote it)
-t_D1() { mkclaim; printf "okay(C) :- claim(C, _, _).\n" > "$K/rules.pl"
+t_D1() { mkclaim; give_goal; printf "okay(C) :- claim(C, _, _).\n" > "$K/rules.pl"
          okb --dir "$K" lint; rc_is 0 "the first clause declares okay/1: no E2"; out_hasnt '^E' "no error"; out_has '^W9 rules\.pl:1.*okay/1' "W9: no doc comment"
          is_true 'okay(c1)'; }
-t_D2() { mkclaim; printf "%%%% doc: A thing.\nokay(C) :- claim(C, _, _).\nokay(C) :- claim(C, _, _), world(C).\n" > "$K/rules.pl"
+t_D2() { mkclaim; give_goal; printf "%%%% doc: A thing.\nokay(C) :- claim(C, _, _).\nokay(C) :- claim(C, _, _), world(C).\n" > "$K/rules.pl"
          okb --dir "$K" lint; rc_is 0; out_hasnt '^W9' "the doc comment above the first clause is the doc"
          okb --dir "$K" show kinds; out_has '^- okay/1 \(rule\): A thing\.' "the doc shows once"; [ "$(printf '%s\n' "$out" | grep -c 'okay/1')" = 1 ] || note "okay/1 is listed once"; }
 t_D3() { mkclaim; printf "not(C) :- claim(C, _, _).\n" > "$K/rules.pl"
@@ -814,7 +824,7 @@ t_S5() { mkclaim; printf 'one\n' > "$K/a.txt"; printf 'two\n' > "$K/b.txt"; okb 
          [ -n "$a" ] && [ "$a" = "$b" ] || note "other terms changed by the refresh"
          has_goal "$K/kb.pl" "kb_line(L1, subject(s1,_,_)), kb_line(L2, subject(s2,_,_)), L1 < L2" "refreshed in place (still before s2)"; }
 t_S6() { # D3: a KB directory moved to a new place keeps W1 and digest(current) working with no refresh
-         mkclaim; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; mv "$K" "$T/moved"; K=$T/moved
+         mkclaim; give_goal; printf 'one\n' > "$K/plan.txt"; okb --dir "$K" subject s1 plan.txt >/dev/null; mv "$K" "$T/moved"; K=$T/moved
          okb --dir "$K" lint; rc_is 0 "lint after the move"; any_hasnt '^W1 ' "no W1 after the move"
          okb --dir "$K" attest approval s1 'digest(current)' --by human; rc_is 0 "digest(current) after the move"; }
 t_S7() { # D3 on the fixture: copying the valid fixture elsewhere keeps it clean
@@ -829,7 +839,7 @@ t_R2() { mkclaim; orun k1 -- sh -c 'echo hello-output; exit 3'; rc_is 1 "a nonze
          local f; f=$(ls "$K"/runs/1-k1.log 2>/dev/null); [ -n "$f" ] || { note "runs/1-k1.log is missing"; return; }
          head -n1 "$f" | grep -Eq '^% orbit-kb run 1 check=k1 result=fail exit=3 time=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z cmd=' || note "header is wrong: $(head -n1 "$f")"
          grep -q hello-output "$f" || note "the log lacks the command output"; }
-t_R3() { mkclaim; orun k1 -- true; rc_is 0; head -n1 "$K/runs/1-k1.log" | grep -Eq '^% orbit-kb run 1 check=k1 result=pass exit=0 time=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z cmd=true' || note "header is wrong: $(head -n1 "$K/runs/1-k1.log")"
+t_R3() { mkclaim; give_goal; orun k1 -- true; rc_is 0; head -n1 "$K/runs/1-k1.log" | grep -Eq '^% orbit-kb run 1 check=k1 result=pass exit=0 time=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z cmd=true' || note "header is wrong: $(head -n1 "$K/runs/1-k1.log")"
          okb --dir "$K" lint; rc_is 0 "a run made by the CLI passes lint (E9)"; any_hasnt '^E9'; }
 t_R4() { mkclaim; cp "$K/kb.pl" "$T/.b"; orun nosuch -- true; rc_not 0; [ "$rc" = 2 ] || [ "$rc" = 1 ] || note "exit $rc"; any_hasi 'nosuch|check|exist'; same_file "$K/kb.pl" "$T/.b"; [ -e "$K/runs" ] && [ -n "$(ls -A "$K/runs")" ] && note "a log was written for an unknown check"; }
 t_R5() { mkclaim; oadd "claim(c2, preserve, x)" "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" >/dev/null; orun k1 -- true >/dev/null; orun k2 -- true; any_has 'run 2 k2 pass'; ls "$K/runs" | grep -q '^2-k2.log$' || note "run numbers are global per KB: want runs/2-k2.log, got $(ls "$K/runs" | paste -sd' ')"; }
@@ -1000,7 +1010,7 @@ gd_kb() {  # gd_kb DIR: a build KB with 20 claims, each with a check, a serving 
 # R1: refuted(Counterexample) with text, in disproof and lean_result. R2: refuted(C) holds for it.
 # R3: a bare refuted is E3 and the message shows the new form. R4: the other verdicts are unchanged.
 # R5: why prints the counterexample.
-t_RF1() { mkclaim; oadd "attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, '2026-10-15T10:00:00Z')"; rc_is 0 "disproof with a counterexample"
+t_RF1() { mkclaim; give_goal; oadd "attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, '2026-10-15T10:00:00Z')"; rc_is 0 "disproof with a counterexample"
           oadd "attest(l1, lean_result, c1, verdict(c1, refuted('n = 0')), agent, '2026-10-15T10:00:01Z')"; rc_is 0 "lean_result with a counterexample"
           has_goal "$K/kb.pl" "kb(attest(d1, disproof, c1, verdict(c1, refuted('delete then save loses data')), agent, _))" "the fact is stored with its text"
           okb --dir "$K" lint; rc_is 0 "lint is clean"; }
@@ -1017,7 +1027,7 @@ t_RF4() { mkclaim; rejects "bare refuted in disproof" 'E3|must match' add "attes
 t_RF5() { mkclaim
           rejects "refuted with an integer" 'text|E3' add "attest(d1, disproof, c1, verdict(c1, refuted(5)), agent, '2026-10-15T10:00:00Z')"
           rejects "refuted with two arguments" 'must match|E3' add "attest(d1, disproof, c1, verdict(c1, refuted(a, b)), agent, '2026-10-15T10:00:00Z')"; }
-t_RF6() { mkclaim; local n=0 v
+t_RF6() { mkclaim; give_goal; local n=0 v
           for v in inconclusive abstained; do n=$((n+1)); oadd "attest(d$n, disproof, c1, verdict(c1, $v), agent, '2026-10-15T10:00:0${n}Z')"; rc_is 0 "disproof $v"; done
           for v in stated 'tested(7)'; do n=$((n+1)); oadd "attest(l$n, lean_result, c1, verdict(c1, $v), agent, '2026-10-15T10:00:0${n}Z')"; rc_is 0 "lean_result $v"; done
           is_false 'refuted(c1)' "none of these refutes"; okb --dir "$K" lint; rc_is 0; }
@@ -1226,7 +1236,7 @@ t_BP7() { kb_burndone "$T/k"; K=$T/k; add_proof "$K" p1 c1; sed -i '$ s/), scrip
           okb --dir "$K" lint; rc_is 1; out_has '^E8.*orbit-kb prove'; any_hasnt '^E9' "the log matches"; is_false 'burn_proved(c1)' "an agent cannot write a proof"
           mkclaim; rejects scripttype 'prove' attest lean_proof c1 "proof(c1, 'sha256:$(printf '%064d' 0)')"
           rejects scripttype 'prove' add "attest(p2, lean_proof, c1, proof(c1, 'sha256:$(printf '%064d' 0)'), script, '2026-10-15T10:00:00Z')"; }
-t_BP8() { kb_burndone "$T/k"; K=$T/k; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human; rc_is 0
+t_BP8() { kb_burndone "$T/k"; K=$T/k; give_goal; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human; rc_is 0
           is_true 'burn_waived(c1)'; is_false 'burn_open(c1)'; is_true 'done' "a human waived the proof"; is_false 'burn_proved(c1)'
           okb --dir "$K" report; rp_item c1 | grep -Eq 'NOT PROVED' || note "c1 block says NOT PROVED"; rp_item c1 | grep -Eq 'waived the proof until 2999-01-01' || note "c1 block says the waiver and its due time: $(snip "$(rp_item c1)")"; }
 t_BP9() { kb_burndone "$T/k"; K=$T/k; rejects agentwaiver 'writer|human' attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'x')"
@@ -1343,7 +1353,7 @@ EOF
 wv_add() {  # wv_add ID TARGET DUE [BY]: append a waiver to kb.pl
     printf "attest(%s, waiver, %s, waive(%s, '%s', 'Come back later'), %s, '2026-10-15T11:00:00Z').\n" "$1" "$2" "$2" "$3" "${4:-human}" >> "$K/kb.pl"
 }
-t_WV1() { kb_waive "$T/k"; K=$T/k
+t_WV1() { kb_waive "$T/k"; K=$T/k; give_goal
           is_true 'under(c1)' "setup"; is_true 'to_ask(q1)' "setup"; is_false 'done' "setup"
           okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'Check later')" --by human; rc_is 0 "a waiver on a check"
           okb --dir "$K" attest waiver q1 "waive(q1, '2999-01-01T00:00:00Z', 'Ask later')" --by human; rc_is 0 "a waiver on a question"
@@ -1475,7 +1485,7 @@ t_RW5() { okb help discovery; rc_is 0; any_has 'supersedes\(h[A-Za-z0-9]*, ?h' "
           okb help codes; rc_is 0; any_has 'W5 .*new check' "help codes: W5 says to add a new check"; }
 
 # ---- D17 (issue #1): done needs a current claim; report says nothing about questions that do not exist
-t_NC1() { K=$T/k; kb_init "$K" build
+t_NC1() { K=$T/k; kb_init "$K" build; give_goal
           is_false 'done' "a build KB with no claim is not done"; is_false 'any_current_claim'
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = absent ] || note "whynot done: first line '$(first_line)'"
           out_has 'no claim is current' "whynot done names the missing claim"; out_has 'some claim is current'
@@ -1483,10 +1493,11 @@ t_NC1() { K=$T/k; kb_init "$K" build
           add_result "$K" k1 1 pass
           is_true 'any_current_claim'; is_true 'done' "one fulfilled claim: done holds"
           okb --dir "$K" whynot 'done'; rc_is 0; [ "$(first_line)" = holds ] || note "whynot done after a claim: '$(first_line)'"; }
-t_NC2() { K=$T/k; kb_init "$K" build; okb --dir "$K" report; rc_is 0
+t_NC2() { K=$T/k; kb_init "$K" build; give_goal; okb --dir "$K" report; rc_is 0
           out_hasnt 'answered every question' "no question exists, so no human answered one"
-          rl_is "Guesses with no question" "  - None. No question has a default." "$(rp_sec Guesses)"
-          rl_is "Not checked with no claim" "  - None. No claim is current." "$(rp_sec 'Not checked')"
+          rl_is "Wanted with no question" "  - None. No question has a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
+          rl_is "Happens with no claim" "  - None. No claim is current." "$(rp_sub Happens)"
+          rl_is "Follows with no claim" "  - None. No claim has a formal statement." "$(rp_sub Follows)"
           rl_is "Open with no claim" "  - **no claim**: No claim is current
     - Add a claim. The work is not done without one." "$(rp_sec Open)"
           okb --dir "$K" show open; rc_is 0; out_has '^- no_claim: no claim is current' "show open names the missing claim"
@@ -1495,11 +1506,11 @@ t_NC2() { K=$T/k; kb_init "$K" build; okb --dir "$K" report; rc_is 0
           grep -q 'data-open="no_claim"' "$T/r.html" || note "the page lists the missing claim as an open item"; }
 t_NC3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, preserve, 'One stays true')" "cites(c1, 'Test request')" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Guesses with a claim and no question" "  - None. No question has a default." "$(rp_sec Guesses)"
+          rl_is "Wanted with a claim and no question" "  - None. No question has a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           out_hasnt 'no claim' "a current claim exists"
           oadd "question(q1, c1, 'Is it one')" "assumed(q1, yes)" "answer(q1, yes, human)" >/dev/null
           okb --dir "$K" report; rc_is 0
-          rl_is "Guesses when a human answered" "  - None. A human answered every question with a default." "$(rp_sec Guesses)"
+          rl_is "Wanted when a human answered" "  - None. A human answered every question with a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
           okb --dir "$K" show open; out_hasnt 'no_claim' "show open: a current claim exists"; }
 t_NC4() { K=$T/k; kb_init "$K" build; printf 'any_current_claim.\n' > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 1 "rules.pl cannot make a claim appear for done"; out_has '^E16 rules.pl'
@@ -1510,7 +1521,7 @@ t_NC5() { K=$T/k; kb_init "$K" discovery
 
 # ---- 0.3.0 K-A: the hypothesis and its premises in every KB (CONTRACT D30). hypothesis/3 is a core fact
 # with a fourth kind, change; premise/3, premise_checked/2, no_premises/1 and the query premise_unchecked/1;
-# lint W10; Guesses lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
+# lint W10; Residual lists unchecked premises and the defaults of the hypothesis; the discovery orbit is open
 # until the human approves the ticket after a GO (discovery_end/1), and again after a back attestation.
 DARK='With dark mode on, every screen shows a dark scheme.'
 hy_build() {  # hy_build DIR: a build KB with one claim, its example and its check
@@ -1570,19 +1581,22 @@ t_HY4() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, 
           is_false 'premise_unchecked(p1)' "a premise of a superseded hypothesis is not asked for"
           okb --dir "$K" lint; out_hasnt '^W10' "W10 names no superseded hypothesis"
           okb --dir "$K" report; rc_is 0
-          printf '%s\n' "$(rp_sec Guesses)" | grep -q 'settings page has a theme' && note "Guesses lists a premise of a superseded hypothesis"; true; }
+          printf '%s\n' "$(rp_sec Residual)" | grep -q 'settings page has a theme' && note "Residual lists a premise of a superseded hypothesis"; true; }
 t_HY5() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" \
               "premise(p1, h1, 'The app has one color scheme today.')" "premise(p2, h1, 'The app has twelve screens.')" \
               "premise_checked(p2, 'src/routes.ts:4')" >/dev/null
           oadd "question(q1, h1, 'Every screen, or only the settings page?')" "assumed(q1, 'all twelve screens')"; rc_is 0 "a question on the hypothesis marks its default"
           okb --dir "$K" report; rc_is 0
-          local g; g=$(rp_sec Guesses)
-          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Guesses lists the unchecked premise p1: [$g]"
-          printf '%s\n' "$g" | grep -q 'all twelve screens' || note "Guesses lists the default of the hypothesis: [$g]"
-          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Guesses lists a checked premise: [$g]"
-          printf '%s\n' "$g" | grep -q 'None' && note "Guesses says None: [$g]"
+          local g w; g=$(rp_sub Happens); w=$(rp_sub Wanted)
+          printf '%s\n' "$g" | grep -q 'p1.*The app has one color scheme today' || note "Happens lists the unchecked premise p1: [$g]"
+          printf '%s\n' "$w" | grep -q 'all twelve screens' || note "Wanted lists the default of the hypothesis: [$w]"
+          printf '%s\n' "$w" | grep -q 'p1' && note "Wanted lists a premise: [$w]"
+          printf '%s\n' "$g" | grep -q 'The app has twelve screens' && note "Happens lists a checked premise: [$g]"
+          printf '%s\n' "$g" | grep -q 'None' && note "Happens says None: [$g]"
+          printf '%s\n' "$w" | grep -q 'None' && note "Wanted says None: [$w]"
           oadd "premise_checked(p1, 'src/theme.css:1')" "answer(q1, 'all twelve screens', human)" >/dev/null
-          okb --dir "$K" report; rl_is "Guesses when each premise is checked and each default answered" "  - None. Each premise is checked, and a human answered every question with a default." "$(rp_sec Guesses)"; }
+          okb --dir "$K" report; rl_is "Wanted when each default is answered" "  - None. A human answered every question with a default, and no hypothesis waits for the human." "$(rp_sub Wanted)"
+          rp_sub Happens | grep -q '^  - None\. Each premise is checked, and ' || note "Happens when each premise is checked: [$(rp_sub Happens)]"; }
 t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
           oadd "hypothesis(h2, feature, 'With dark mode on, the settings page shows a dark scheme.')" "supersedes(h2, h1)"; rc_is 0 "a build KB restates its hypothesis"
           okb --dir "$K" lint; out_hasnt '^WD7' "no WD7 in a build KB"
@@ -1712,13 +1726,13 @@ t_KR1() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" "premise(p1, 
           oadd "hypothesis(h2, feature, 'With dark mode on, the settings page is dark.')" "supersedes(h2, h1)" "no_premises(h2)" >/dev/null
           okb --dir "$K" report; rp_sec Hypothesis | grep -qF "$DARK" && note "report: a superseded hypothesis is not the current one"
           rp_sec Hypothesis | grep -q 'settings page is dark' || note "report: the current hypothesis"
-          hy_build "$T/b3"; okb --dir "$K" report; rl_is "no hypothesis" "  - None. No hypothesis is recorded. Every ticket has one: add hypothesis(H, KIND, TEXT)." "$(rp_sec Hypothesis)"; }
+          hy_build "$T/b3"; okb --dir "$K" report; rl_is "no goal" "  - None. No goal is recorded. Every ticket has a goal: add goal(g1, KIND, AUTHOR, 'TEXT')." "$(rp_sec Hypothesis)"; }
 t_KR2() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
           rp_item c1 | grep -q 'Example: the reports page is dark' || note "report: the example under the claim: [$(snip "$(rp_item c1)")]"
           okb --dir "$K" show claims; rc_is 0; out_has '^  Example: the reports page is dark' "show claims: the example under the claim"; }
 t_KR3() { hy_build "$T/b"; okb --dir "$K" report; rc_is 0
-          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Guesses):' | sed 's/^# //' | paste -sd' ')
-          rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Guesses:" "$heads"
+          local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|KB|Signals|Claims|Formal|Residual|Disclosures):' | sed 's/^# //' | paste -sd' ')
+          rl_is "the fields of the delivery block, in its order" "Delivered: KB: Signals: Claims: Formal: Residual: Disclosures:" "$heads"
           rp_sec KB | grep -qF "$K" || note "KB names the KB directory: [$(rp_sec KB)]"
           rp_sec Signals | paste -sd' ' | grep -q 'questions.*divergence.*effort' || note "Signals names the six signals (D35: one line each): [$(rp_sec Signals)]"
           rl_is "Formal with no formal statement" "  - None. No claim has a formal statement." "$(rp_sec Formal)"
@@ -1747,7 +1761,7 @@ t_KR6() { hy_disc "$T/d"
                "finding(f1, surprise('a guest got 12 points in the model'), model)" "finding(f2, trace('the tier is read once a day'), system)" >/dev/null
           okb --dir "$K" report; rc_is 0
           local heads; heads=$(printf '%s\n' "$out" | grep -oE '^# [A-Za-z ]+:' | sed 's/^# //' | paste -sd'|')
-          rl_is "the sections of a discovery report" "Delivered:|KB:|Signals:|Hypothesis:|System:|Findings:|Claims:|Formal:|Scope:|Risk:|Not explored:|Guesses:|Disclosures:|Not checked:|Open:|Vote:|To land:" "$heads"
+          rl_is "the sections of a discovery report" "Delivered:|KB:|Signals:|Hypothesis:|System:|Findings:|Claims:|Formal:|Scope:|Risk:|Not explored:|Residual:|Disclosures:|Open:|Vote:|To land:" "$heads"
           rp_sec Hypothesis | grep -q 'The amount and the tier decide the points' || note "the hypothesis"
           rp_sec System | grep -q 'h1.*reproduced' || note "what the system showed: [$(rp_sec System)]"
           rp_item f1 | grep -q 'From a model only' || note "the finding f1 is marked as from a model only: [$(rp_sec Findings)]"
@@ -1837,7 +1851,48 @@ EOF
           okb --dir "$K" pin-request --request-file "$J" >/dev/null; op_named blocking ""
           op_project "$T/pc" human; K=$T/pc/sp; op_named blocking ""
           op_project "$T/pu" human; printf 'this is not (valid.\n' >> "$T/pu/p/kb.pl"; K=$T/pu/sp; op_named blocking ""
+          # 0.8.0 D67 (scientific-method-overhaul c17): a ticket goal that contradicts a project goal
+          op_project "$T/pg" human; K=$T/pg/sp
+          oadd "goal(g9, feature, human, 'A goal that contradicts.')" "no_premises(g9)" "contradicts(g9, project(pg1))" >/dev/null; op_named blocking ""
+          # 0.8.0 (D57 to D61; scientific-method-overhaul c7, c9, c10, c16, c39, c42): the kinds of stage 2
+          kb_new "$T/s2" <<'EOF'
+uses([build]).
+% Made by orbit-kb 0.8.0.
+request(r1, 'Stage 2').
+goal(g0, feature, human, 'Text of g0').
+claim(c5, preserve, 'Text of c5 not carried').
+check(k5, c5).
+EOF
+          K=$T/s2; add_result "$K" k5 1 pass
+          cat >> "$K/kb.pl" <<'EOF'
+goal(g1, feature, human, 'Text of g1').
+supersedes(g1, g0).
+carried(c5, g1).
+hypothesis(hy1, g1, agent, 'Text of hy1').
+claim(c1, preserve, 'Text of c1 unresolved').
+claim(c2, preserve, 'Text of c2 stale').
+claim(c3, preserve, 'Text of c3 conflict').
+claim(c4, preserve, 'Text of c4 located').
+check(k1, c1).
+check(k2, c2).
+check(k3, c3).
+check(k4, c4).
+behavior_conflict(b1, 'Text of b1').
+EOF
+          add_result "$K" k1 2 unresolved; add_result "$K" k2 3 pass; add_result "$K" k3 4 fail; add_result "$K" k4 5 fail
+          cat >> "$K/kb.pl" <<'EOF'
+unresolved_because(t2, 'the check could not decide (exit 77)').
+change(x1, 'Text of x1').
+serves(x1, c2).
+change_at(x1, '2026-10-15T10:00:30Z').
+attest(l1, location, t5, located(measurement, 'a second clock'), agent, '2026-10-15T10:00:31Z').
+attest(j1, judgment, g1, case('Text of j1', not_wanted), human, '2026-10-15T10:00:32Z').
+EOF
+          op_named blocking ""
           op_cover blocking; }
+# judge_goal [GOAL]: the human judges that the goal is satisfied (0.8.0, D59; scientific-method-overhaul
+# c41). A test that means "everything is done" on a KB with a goal records this judgment.
+judge_goal() { okb --dir "$K" attest judgment "${1:-h1}" satisfied --by human >/dev/null; rc_is 0 "the human judges the goal ${1:-h1} satisfied"; }
 op_project() {  # op_project DIR BY: a project KB with excludes(d1, d2), and a spec KB in DIR/sp whose fulfilled claim pins d1
     local P=$1/p S=$1/sp
     okb init "$P" --request project --uses project >/dev/null; K=$P
@@ -1970,9 +2025,9 @@ op5_case() {  # op5_case NAME: make the KB of the example NAME in $T/NAME; K is 
     local n=$1
     case $n in
         hypothesis_only) kb_init "$T/$n" discovery; K=$T/$n; oadd "hypothesis(h1, defect, 'The amount and the tier decide the points.')" >/dev/null ;;
-        contradiction) op_project "$T/$n" human; K=$T/$n/sp ;;
+        contradiction) op_project "$T/$n" human; K=$T/$n/sp; give_goal ;;   # review G1: a goal judged satisfied
         done) kb_done "$T/$n"; K=$T/$n ;;
-        under_never_ran) hy_build "$T/$n" ;;
+        under_never_ran) hy_build "$T/$n"; give_goal ;;
         no_example) hy_disc "$T/$n"; oadd "claim(c2, introduce, 'A refund takes the points back.')" "cites(c2, 'Test request')" "check(t2, c2)" "checks_that(t2, 'the check t2 tests the claim')" >/dev/null ;;
         preserve_fails) hy_disc "$T/$n"
             oadd "claim(c2, preserve, 'A purchase by a guest gets no points.')" "cites(c2, 'Test request')" \
@@ -2163,7 +2218,7 @@ prove_rejects() {  # prove_rejects LABEL MSG_RE FILE THEOREM: prove exits 1, say
     ls "$K"/runs/proof-* >/dev/null 2>&1 && note "$label: a proof log exists"
     return 0
 }
-t_PV1() { lean_proj || return 0; is_true 'burn_open(c1)'
+t_PV1() { lean_proj || return 0; give_goal; is_true 'burn_open(c1)'
           okb --dir "$K" prove c1 "$LP/Fx/Good.lean" load_linear; rc_is 0 "a real proof"; out_has '^Statement: .*loadSteps n ≤ n'
           has_fact "$K/kb.pl" "attest(a1, lean_proof, c1, proof(c1, _), script, _)"
           okb --dir "$K" lint; rc_is 0 "lint after prove"; is_true 'burn_proved(c1)'; is_false 'burn_open(c1)'
@@ -2275,7 +2330,7 @@ t_VN3() { local v h; v=$(vn_want); h=$T/hub/.claude/orbit-kb
 # SG (D35, c_k_g_1 to c_k_g_4b): signals have records. signal(Id, Kind, NoticedBy, Text), lean_back(Id, Text),
 # a decision of the human in their words is a further request; report Signals is drafted from the records.
 SG_SIG="signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
-t_SG1() { hy_build "$T/b"
+t_SG1() { hy_build "$T/b"; give_goal
           oadd "$SG_SIG"; rc_is 0 "signal/4 is a declared fact"; any_hasnt 'new predicate|first use' "signal is no first use"
           has_fact "$K/kb.pl" "signal(s1, divergence, system1, 'the suite showed 8 tests, not 7')"
           local k; for k in questions built_by_other burn handoff effort; do oadd "signal(x_$k, $k, agent, 'case')"; rc_is 0 "the kind $k"; done
@@ -2335,15 +2390,19 @@ t_HE1() { local hb; hb=$(he_text build)
           grep -qiP 'cannot tell.{0,200}divergence' <<< "$hb" || note "help build: if you cannot tell, say so, and treat it as a divergence"; }
 t_HE2() { local hb hd h0; hb=$(he_text build); hd=$(he_text discovery); okb help; h0=$out
           grep -qF 'If the problem is wrong, run orbit-kb uses discovery, and go back to discovery' <<< "$hb" && note "help build sends every wrong problem back to discovery"
-          grep -qE 'supersedes\(h2, ?h1\)' <<< "$hb" || note "help build has the recipe to restate the hypothesis: supersedes(h2, h1)"
-          grep -qiE 'no longer say what (the hypothesis|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the hypothesis changes to"
+          grep -qE 'supersedes\(g2, ?g1\)' <<< "$hb" || note "help build has the recipe for a goal that the human corrects: supersedes(g2, g1) (0.8.0 review H1)"
+          grep -qE 'carried\(' <<< "$hb" || note "help build carries over what still counts to the new goal (0.8.0 review H1)"
+          grep -qiE 'restate it: the new hypothesis|"hypothesis\(h2,' <<< "$hb" && note "help build tells build to restate a hypothesis (0.8.0 review H1)"
+          grep -qiP 'locate the conflict first.{0,300}in the build.{0,200}hypothesis stays current' <<< "$hb" || note "help build: locate first; in the build the hypothesis stays current (0.8.0 review H1)"
+          grep -qiP 'in a premise or in the hypothesis.{0,400}defeated.{0,200}discovery' <<< "$hb" || note "help build: located in a premise or the hypothesis, it is defeated and goes to discovery (0.8.0 review H1)"
+          grep -qiE 'no longer say what (the hypothesis|the goal|it) changes to' <<< "$hb" || note "help build: discovery only when you can no longer say what the goal changes to"
           grep -qF 'When a divergence shows that the problem is wrong, not the build, file a disclosure, and run orbit-kb uses discovery' <<< "$hd" && note "help discovery BACK takes every wrong problem back"
           grep -qiP 'BACK.{0,400}no longer say what' <<< "$hd" || note "help discovery BACK: only when the agent can no longer say what the hypothesis changes to"
           grep -qF '"why?" question' <<< "$h0" && note "the first help screen sends a why? question to discovery"
           grep -qF 'you no longer agree with the human on the problem' <<< "$(tr '\n' ' ' <<< "$h0" | tr -s ' ')" && note "the first help screen sends a disagreement on the problem to discovery"
           return 0; }
 t_HE3() { local hd; hd=$(he_text discovery)
-          grep -qF 'two falsifiers' <<< "$hd" || note "help discovery: the hypothesis has two falsifiers"
+          grep -qF 'two levels of judgment' <<< "$hd" || note "help discovery: two levels of judgment (0.8.0, scientific-method-overhaul c10; two falsifiers before)"
           grep -qiF 'the system is the witness' <<< "$hd" && grep -qiF 'the human is the witness' <<< "$hd" || note "help discovery: each falsifier has its witness, the system and the human"
           grep -qF 'Then say that the system can fail to give it' <<< "$hd" && note "help discovery still puts the failure into the hypothesis"
           grep -qF 'decide its points. Some purchases get a different' <<< "$hd" && note "the example hypothesis still holds the finding"
@@ -2352,7 +2411,8 @@ t_HE3() { local hd; hd=$(he_text discovery)
           grep -qF 'in the scope of the report' <<< "$hd" && note "help discovery says scope"
           grep -qiE '\bwide\b' <<< "$hd" || note "help discovery: the hypothesis is wide"
           grep -qF 'backbone of discovery' <<< "$hd" && note "help discovery: the backbone of discovery"
-          grep -qiE 'law of (its|the|every) ticket' <<< "$hd" || note "help discovery: the hypothesis is the law of its ticket"
+          grep -qiE 'law of (its|the|every) ticket|closest statement of the intent' <<< "$hd" && note "help discovery still holds the old definition (scientific-method-overhaul c11)"
+          grep -qiF 'the claims, the checks, and the vote rest on it' <<< "$hd" || note "help discovery: the claims, the checks, and the vote rest on the statement"
           kb_init "$T/k" discovery; okb --dir "$K" show kinds; out_hasnt 'falsifiable and scoped' "show kinds: hypothesis/3 is not scoped"; }
 t_HE4() { local hd; hd=$(he_text discovery)
           grep -qF 'and the rules alone in SMT, with the same claim ids' <<< "$hd" && note "SPECTRUM writes one claim in two formal languages by default"
@@ -2394,7 +2454,7 @@ t_SF1() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "shift writes a KB"
           has_fact "$K/kb.pl" "premise(p1, h1, 'the app has a theme switch')"; has_fact "$K/kb.pl" "premise(p2, h1, 'the screens use the theme colors')"
           no_fact "$K/kb.pl" "no_premises(_)"
           okb --dir "$K" lint; rc_is 0 "lint accepts the KB with premises"
-          okb --dir "$K" report; rp_sec Guesses | grep -q 'p1' || note "an unchecked premise is a guess"; }
+          okb --dir "$K" report; rp_sub Happens | grep -q 'p1' || note "an unchecked premise is in Residual, Happens"; }
 t_SF2() { sf_shift "$T/a"; rc_is 2 "neither --no-premises nor --premise"; [ -e "$T/a" ] && note "a usage error leaves no directory"
           sf_shift "$T/b" --no-premises --premise 'x'; rc_is 2 "both --no-premises and --premise"
           okb shift "$T/c" --request-file "$T/req.txt" --no-premises --claim x --example y --check k1; rc_is 2 "no --hypothesis"
@@ -2413,6 +2473,44 @@ t_SF3() { okb help shift; rc_is 0 "help shift"
           okb shift --help; rc_is 0; out_has 'orbit-kb shift'
           okb help; out_has 'help shift' "the first help screen names the topic"; out_has '^ +shift DIR' "the command list names shift"; }
 
+# SF10, SF11 (0.8.0, review H1): shift --goal writes the goal and the hypothesis under it; a call
+# with --hypothesis and no --goal keeps the result of 0.7.2 and prints the note on hypothesis/3.
+t_SF10() { K=$T/g; sf_shift "$K" --goal 'Every screen can be dark' --hypothesis2 x 2>/dev/null; rc_is 2 "an unknown option is a usage error"
+          printf 'add a dark mode\n' > "$T/req.txt"
+          okb shift "$K" --request-file "$T/req.txt" --goal 'Every screen can be dark' --goal-by human \
+              --hypothesis 'A theme switch makes every screen dark' --defeating-case 'a screen stays light after the switch' \
+              --premise 'the app has a theme switch' --claim 'the reports page is dark' --example 'the reports page is dark' \
+              --check k1 --checks-that 'the reports page is dark'; rc_is 0 "shift --goal writes a KB"
+          has_fact "$K/kb.pl" "goal(g1, feature, human, 'Every screen can be dark')" "goal/4 in the human's words"
+          has_fact "$K/kb.pl" "hypothesis(hy1, g1, human, 'A theme switch makes every screen dark')" "hypothesis/4 under the goal"
+          has_fact "$K/kb.pl" "defeating_case(hy1, human, 'a screen stays light after the switch')" "the defeating case"
+          has_fact "$K/kb.pl" "premise(p1, g1, 'the app has a theme switch')" "the premise is on the goal"
+          has_fact "$K/kb.pl" "predicts(hy1, c1)" "review S1: predicts"; no_fact "$K/kb.pl" "no_premises(_)" "a --premise adds no no_premises"
+          no_fact "$K/kb.pl" "hypothesis(_, _, _)" "no hypothesis/3"
+          out_has "^goal\(g1, feature, human, 'Every screen can be dark'\)\.$" "stdout lists the goal"
+          any_hasnt 'hypothesis/3 is the 0.7.2 form' "no note: no hypothesis/3 was written"
+          okb --dir "$K" lint; rc_is 0 "lint accepts the KB"
+          K=$T/a; okb shift "$K" --request-file "$T/req.txt" --goal 'G' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 0; has_fact "$K/kb.pl" "goal(g1, feature, agent, 'G')" "--goal-by is agent by default"; has_fact "$K/kb.pl" "no_premises(g1)"
+          has_fact "$K/kb.pl" "hypothesis(hy1, g1, agent, 'H')"; no_fact "$K/kb.pl" "defeating_case(_, _, _)" "no defeating case without --defeating-case"
+          has_fact "$K/kb.pl" "no_premises(hy1)" "review S1: --no-premises also on the hypothesis"; has_fact "$K/kb.pl" "predicts(hy1, c1)" "review S1: the claim is a prediction of hy1"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W10 ' "review S1: no W10 after shift --goal --no-premises"; out_hasnt '^W16 ' "review S1: no W16 after shift --goal"
+          K=$T/pr; okb shift "$K" --request-file "$T/req.txt" --goal 'G' --hypothesis 'H' --no-premises --claim x --label preserve --example y --check k1 --checks-that z
+          rc_is 0 "a preserve claim"; no_fact "$K/kb.pl" "predicts(_, _)" "review S1: a preserve claim stays on the goal"
+          okb --dir "$K" lint; rc_is 0; out_hasnt '^W16 ' "no W16 for a preserve claim"
+          okb shift "$T/b" --request-file "$T/req.txt" --goal 'G' --goal-by robot --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 2 "--goal-by takes human or agent"; [ -e "$T/b" ] && note "a usage error leaves no directory"
+          okb shift "$T/c" --request-file "$T/req.txt" --defeating-case 'D' --hypothesis 'H' --no-premises --claim x --example y --check k1 --checks-that z
+          rc_is 2 "--defeating-case needs --goal"; [ -e "$T/c" ] && note "a usage error leaves no directory"; }
+t_SF11() { K=$T/s; sf_shift "$K" --no-premises; rc_is 0 "the 0.7.2 call"
+          local want; want=$(printf '%s\n' "$K/kb.pl" "hypothesis(h1, feature, '$DARK')." "no_premises(h1)." "claim(c1, introduce, '$DARK')." \
+              "cites(c1, 'add a dark mode')." "example(c1, 'the reports page is dark')." "check(k1, c1)." "checks_that(k1, 'the reports page is dark').")
+          [ "$out" = "${want%$'\n'}" ] || note "stdout is that of 0.7.2: [$(snip "$out")]"
+          has_fact "$K/kb.pl" "hypothesis(h1, feature, _)" "hypothesis/3 as at 0.7.2"
+          no_fact "$K/kb.pl" "goal(_, _, _, _)" "no goal/4 fact"; no_fact "$K/kb.pl" "hypothesis(_, _, _, _)" "no hypothesis/4 fact"
+          err_has '^note: hypothesis/3 is the 0.7.2 form of the goal\.' "the note on hypothesis/3"
+          err_has '^Next: orbit-kb --dir .* run k1' "the Next line of 0.7.2"; }
+
 # WJ (D39, c_k_j_1 to c_k_j_3): one meaning for each word of the tool. "signal" is one of the six
 # signals (the move is RESTATE); "Lean definitions", not "Lean model" (the names burn_model and
 # BurnModel stay); the fix for E19 is orbit-kb withdraw NAME/ARITY, not an edit of kb.pl.
@@ -2424,7 +2522,7 @@ t_WJ2() { local t; for t in build core discovery project codes shift; do okb hel
           kb_init "$T/b" build; K=$T/b; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (build)"; any_has 'Lean definitions' "conformance names the Lean definitions"
           kb_init "$T/d" discovery,build,project; K=$T/d; okb --dir "$K" show kinds; any_hasnt 'Lean model' "show kinds (all modules)"
           [ -d "$here/burn_model" ] || note "kb/tests/burn_model keeps its name"; }
-t_WJ3() { K=$T/k; kb_init "$K" build; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
+t_WJ3() { K=$T/k; kb_init "$K" build; give_goal; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
           oadd "cited(c1, 'x')" "cited(c1, 'y')" >/dev/null
           okb --dir "$K" lint; out_has '^E19 .*cited/2.*cites/2' "setup: E19"
           okb --dir "$K" withdraw cited/2; rc_is 0 "withdraw removes the kind that a typo declared"
@@ -2458,6 +2556,8 @@ t_SF4() { printf 'FAIL test_dark_mode: the reports page is light\n' > "$T/red.tx
           rp_sec Disclosures | grep -q 'the reports page is light' || note "report Disclosures: the output of the red run"
           printf '%s\n' "$out" | grep -qiE 'undo|revert' && note "the report asks the agent to undo the change"
           okb --dir "$K" attest waiver k1 "waive(k1, '2999-01-01T00:00:00Z', 'The agent saw it red before the KB.')" --by human >/dev/null
+          is_false 'done' "0.8.0 (c41): with the waiver and no judgment of the goal, the ticket is not done"
+          judge_goal h1
           is_true 'done' "a human waiver of the check covers the claim"
           okb --dir "$K" report; rp_item c1 | grep -q 'not shown red by the tool' || note "report: still not shown red, with the waiver: [$(rp_item c1)]"; }
 t_SF5() { sf_shift "$T/a" --no-premises --red-log "$T/none.txt"; rc_is 1 "a red log that does not exist"; [ -e "$T/a/kb.pl" ] && note "a missing red log leaves no KB"
@@ -2480,11 +2580,13 @@ mf_model() {  # mf_model RESULT: model m1 (smt) encodes c1 in $K, a current run 
     oadd "model_run(log1, m1, '$dg')"; rc_is 0 "model_run/3"
     okb --dir "$K" attest model_result log1 'verdict(m1, sanity, sat)'; rc_not 2 "a sanity verdict"
     okb --dir "$K" attest model_result log1 "verdict(m1, preserve(c1), $1)"; rc_is 0 "a model_result attestation"; }
-t_MF1() { hy_build "$T/b"; mf_model unsat
+t_MF1() { hy_build "$T/b"; give_goal; mf_model unsat
           has_goal "$K/kb.pl" "kb(attest(_, model_result, log1, verdict(m1, preserve(c1), unsat), agent, _))" "the attestation is written"
           okb --dir "$K" lint; rc_is 0 "lint of a build KB with a model"
           okb --dir "$K" show kinds; out_has '^- model/2:' "show kinds lists model/2 in a build KB"
-          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1' && note "a build KB reads no model into Formal (the discovery module drafts it)"
+          okb --dir "$K" report; rp_sec Formal | grep -q 'model m1 (' && note "a build KB drafts no model line with the tool and the property into Formal (the discovery module drafts it)"
+          # D73 (review H-0136 step 1): Formal names each formal statement that Residual, Follows names; a build KB names the model in one plain line
+          rp_sec Formal | grep -Eq '^  - c1: model m1 states it\. (No trusted model decided it|A trusted model decided it)\.$' || note "Formal names the model that states c1: [$(rp_sec Formal | tr '\n' '~')]"
           kb_init "$T/n" ""; K=$T/n; oadd "claim(c1, introduce, 'x')" "cites(c1, 'Test request')" >/dev/null
           printf '(check-sat)\n' > "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
           oadd "model(m1, smt)" "encodes(m1, c1)"; rc_is 0 "a KB with no module takes them too"; }
@@ -2524,24 +2626,24 @@ mf_claim2() {  # mf_claim2: claim c2 supersedes c1 in $K, with its example and i
     oadd "claim(c2, introduce, 'With dark mode on, each screen is dark.')" "cites(c2, 'Test request')" "example(c2, 'the reports page is dark')" \
          "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" "supersedes(c2, c1)" >/dev/null || note "setup: claim c2: $(snip "$out$err")"
     mf_green k2; }
-t_MF3() { hy_build "$T/b"; mf_contest c1; mf_green k1
+t_MF3() { hy_build "$T/b"; give_goal; mf_contest c1; mf_green k1
           is_true 'burn_open(c1)' "contested twice and no formal statement: the burn is open"; is_false 'done'
           mf_trusted c1 unsat
           is_true 'model_trusted(m1)' "a sane and calibrated model is trusted in a KB that uses build"
           is_true 'burn_model_closed(c1)' "a counted solver result closes the burn"
           is_false 'burn_open(c1)' "a counted solver result closes a claim that was contested twice"; is_true 'done'
-          hy_build "$T/u"; mf_contest c1; mf_green k1; mf_model unsat
+          hy_build "$T/u"; give_goal; mf_contest c1; mf_green k1; mf_model unsat
           is_false 'model_trusted(m1)' "setup: a model with no calibration is not trusted"
           is_true 'burn_open(c1)' "an untrusted model closes nothing"
-          hy_build "$T/x"; mf_contest c1; mf_green k1; mf_trusted c1 unknown
+          hy_build "$T/x"; give_goal; mf_contest c1; mf_green k1; mf_trusted c1 unknown
           is_true 'burn_open(c1)' "an unknown result closes nothing"
-          hy_build "$T/s"; mf_contest c1; mf_green k1; mf_trusted c1 unsat
+          hy_build "$T/s"; give_goal; mf_contest c1; mf_green k1; mf_trusted c1 unsat
           printf '; edited\n' >> "$K/m1.smt"; okb --dir "$K" subject m1 "$K/m1.smt" >/dev/null
           is_true 'burn_open(c1)' "a result on a run of an older digest of the model closes nothing"
           hy_build "$T/k"; mf_contest c1; mf_green k1; mf_trusted c1 sat
           is_true 'model_breaks(m1, c1)' "setup: sat on preserve(c1) is a case that breaks c1"
           is_true 'burn_open(c1)' "a counted case that breaks the claim closes nothing"
-          hy_build "$T/w"; mf_contest c1; mf_green k1
+          hy_build "$T/w"; give_goal; mf_contest c1; mf_green k1
           okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship before the demo')" --by human >/dev/null
           is_false 'burn_open(c1)' "a human waiver still closes it"; is_true 'done'; }
 t_MF4() { hy_build "$T/u"; mf_contest c1; oadd 'universal(c1)' >/dev/null; mf_green k1; mf_trusted c1 unsat
@@ -2651,13 +2753,13 @@ t_FL1() { fl_kb; is_true 'flare(c1)'; is_set 'flare_open(X)' 'X = c1'; is_true a
           is_false 'done' "c1 is visual and no human approved a demo (F5)"; is_false 'burn(c1)' "visual alone does not burn"
           okb --dir "$K" show open; rc_is 0; out_has '^- flare_open c1: claim c1 needs a human to approve a demo\.'
           okb --dir "$K" lint; rc_is 0 "visual/1 and demo/2 are declared"; }
-t_FL2() { fl_kb; fl_demo; is_true 'flare_open(c1)' "a demo with no approval does not close the flare"
+t_FL2() { fl_kb; give_goal; fl_demo; is_true 'flare_open(c1)' "a demo with no approval does not close the flare"
           okb --dir "$K" attest approval s1 'digest(current)' --by human; rc_is 0
           is_true 'flare_shown(c1)'; is_false 'flare_open(c1)'; is_true 'done' "a human approved the demo (F3)"; }
 t_FL3() { fl_kb; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
           printf 'png v2\n' > "$K/shot.png"; okb --dir "$K" subject s1 shot.png >/dev/null
           is_false 'flare_shown(c1)' "the approval names the old digest"; is_true 'flare_open(c1)'; is_false 'done' "a new screenshot reopens the flare (F3)"; }
-t_FL11() { fl_kb; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
+t_FL11() { fl_kb; give_goal; fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
            is_true 'done' "setup: the approved demo closes the flare"; is_false 'demo_changed(s1)'
            cp "$K/shot.png" "$T/shot.keep"; printf 'png v2, edited on disk\n' > "$K/shot.png"
            is_true 'demo_changed(s1)' "the file differs from its recorded digest (F3b)"
@@ -2668,15 +2770,15 @@ t_FL4() { fl_kb; fl_demo; rejects agentok 'writer|human' attest approval s1 'dig
           local d; d=$(sha "$K/shot.png")
           printf "attest(a9, approval, s1, digest('sha256:%s'), agent, '2026-10-15T11:00:00Z').\n" "$d" >> "$K/kb.pl"
           okb --dir "$K" lint; rc_is 1; out_has '^E8'; is_false 'flare_shown(c1)' "an agent cannot approve a demo"; is_false 'done'; }
-t_FL5() { fl_kb; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship first')" --by human; rc_is 0
+t_FL5() { fl_kb; give_goal; okb --dir "$K" attest waiver c1 "waive(c1, '2999-01-01T00:00:00Z', 'Ship first')" --by human; rc_is 0
           is_true 'flare_waived(c1)'; is_false 'flare_open(c1)'; is_true 'done' "a human waived the demo (F4)"
-          fl_kb; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old'), human, '2019-12-01T00:00:00Z').\n" >> "$K/kb.pl"
+          fl_kb; give_goal; printf "attest(w1, waiver, c1, waive(c1, '2020-01-01T00:00:00Z', 'Old'), human, '2019-12-01T00:00:00Z').\n" >> "$K/kb.pl"
           is_false 'flare_waived(c1)'; is_true 'flare_open(c1)' "a lapsed waiver does not count"; is_false 'done'; }
 t_FL6() { kb_burn "$T/k"; K=$T/k; printf "visual(c1).\n" >> "$K/kb.pl"
           is_false 'burn(c1)' "a visual claim contested twice does not burn (F6)"; is_true 'flare(c1)'
           is_set 'burn(X)' 'X = c3|X = c4'; printf "visual(c3).\nvisual(c4).\n" >> "$K/kb.pl"
           is_set 'burn(X)' 'X = c3|X = c4' "universal and burn_requested still burn a visual claim"; }
-t_FL7() { kb_burndone "$T/k"; K=$T/k; printf "visual(c1).\n" >> "$K/kb.pl"; add_proof "$K" p1 c1
+t_FL7() { kb_burndone "$T/k"; K=$T/k; give_goal; printf "visual(c1).\n" >> "$K/kb.pl"; add_proof "$K" p1 c1
           is_true 'burn_proved(c1)'; is_true 'flare_open(c1)' "a proof does not show the look (F2)"; is_false 'done'
           fl_demo; okb --dir "$K" attest approval s1 'digest(current)' --by human >/dev/null
           is_false 'flare_open(c1)'; is_true 'done' "proved and shown"; }
@@ -2831,7 +2933,7 @@ t_D7d() { # D7: not before the positive literal that binds its variable; SWI mov
     okb --dir "$K" lint; rc_is 0 "X occurs in the positive literal w(X): safe, no lint error"; out_hasnt '^E14' "no E14"; }
 t_E14() { fx_lint e14_unsafe_neg E14; }
 t_RC() { # D7: 8 concurrent runs on one KB (kb.lock): run numbers 1..8, unique ids, one matching log per run
-    mkclaim; local i pids=() rcs=() cmd n r line
+    mkclaim; give_goal; local i pids=() rcs=() cmd n r line
     for i in 1 2 3 4 5 6 7 8; do
         cmd=true; [ $((i % 2)) = 0 ] && cmd=false
         ( cd "$T" && exec timeout "$TMO" "$OKB" --dir "$K" run k1 -- "$cmd" ) >"$T/.c$i" 2>&1 </dev/null &
@@ -2869,11 +2971,11 @@ t_SH5() { copy_fixture w6_extension "$T/k"; K=$T/k; okb --dir "$K" show extensio
 t_SH6() { valid_copy; okb --dir "$K" show; rc_is 0; out_has 'c1'; okb --dir "$K" show all; rc_is 0; out_has 'q1'; }
 t_SH7() { valid_copy; okb --dir "$K" show bogus; rc_is 2; }
 t_RP1() { valid_copy; okb --dir "$K" report; rc_is 0
-          local order; order=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|Claims|Guesses|Disclosures|Not checked|Open|To land):' | sed 's/^# //' | paste -sd' ')
-          [ "$order" = "Delivered: Claims: Guesses: Disclosures: Not checked: Open: To land:" ] || note "sections: [$order]"; }
+          local order; order=$(printf '%s\n' "$out" | grep -oE '^# (Delivered|Claims|Guesses|Residual|Disclosures|Not checked|Open|To land):' | sed 's/^# //' | paste -sd' ')
+          [ "$order" = "Delivered: Claims: Residual: Disclosures: Open: To land:" ] || note "sections: [$order]"; }
 t_RP2() { kb_overunder "$T/k"; K=$T/k; okb --dir "$K" report; rc_is 0; rp_item c1 | grep -q 'Status: under' || note "c1 is under: $(snip "$out")"; rp_item c2 | grep -q 'fulfilled' || note "c2 is fulfilled: $(snip "$out")"; out_has 'x2' "over change in Open"; }
-t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Guesses:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is a guess: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human, not a guess"; true; }
-t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Not checked:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
+t_RP3() { valid_copy; okb --dir "$K" report; local g; g=$(rp_sub Wanted); printf '%s\n' "$g" | grep -q q2 || note "q2 (default never answered by a human) is in Residual, Wanted: [$g]"; printf '%s\n' "$g" | grep -q 'q1' && note "q1 was answered by a human: it is not residual"; true; }
+t_RP4() { kb_overunder "$T/k"; K=$T/k; printf "claim(c3, preserve, 'No check').\ncites(c3, 'Change things').\n" >> $K/kb.pl; okb --dir "$K" report; local g; g=$(rp_sub Happens); printf '%s\n' "$g" | grep -q c3 || note "c3 has no check: [$g]"; printf '%s\n' "$g" | grep -q 'c2' && note "c2 has a check"; true; }
 t_RP5() { valid_copy; okb --dir "$K" report; local g; g=$(printf '%s\n' "$out" | awk '/^# Disclosures:/{f=1;next} /^# /{f=0} f'); printf '%s\n' "$g" | grep -Eq 'a5|a6|Not measured|slow disk' || note "disclosures missing: [$g]"; }
 t_RP6() { kb_new "$T/k" <<'EOF'
 uses([]).
@@ -2905,6 +3007,8 @@ EOF
     printf '%s\n' "$o" | grep -q 'Discovery is not ready, no_falsifier c1' || note "Open names the claim with no falsifier: [$o]"; true; }
 rp_sec() {  # rp_sec NAME: the lines of one section of $out, without its heading
     printf '%s\n' "$out" | awk -v h="# $1:" '$0==h {f=1; next} /^# / {f=0} f'; }
+rp_sub() {  # rp_sub NAME: the lines of one list of the Residual section of $out (Wanted, Happens, Follows), two spaces less deep
+    printf '%s\n' "$out" | awk -v h="  - **$1:**" '/^# Residual:/ {s=1; next} /^# / {s=0} s && $0==h {f=1; next} s && /^  - \*\*/ {f=0} s && f {print substr($0, 3)}'; }
 rp_item() {  # rp_item ID: the first bullet of $out that starts with ID, and the lines nested under it
     printf '%s\n' "$out" | awk -v id="$1" 'BEGIN {p = "  - " id}
         !f && substr($0, 1, length(p)) == p && substr($0, length(p) + 1, 1) ~ /[ :]/ {f=1; print; next}
@@ -2914,13 +3018,13 @@ rl_is() {  # rl_is LABEL WANT GOT: exact text
 t_RL1() { # headings: "# Name:" in contract order, one blank line before each but the first, no trailing blank line
     rh_kb report_review; okb --dir "$K" report; rc_is 0
     local heads; heads=$(printf '%s\n' "$out" | grep -E '^# ' | paste -sd'|')
-    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Guesses:|# Disclosures:|# Waivers:|# Not checked:|# Open:|# To land:" "$heads"
+    rl_is "headings" "# Delivered:|# KB:|# Signals:|# Hypothesis:|# Claims:|# Formal:|# Residual:|# Disclosures:|# Waivers:|# Open:|# To land:" "$heads"
     printf '%s\n' "$out" | grep -qE '^[A-Z][A-Za-z ]*:$' && note "a heading without the # mark"
     local n; n=$(printf '%s\n' "$out" | awk '/^# / && NR > 1 && prev != "" {bad++} {prev = $0} END {print bad + 0}')
     rl_is "a blank line before every heading but the first" 0 "$n"
     [ "$(printf '%s\n' "$out" | sed -n 1p)" = "# Delivered:" ] || note "the first line is the Delivered heading"
     [ -n "$(printf '%s\n' "$out" | tail -n 1)" ] || note "the last line is blank"
-    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 11 ] || note "want exactly 11 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
+    [ "$(printf '%s\n' "$out" | grep -c '^$')" = 10 ] || note "want exactly 10 blank lines (one between sections), got $(printf '%s\n' "$out" | grep -c '^$')"
     rh_kb discovery; okb --dir "$K" report; rc_is 0; out_has '^# Vote:' "the Vote heading"; }
 t_RL2() { # every other line is a bullet at two spaces plus two per level; no tabs, no colour codes, no box drawing
     local k bl
@@ -2939,10 +3043,12 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
     rl_is "c1 (fulfilled, with its example)" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
+    - Control of check k1: not seen.
     - Checks: k1 (passed)." "$(rp_item c1)"
+    # 0.8.0 (scientific-method-overhaul c7, c9): the latest run of k2 conflicts, and report says so.
     rl_is "c2 (under)" "  - c2 **preserve**: Loading stays fast
-    - Status: under.
-      - It is not fulfilled yet.
+    - Status: conflicts.
+      - The last run of check k2 (t3) conflicts with the claim. The conflict has no location yet.
     - Checks: k2 (not passed)." "$(rp_item c2)"
     rl_is "c3 (burn waived)" "  - c3 **preserve**: Every saved widget loads back the same
     - Status: fulfilled.
@@ -2971,18 +3077,88 @@ t_RL3() { # a fulfilled claim with nothing to add stays on one line; a claim tha
       - The proof is about the Lean definitions, not the code. No conformance check carries the examples of the definitions to the code.
     - Checks: k2 (passed)." "$(rp_item c2)"
     rl_is "no line of a one-line claim is over 100 columns" 0 "$(printf '%s\n' "$out" | awk '/^  - c[0-9]+ \*\*[a-z]+\*\*: .*Status: fulfilled\. / && length($0) > 100 {n++} END {print n + 0}')"; }
+t_RS1() { # philosophy-3 c2: the control of each check of a claim that is not a preserve claim, and known_when
+    K=$T/k; kb_init "$K" build; give_goal
+    oadd "claim(c1, introduce, 'One')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'one')" \
+         "claim(c2, introduce, 'Two')" "cites(c2, 'Test request')" "check(k2, c2)" "checks_that(k2, 'two')" \
+         "claim(c3, preserve, 'Three')" "cites(c3, 'Test request')" "check(k3, c3)" "checks_that(k3, 'three')" >/dev/null
+    orun k1 -- false; orun k2 -- true; orun k3 -- true
+    oadd "known_when(k1, 'Only the request was known')" >/dev/null
+    okb --dir "$K" query 'control(A), attest(A, test_result, _, result(k1, N, _), _, _)' -n 0; local a; a=$(printf '%s\n' "$out" | sed -n 's/.*N = //p' | head -n 1)
+    [ -n "$a" ] || note "the failed run of k1 is a control: [$out]"
+    okb --dir "$K" report; rc_is 0
+    rp_item c1 | grep -qxF "    - Control of check k1: run $a failed before the change." || note "c1 names its control run $a: [$(rp_item c1 | tr '\n' '~')]"
+    rp_item c1 | grep -qxF "    - Known when the rule of check k1 was chosen: Only the request was known." || note "c1 gives known_when: [$(rp_item c1 | tr '\n' '~')]"
+    rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "c2: the control was not seen: [$(rp_item c2 | tr '\n' '~')]"
+    rp_item c2 | grep -q 'Known when' && note "c2 has no known_when"
+    rp_item c3 | grep -q 'Control of check' && note "a preserve claim has no control: [$(rp_item c3 | tr '\n' '~')]"
+    oadd "change(x1, 'a change')" "serves(x1, c2)" >/dev/null; orun k2 -- false
+    okb --dir "$K" report; rp_item c2 | grep -qxF "    - Control of check k2: not seen." || note "a failure after a change that serves the claim is no control: [$(rp_item c2 | tr '\n' '~')]"
+    # review H-0136 steps 4 to 6: the lines of one check are together; two checks never print an empty Checks: on one line; the page links the log of the control run
+    oadd "check(k1b, c1)" "checks_that(k1b, 'one b')" "check(k3b, c3)" "checks_that(k3b, 'three b')" >/dev/null; orun k3b -- true
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "the page"
+    rl_is "the control and known_when lines of c1, check by check" "Control of check k1:|Known when the rule of check k1 |Control of check k1b:" "$(rp_item c1 | grep -oE 'Control of check k1b?:|Known when the rule of check k1 ' | paste -sd'|')"
+    rl_is "c3 (preserve, two checks that passed)" "  - c3 **preserve**: Three
+    - Status: fulfilled.
+    - Checks:
+      - k3 (passed)
+      - k3b (passed)" "$(rp_item c3)"
+    rh_has "$(rh_claim "$T/r.html" c1)" "data-control-run=\"$a\" href=\"[^\"]*runs/$a-k1\.log\"" "the check row of k1 links the log of its control run"
+    rh_hasnt "$(rh_claim "$T/r.html" c2)" 'data-control-run' "a check with no control has no such link"; }
+t_RS3() { # review H-0136 step 1: Formal names a statement that has no proof, as Follows does; a proof that counts takes it out of Follows
+    kb_burndone "$T/k"; K=$T/k; mkdir -p "$K/lean"; printf 'theorem t : True := trivial\n' > "$K/lean/P.lean"
+    okb --dir "$K" subject s1 "$K/lean/P.lean"; rc_is 0 "subject"; oadd "formal_statement(s1, c1)"; rc_is 0 "formal_statement"
+    okb --dir "$K" report; rc_is 0
+    rl_is "Follows with no proof" "  - s1 states claim c1. No proof." "$(rp_sub Follows)"
+    rp_sec Formal | grep -qxF "  - c1: statement s1. Stated, not proved." || note "Formal names the statement: [$(rp_sec Formal | tr '\n' '~')]"
+    rp_sec Formal | grep -q 'None' && note "Formal says None for a claim with a formal statement"
+    add_proof "$K" p1 c1; is_true 'burn_proved(c1)'; okb --dir "$K" report; rc_is 0
+    rl_is "Follows after a proof that counts" "  - None. Each formal statement is proved, or decided by a trusted model." "$(rp_sub Follows)"
+    rp_sec Formal | grep -q 'c1: theorem t' || note "Formal gives the theorem: [$(rp_sec Formal | tr '\n' '~')]"
+    rp_sec Formal | grep -q 'statement s1' && note "Formal has no second line for a claim with a proof line"; true; }
+t_RS2() { # philosophy-3 c1: Residual, Follows lists a formal statement that nothing proved; the page labels the three lists
+    K=$T/k; kb_init "$K" build; give_goal
+    oadd "claim(c1, introduce, 'One')" "cites(c1, 'Test request')" "check(k1, c1)" "checks_that(k1, 'one')" \
+         "claim(c2, introduce, 'Two')" "cites(c2, 'Test request')" >/dev/null
+    echo 'theorem t : True := trivial' > "$T/f.lean"; okb --dir "$K" subject s1 "$T/f.lean"; rc_is 0 "subject"
+    oadd "formal_statement(s1, c1)"; rc_is 0 "formal_statement"
+    okb --dir "$K" report; rc_is 0
+    rl_is "Follows" "  - s1 states claim c1. No proof." "$(rp_sub Follows)"
+    rl_is "Formal" "  - c1: statement s1. Stated, not proved.
+    - Claim c1: One." "$(rp_sec Formal)"
+    rl_is "Happens" "  - c2: Two
+    - It has no check." "$(rp_sub Happens)"
+    out_hasnt '^# (Guesses|Not checked):' "the old sections are gone"
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "the page"
+    local sec; sec=$(rh_section "$T/r.html" residual)
+    local w; for w in Wanted Happens Follows; do rh_has "$sec" "<strong>$w:</strong>" "the page labels the list $w"; done
+    rh_has "$sec" 'c2: Two.*See claim c2\.' "a claim with no check links to its claim"
+    rh_has "$sec" 's1 states claim c1\..*See claim c1\.' "a formal statement that is not proved links to its claim"
+    [ "$(printf '%s\n' "$sec" | grep -c 'See claim')" = 2 ] || note "two links See claim in Residual (c2 in Happens, c1 in Follows): [$(printf '%s\n' "$sec" | grep -c 'See claim')]"
+    rh_hasnt "$(<"$T/r.html")" 'data-section="(guesses|not_checked)"' "the page has no section guesses or not_checked"; }
+t_RH9() { # the page of a claim that has a burn or a control line and a disclosure about it (the lambda of the disclosures shared a variable with the status sentence: the page failed)
+    rh_kb report_review; printf "attest(a9, disclosure, c5, other('checked by hand'), agent, '2026-10-15T10:02:01Z').\n" >> "$K/kb.pl"
+    okb --dir "$K" report --html "$T/r.html"; rc_is 0 "a disclosure about a claim that burns"
+    rh_has "$(rh_claim "$T/r.html" c5)" 'a9' "the claim card of c5 lists disclosure a9"
+    rh_has "$(rh_claim "$T/r.html" c1)" 'a2' "the claim card of c1 lists disclosure a2 of its question"
+    rh_has "$(rh_claim "$T/r.html" c1)" 'Control of check k1: not seen\.' "the claim card of c1 has the control sentence"; }
 t_RL4() { # more than one check: they nest under Checks
     rh_kb report_review; printf "check(k8, c1).\n" >> "$K/kb.pl"; okb --dir "$K" report; rc_is 0
     rl_is "c1 with two checks" "  - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
+    - Control of check k1: not seen.
+    - Control of check k8: not seen.
     - Checks:
       - k1 (passed)
       - k8 (never run)" "$(rp_item c1)"; }
 t_RL5() { # the other sections: bullets, the label in bold, detail nested
     rh_kb report_review; okb --dir "$K" report; rc_is 0
-    rl_is "q1 (guess)" "  - q1: Is a cold start in scope
-    - The default is no. No human answered it." "$(rp_item q1)"
+    rl_is "q1 and q2 (Residual, Wanted)" "  - q1: Is a cold start in scope
+    - The default is no. No human answered it.
+  - q2: Does saving need a progress bar
+    - The default is no. No human answered it." "$(rp_sub Wanted)"
+    rl_is "Follows" "  - None. No claim has a formal statement." "$(rp_sub Follows)"
     rl_is "a1 (disclosure)" "  - a1 **unverified**: Not measured on a slow disk
     - About c2, by agent." "$(rp_item a1)"
     rl_is "a2 (disclosure)" "  - a2 **guess**: q2
@@ -2990,13 +3166,15 @@ t_RL5() { # the other sections: bullets, the label in bold, detail nested
     rl_is "w1 (waiver in force)" "  - w1 **in force**: claim c3, due 2999-01-01T00:00:00Z" "$(rp_item w1)"
     rl_is "w3 (waiver lapsed)" "  - w3 **lapsed**: claim c5, due 2001-01-01T00:00:00Z
     - The item blocks done again." "$(rp_item w3)"
-    rl_is "c6 (not checked)" "  - c6: The save button has a tooltip
-    - It has no check." "$(rp_sec 'Not checked')"
+    rl_is "c6 (no check: Residual, Happens)" "  - c6: The save button has a tooltip
+    - It has no check." "$(rp_sub Happens)"
     # D32 O1: the Open part names each answer of blocking(X): the under claims and the failing check too
     rl_is "Open: the kind in bold, the first sentence, then the rest nested" "  - **ask**: Ask question q1 now
   - **under**: Claim c2 is current but not fulfilled: Loading stays fast
   - **under**: Claim c6 is current but not fulfilled: The save button has a tooltip
   - **check failing**: Check k2 did not pass its last run: a check of claim c2: Loading stays fast
+  - **conflict unlocated**: Run t3 of check k2 conflicts with claim c2, and the conflict has no location
+    - Locate it before anything is reopened: orbit-kb locate t3 build|measurement|premise:P|hypothesis:H|claim:C --evidence TEXT.
   - **over**: Change x2 serves no claim
   - **burn open**: Claim c5 needs a Lean proof
     - Prove it with orbit-kb prove, or ask a human for a waiver.
@@ -3077,7 +3255,7 @@ t_RH2() { # c1: one self-contained page with each claim, its status as a label, 
         rh_claim "$T/r.html" "$c" | grep -q ">$s<" || note "claim $c: the status $s is not shown as a text label"
     done
     for c in c1:k1 c2:k2 c3:k3 c4:k4 c5:k5 c7:k7; do rh_has "$(rh_claim "$T/r.html" "${c%%:*}")" "data-check=\"${c#*:}\"" "claim ${c%%:*} lists check ${c#*:}"; done
-    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: under\. It is not fulfilled yet\.' "the status sentence of the text report"
+    rh_has "$(rh_claim "$T/r.html" c2)" 'Status: conflicts\. The last run of check k2 \(t3\) conflicts with the claim\.' "the status sentence of the text report (0.8.0: c7, c9)"
     rh_has "$(rh_claim "$T/r.html" c5)" 'Burn: NOT PROVED\. A Lean proof is required\.' "the burn sentence of the text report"
     rh_kb nobuild; okb --dir "$K" report --html "$T/n.html"; rc_is 0 "a KB without build"
     rh_has "$(<"$T/n.html")" 'data-claim="c1"[^>]*data-status="none"' "without build a claim has no status"
@@ -3264,7 +3442,7 @@ q(a).
 EOF
           okb --dir "$K" lint; rc_is 0 "a KB with decl/4 lines loads"
           okb --dir "$K" show kinds; rc_is 0; out_has '^- q/1: A q\.' "the doc of a decl/4 line shows in show kinds"; }
-t_KD6() { mkclaim
+t_KD6() { mkclaim; give_goal
           printf "%%%% doc: Some person owns the claim.\nhas_owner(C) :- claim(C, _, _).\nlonely(C) :- claim(C, _, _), not has_owner(C).\n" > "$K/rules.pl"
           okb --dir "$K" lint; rc_is 0 "rules.pl heads are declared by their first definition: no E2"; out_hasnt '^E' "no error"
           out_has '^W9 rules\.pl:3.*lonely/1' "W9 names a rule head with no doc comment"; out_hasnt '^W9 .*has_owner' "no W9 for a head with a doc comment"
@@ -3278,7 +3456,7 @@ t_KD6() { mkclaim
 # KD7 (T40 c8): a kind with no description can get one later. --doc on an add of an existing kind of
 # kb.pl whose description is empty or the old W7 placeholder sets it (refused when it has one); W9's
 # advice says so. A kb.pl decl(rule, H, '', T) takes the doc of a %% doc: line in rules.pl.
-t_KD7() { mkclaim
+t_KD7() { mkclaim; give_goal
           oadd 'widget(w1)'; rc_is 0 "setup: a kind with no description"
           oadd 'widget(w2)' --doc 'A widget of the shop.'; rc_is 0 "--doc on an existing kind with no description"
           has_fact "$K/kb.pl" "decl(fact, widget(_), 'A widget of the shop.', _)" "the kind has its description"
@@ -3391,7 +3569,7 @@ t_BL7() { kb_done "$T/k"; K=$T/k; is_true done; is_false 'blocking(X)' "done: no
           printf "change(x3, 'Unrelated').\n" >> "$K/kb.pl"; is_set 'blocking(X)' 'X = over(x3)'
           kb_done "$T/k2"; K=$T/k2; printf "claim(c3, preserve, 'Unchecked').\ncites(c3, 'Do two things').\n" >> "$K/kb.pl"
           is_set 'blocking(X)' 'X = under(c3)'
-          K=$T/k3; kb_init "$K" build; is_set 'blocking(X)' 'X = no_claim'; }
+          K=$T/k3; kb_init "$K" build; give_goal; is_set 'blocking(X)' 'X = no_claim'; }
 t_BL8() { kb_done "$T/k"; K=$T/k; okb --dir "$K" show blocking; rc_is 0; out_has 'Nothing blocks done'
           printf "question(q2, c2, 'Is it two').\nattest(d1, divergence, c2, claim(c2), agent, '2026-10-15T10:00:09Z').\nclaim(c3, preserve, 'Unchecked claim').\ncites(c3, 'Do two things').\n" >> "$K/kb.pl"
           okb --dir "$K" show blocking; rc_is 0
@@ -3499,7 +3677,7 @@ EOF2
 # actor_of KB TYPE PATTERN ROLE SESSION: the attestation of TYPE whose predicate matches PATTERN has actor(A, ROLE, SESSION)
 actor_of() { has_goal "$1/kb.pl" "kb(attest(A, $2, _, $3, _, _)), kb(actor(A, $4, $5))" "${6:-}"; }
 
-t_VR1() { vr_kb "$T/k"; K=$T/k
+t_VR1() { vr_kb "$T/k"; K=$T/k; give_goal_only
           ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" run k1 -- true; rc_is 0 "run"
           actor_of "$K" test_result 'result(k1, _, pass)' build w1 "run records actor(A, ROLE, WRITER)"
           ORBIT_KB_LEASE=0 ORBIT_KB_ROLE=build CLAUDE_CODE_SESSION_ID=s9 okb --dir "$K" run k1 --as review -- true; rc_is 0 "run --as"
@@ -3525,7 +3703,7 @@ t_VR1() { vr_kb "$T/k"; K=$T/k
           out_has 'self-reported' "help core says the role is self-reported"
           out_has 'mistakes, not cheating' "help core names it as a limit"; }
 
-t_VR2() { vr_kb "$T/k"; K=$T/k; local r=$T/repo
+t_VR2() { vr_kb "$T/k"; K=$T/k; give_goal; local r=$T/repo
           mkdir -p "$r"; git -C "$r" init -q; printf 'one\n' > "$r/a.txt"
           git -C "$r" add a.txt; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -m one
           printf 'two\n' >> "$r/a.txt"; git -C "$r" -c user.name=t -c user.email=t@example.invalid commit -q -am two
@@ -3549,7 +3727,7 @@ t_VR2() { vr_kb "$T/k"; K=$T/k; local r=$T/repo
           has_fact "$K/kb.pl" "review_saw(fresh_eyes, diff, 'sha256:$dd')" "ORBIT_KB_ROLE names the reviewer"
           okb --dir "$K" lint; rc_is 0 "lint after review start"; out_hasnt '^E[0-9]'; }
 
-t_VR3() { vr_kb "$T/k"; K=$T/k; add_result "$K" k1 1 fail; add_result "$K" k1 2 pass
+t_VR3() { vr_kb "$T/k"; K=$T/k; give_goal; add_result "$K" k1 1 fail; add_result "$K" k1 2 pass
           okb --dir "$K" attest disproof c1 "verdict(c1, upheld('reran k1; tried an empty input'))" --rests-on t2 --id v1; rc_is 0 "upheld(Text)"
           has_goal "$K/kb.pl" "kb(attest(V, disproof, _, verdict(c1, upheld(_)), _, _)), kb(rests_on_run(V, t2))" "rests_on_run(V, t2)"
           okb --dir "$K" attest disproof c2 "verdict(c2, inconclusive('ran out of time'))" --rests-on t1,t2; rc_is 0 "inconclusive(Text) and two runs"
@@ -3604,7 +3782,7 @@ actor(v1, review, s2).
 rests_on_run(v1, t1).
 EOF2
           K=$T/d; is_false 'independently_verified(c1)' "no change in the KB at all: no verdict counts (T38 c3 retires the choice of T25: fail closed)"
-          vr_kb "$T/e"; K=$T/e
+          vr_kb "$T/e"; K=$T/e; give_goal_only
           ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1 okb --dir "$K" add "change(x1, 'Edit one')" "serves(x1, c1)"; rc_is 0 "add a change"
           has_fact "$K/kb.pl" "actor(x1, build, w1)" "add of a change records its actor"
           has_goal "$K/kb.pl" "kb(change_at(x1, T)), atom(T), atom_length(T, 20)" "add of a change records change_at(X, TIME)"
@@ -3627,8 +3805,8 @@ t_VR5() { vr_ind "$T/k"; K=$T/k
           okb --dir "$K" report; rc_is 0 "report"
           local sec; sec=$(printf '%s\n' "$out" | awk '/^# Review:/{f=1;next} /^# /{f=0} f')
           [ -n "$sec" ] || note "report has no Review section"
-          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Guesses:' \
-              || note "the Review section comes after Claims, before Formal and Guesses (D31 B3)"
+          printf '%s\n' "$out" | grep -E '^# ' | paste -sd' ' | grep -qF '# Claims: # Review: # Formal: # Residual:' \
+              || note "the Review section comes after Claims, before Formal and Residual (D31 B3)"
           printf '%s\n' "$sec" | grep -Eq '^  - c1: reviewer review \(session s2\), verdict upheld: reran k1; tried an empty input\.$' || note "c1: reviewer, verdict, text: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^    - Reruns: run 1 k1 pass\.$' || note "c1: its reruns: [$(snip "$sec")]"
           printf '%s\n' "$sec" | grep -Eq '^  - c2: no verdict\.$' || note "c2 has no verdict: [$(snip "$sec")]"
@@ -3833,12 +4011,13 @@ t_VR12() { local r=$T/repo f ls n line cmd a
 
 # VR11 (T38 c5): WR1 waits until a review is due: no current claim is under.
 t_VR11() { local W=(env ORBIT_KB_ROLE=build ORBIT_KB_WRITER=w1)
-           okb init "$T/k" --request 'Make one thing true' --uses build; K=$T/k
+           okb init "$T/k" --request 'Make one thing true' --uses build; K=$T/k; give_goal
            "${W[@]}" "$OKB" --dir "$K" add "claim(c1, introduce, 'One thing is true')" "cites(c1, 'Make one thing true')" "check(k1, c1)" "checks_that(k1, 'one thing is true')" >/dev/null 2>&1
            "${W[@]}" "$OKB" --dir "$K" run k1 -- false >/dev/null 2>&1
            has_goal "$K/kb.pl" "kb(actor(_, build, w1))" "setup: the red run recorded an actor"
            okb --dir "$K" lint; rc_is 0; out_hasnt '^WR1' "no WR1 during the red run"
-           okb --dir "$K" lint --strict; rc_is 0 "lint --strict passes a fresh build KB"
+           okb --dir "$K" lint --strict; out_hasnt '^E[0-9]' "lint --strict: no error on a fresh build KB"; out_hasnt '^WR1' "no WR1 under --strict either"
+           [ "$(printf '%s\n' "$out" | grep -E '^W[A-Z]*[0-9]+ ' | grep -cv '^W14 g0:')" = 0 ] || note "lint --strict on a fresh build KB: no warning but W14 of the goal (review G1: it names no project goal here): $(snip "$out")"
            "${W[@]}" "$OKB" --dir "$K" add "claim(c2, preserve, 'Two stays true')" "cites(c2, 'Make one thing true')" "check(k2, c2)" "checks_that(k2, 'the check k2 tests the claim')" "change(x1, 'Edit one')" "serves(x1, c1)" >/dev/null 2>&1
            "${W[@]}" "$OKB" --dir "$K" run k2 -- true >/dev/null 2>&1
            okb --dir "$K" lint; out_hasnt '^WR1' "no WR1 while c1 is under, also for the fulfilled c2"
@@ -4070,14 +4249,14 @@ run_test t_RW4 RW4 "D15: closure and E15 work on hypotheses; current, under, bur
 run_test t_RW5 RW5 "D15: help discovery, core, and codes describe rewording and the new W5"
 run_test t_NC1 NC1 "D17: done needs a current claim; whynot done names it"
 run_test t_NC2 NC2 "D17: report and show open on a KB with no claim"
-run_test t_NC3 NC3 "D17: Guesses says no question has a default, unless a human answered one"
+run_test t_NC3 NC3 "D17: Residual, Wanted says no question has a default, unless a human answered one"
 run_test t_NC4 NC4 "D17: a rules.pl clause for any_current_claim is E16"
 run_test t_NC5 NC5 "D17: an empty discovery KB is not ready and votes hold"
 run_test t_HY1 HY1 "0.3.0 c_k_a_1: a build KB and a core KB take the hypothesis of the ticket; the kind change"
 run_test t_HY2 HY2 "0.3.0 c_k_a_1: WD7 and readiness still hold in a KB that uses discovery"
 run_test t_HY3 HY3 "0.3.0 c_k_a_2: premise, premise_checked, no_premises, premise_unchecked; lint W10"
 run_test t_HY4 HY4 "0.3.0 c_k_a_2: a premise of a superseded hypothesis is not asked for"
-run_test t_HY5 HY5 "0.3.0 c_k_a_4: Guesses lists unchecked premises and the defaults of the hypothesis"
+run_test t_HY5 HY5 "0.3.0 c_k_a_4: Residual lists unchecked premises (Happens) and the defaults of the hypothesis (Wanted)"
 run_test t_HY6 HY6 "0.3.0 c_k_a_3b: a restated hypothesis in build needs no system result, also after an approved GO"
 run_test t_HY7 HY7 "0.3.0 q_k_a_3b: after a recorded return to discovery, a new hypothesis needs its system result"
 run_test t_HY8 HY8 "0.3.0 c_k_a_3b: an approval with no GO does not end the orbit; add refuses discovery_end"
@@ -4127,6 +4306,8 @@ run_test t_SF2 SF2 "0.3.0 c_k_h_1: orbit-kb shift refuses a usage error or a bad
 run_test t_SF3 SF3 "0.3.0 c_k_h_3: orbit-kb help shift is one screen; the first help screen names it"
 run_test t_SF4 SF4 "0.3.0 c_k_h_2b: shift --red-log: a red run that only the agent saw is a disclosure; the claim waits for a waiver"
 run_test t_SF5 SF5 "0.3.0 c_k_h_2b: shift --red-log refuses a missing or empty log and a preserve claim; a long log is cut"
+run_test t_SF10 SF10 "0.8.0 review H1: shift --goal writes goal/4 and hypothesis/4 under it, with the defeating case and the premises on the goal"
+run_test t_SF11 SF11 "0.8.0 review H1: shift with --hypothesis and no --goal keeps the 0.7.2 result and prints the note on hypothesis/3"
 run_test t_WJ1 WJ1 "0.3.0 c_k_j_1: no move is named SIGNAL; the move is RESTATE"
 run_test t_WJ2 WJ2 "0.3.0 c_k_j_2: the text of the tool says Lean definitions, not Lean model"
 run_test t_WJ3 WJ3 "0.3.0 c_k_j_3: orbit-kb withdraw NAME/ARITY removes a kind that a typo declared, with a record"
@@ -4238,8 +4419,12 @@ run_test t_SH6 SH6 "show and show all"
 run_test t_SH7 SH7 "show with a bad topic exits 2"
 run_test t_RP1 RP1 "report sections in contract order"
 run_test t_RP2 RP2 "report: fulfilled, under, over"
-run_test t_RP3 RP3 "report: guesses"
-run_test t_RP4 RP4 "report: not checked"
+run_test t_RP3 RP3 "report: Residual, Wanted (a default that no human answered)"
+run_test t_RS1 RS1 "philosophy-3 c2: report says if the control of each check was seen, and gives known_when"
+run_test t_RS3 RS3 "review H-0136 step 1: Formal names a statement with no proof; a proof that counts takes it out of Residual, Follows"
+run_test t_RS2 RS2 "philosophy-3 c1: Residual, Follows lists a formal statement that is not proved; the page has the three lists"
+run_test t_RH9 RH9 "report --html: a claim with a burn or a control sentence and a disclosure (the page failed before)"
+run_test t_RP4 RP4 "report: Residual, Happens (a claim with no check)"
 run_test t_RP5 RP5 "report: disclosures"
 run_test t_RP6 RP6 "report without build"
 run_test t_RP7 RP7 "report Open lists what blocks discovery_ready"

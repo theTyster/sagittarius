@@ -38,6 +38,7 @@ Core
        in the same add (or have it in the KB already):
          orbit-kb add 'check(k1, c1)' "checks_that(k1, 'what it checks, in plain words')"
        Old checks with no words still load; lint W12 warns about them.
+  E21  predicts(H, C) on a preserve claim. A preserve claim is always a claim of the goal. add refuses it.
   W1   subject digest differs from the file. Run orbit-kb subject again.
   W2   a local declaration, listed for review
   W3   a claim with no cites. Cite the request text, or drop the claim (drift).
@@ -53,10 +54,27 @@ Core
        the first add, or in any later add of one of its facts while it has none: orbit-kb add 'FACT' --doc TEXT.
        For a rule head (also an old decl(rule, ...) line of kb.pl with no doc): a line %% doc: TEXT just
        above its first clause in rules.pl. orbit-kb show kinds names each one, also while E19 or E2 fires.
-  W10  a current hypothesis has no premise and no record no_premises(H) (D30). Add
+  W10  (also a goal, and in a KB made by 0.8.0 or later a current hypothesis under a goal)
+       a current hypothesis has no premise and no record no_premises(H) (D30). Add
        premise(P, H, Text) for each condition that it takes as given, or no_premises(H).
   W11  a current hypothesis has a premise and also no_premises(H). They contradict. Restate the
        hypothesis (supersedes) with its premises, or with no_premises only.
+  W13  a current hypothesis is not tempered: no defeating_case(H, By, Text), or it is marked
+       untempered. Name one admissible case that would show it false.
+  W14  a current goal names no goal above it. Add supports(G, project(PG)). Only in a KB made by
+       orbit-kb 0.8.0 or later. It blocks nothing.
+  W15  two current hypotheses predict one claim. Keep one predicts fact.
+  W16  an unplaced claim: no hypothesis predicts it, it is no preserve claim, and the KB has a
+       current hypothesis. Add predicts(H, C). Only in a KB made by orbit-kb 0.8.0 or later.
+  W17  a check of a current claim has no procedure and no run: the experiment does not say how it
+       is carried out. Add procedure(K, Text), or run the check. Only in a KB made by orbit-kb
+       0.8.0 or later.
+  W18  a formal statement (formal_statement/2, or a model with encodes/2) has no could_change(S,
+       Text), or a could_change names a subject that states no claim. Only in a KB made by
+       orbit-kb 0.8.0 or later.
+  W19  an agent retirement that does not count: a human wrote or adopted the hypothesis, or it has
+       adoption_cited. Only the human retires it.
+  W20  supports(G, project(PG)) names a goal that the project KB (project_kb/1) does not hold.
   WM1  a retired predicate (kb-migrations): its cut-fail clause in kb.pl takes its facts out of the
        model, also a fact added later. The message names the version that retired it and what
        replaces it (retired/3), the lines of its facts, and their reach: each predicate that reads
@@ -100,7 +118,7 @@ and the tool refuses an agent's GO vote while one is left. Also orbit-kb whynot 
 Build module (orbit-kb help build)
   WR1  a current claim is not independently verified, and a review is due: no claim is under
        (D28, T38). A reviewer of another role and session reruns a check of it after its
-       last change (orbit-kb run --as ROLE), then records an upheld verdict that rests on
+       last change (orbit-kb run --as ROLE), then records an upheld disproof result that rests on
        that run (attest disproof --rests-on). Only in a KB that records actors or a review.
        A warning: it does not block done.
 
@@ -117,5 +135,9 @@ Project module (orbit-kb help project)
        its source has no newer pin). Read it; pin the source again and move the concerns facts. show open names it.
   WP9  only an agent wrote this relation (relation_by): it is proposed and blocks nothing. A human
        ratifies it by adding the same relation with --by human.
+  WP10 the goal supports a project goal that the project KB does not hold: supports(G, project(PG)).
+       Check the id against the goals of the project KB.
+  WP11 the goal supports a project goal that its owner dropped. Nothing is blocked or closed.
+       Ask the human which project goal the ticket serves now (orbit-kb help hub).
   EP1  an agent (agent or agent:NAME, in any case) ratified a fact (an error; add refuses it). Only a human ratifies.
   EP2  a fact depends on itself or excludes itself (depends_on(X, X), excludes(X, X); an error; add refuses it).

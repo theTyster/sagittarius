@@ -73,6 +73,75 @@ decl(fact, example(ref(claim), text),
 decl(fact, hypothesis(id, oneof([defect, feature, risk, change]), text),
      'A falsifiable and wide restatement of the request: what must be true when the ticket is done.',
      'hypothesis @(1) is a @(2): @(3)').
+% 0.8.0 (scientific-method-overhaul, D50): the records of a ticket are a goal, the hypotheses
+% under it, and the claims that each hypothesis predicts. hypothesis/3 above is the 0.7.2 form
+% of the goal: when orbit-kb reads a KB, each hypothesis/3 fact gives a computed goal/4 fact
+% (author agent), and each goal/4 fact gives a computed hypothesis/3 fact, so a query of one
+% form answers on every KB (c43). A type ref(hypothesis) also accepts the id of a goal, and
+% ref(goal) also accepts the id of a hypothesis/3 fact.
+% An author is human, agent, human:NAME or agent:NAME.
+decl(fact, goal(id, oneof([defect, feature, risk, change]), alt([human, agent, oneof([human, agent]):atom]), text),
+     'The goal of the ticket: what the human hopes to accomplish. It names no avenue. The author is human, agent, human:NAME or agent:NAME.',
+     'goal @(1) is a @(2), written by @(3): @(4)').
+decl(fact, hypothesis(id, ref(goal), alt([human, agent, oneof([human, agent]):atom]), text),
+     'A hypothesis under a goal: a claim about an avenue to the goal. The author is human, agent, human:NAME or agent:NAME.',
+     'hypothesis @(1) of goal @(2), written by @(3): @(4)').
+decl(fact, supports(ref([goal, hypothesis]), term),
+     'The goal supports a goal above it: the id of a goal of this KB, or project(PG) for a goal of the project KB. In a project KB, a supporting hypothesis names its parent hypothesis.',
+     '@(1) supports @(2)').
+decl(fact, defeating_case(ref(hypothesis), alt([human, agent, oneof([human, agent]):atom]), text),
+     'The admissible case that would show the hypothesis false, and who named it. A hypothesis with such a case is tempered.',
+     'hypothesis @(1) is false if (named by @(2)): @(3)').
+decl(fact, untempered(ref(hypothesis), alt([human, agent, oneof([human, agent]):atom]), text),
+     'The human or the agent marks the hypothesis as not tempered, and why.',
+     '@(2) marks hypothesis @(1) as not tempered: @(3)').
+decl(fact, predicts(ref(hypothesis), ref(claim)),
+     'The claim is a prediction of the hypothesis: what must be observable if the hypothesis and its premises hold. A preserve claim is a claim of the goal and has no predicts fact.',
+     'hypothesis @(1) predicts claim @(2)').
+decl(fact, defeat(id, ref(hypothesis), text),
+     'A case defeated the hypothesis. The case stays on the version of the hypothesis that it defeated.',
+     'case @(1) defeated hypothesis @(2): @(3)').
+decl(fact, adoption_cited(ref(hypothesis), text),
+     'The ticket marks the hypothesis as adopted by the human, and cites the words of the human. It is the reading of the writer: alone it adopts nothing. A human adoption, or a human GO vote that comes after it in kb.pl, adopts the hypothesis.',
+     'the ticket cites the adoption of hypothesis @(1) by the human: @(2)').
+decl(fact, carried(ref, ref(goal)),
+     'A record of an older goal (a hypothesis, a claim, or a run attestation) is carried over to the goal that replaced it.',
+     '@(1) is carried over to goal @(2)').
+% 0.8.0 (stage 2): the description of an experiment. The rules that read these facts
+% are in the build module.
+decl(fact, procedure(ref(check), text),
+     'How the experiment (the check) is carried out. Without it, the procedure is the command of the last run.',
+     'the procedure of check @(1) is @(2)').
+decl(fact, measurement_premise(id, ref(check), text),
+     'A premise of the measurement of the check, such as: the clock is right within 0.2 s.',
+     '@(1) is a measurement premise of check @(2): @(3)').
+decl(fact, known_when(ref(check), text),
+     'What was known when the claim and the assessment rule of the check were chosen.',
+     'for check @(1), this was known when the claim and the rule were chosen: @(2)').
+decl(fact, unresolved_because(ref(attest), text),
+     'What the run could not decide. orbit-kb run writes it with each unresolved test result.',
+     'run @(1) is unresolved because @(2)').
+decl(fact, case_against(ref(attest), ref(hypothesis)),
+     'The case that the human judged not wanted (a judgment attestation) is recorded against the hypothesis that allowed it.',
+     'the not-wanted case @(1) is recorded against hypothesis @(2)').
+decl(fact, formal_statement(ref(subject), ref(claim)),
+     'The subject (a model, a Lean file) states the claim in a formal language.',
+     'subject @(1) is a formal statement of claim @(2)').
+decl(fact, could_change(ref(subject), text),
+     'The decision that the precision of the formal statement could change.',
+     'the precision of formal statement @(1) could change: @(2)').
+decl(fact, behavior_conflict(id, text),
+     'A behavior that no claim names changed or broke (Sound Basis). It is open for review until a current claim names it or a human waives it.',
+     '@(1) is a behavior conflict: @(2)').
+decl(fact, names(ref(claim), ref(behavior_conflict)),
+     'The claim names the behavior of a behavior conflict as a behavior to change.',
+     'claim @(1) names the behavior of @(2)').
+decl(fact, upgraded(atom, time),
+     'The first write of this orbit-kb version to a KB that an older version made, and when. Only orbit-kb writes it.',
+     'the KB was upgraded to orbit-kb @(1) at @(2)').
+decl(fact, done_before_upgrade(atom, time),
+     'The ticket was done by the rules of the version before the upgrade to this version. It stays done. Only orbit-kb writes it.',
+     'the ticket was done before the upgrade to orbit-kb @(1) at @(2)').
 % 0.3.0 (K-A, D30 H2): a premise is a condition that the hypothesis takes as
 % given. It has two states: checked on the system (and where), or not
 % (question q_k_a_2: a premise that the system shows false is a divergence on
@@ -102,6 +171,14 @@ decl(fact, signal(id, oneof([questions, divergence, built_by_other, burn, handof
 decl(fact, lean_back(id, text),
      'A lean back: what stopped, and what stays active. report prints it under Signals.',
      'the agent leaned back (@(1)): @(2)').
+% D70, D71 (scientific-method-overhaul c34): a proposal of System 1. The fact is kept as text: it is
+% no record, and no rule reads these two kinds, so they change no answer of done or blocking(X).
+decl(fact, proposed(id, oneof([system1]), term, time),
+     'A proposal of System 1: a fact, as text or as a term, and when it was proposed. It is not a record and it blocks nothing. orbit-kb propose writes it.',
+     'System 1 (@(2)) proposed @(3) as @(1) at @(4)').
+decl(fact, proposal_confirmed(ref(proposed), by, time),
+     'The agent or the human confirmed a proposal: orbit-kb confirm-proposal added its fact as a record.',
+     'proposal @(1) was confirmed by the @(2) at @(3)').
 % 0.3.0 (K-J, D39): orbit-kb withdraw writes the record of a kind that it removed.
 decl(fact, withdrawn(term, by, time, int),
      'orbit-kb withdraw removed this kind (NAME/ARITY) from kb.pl: who, when, and how many facts. The removed lines stay in kb.pl as comments.',
@@ -244,6 +321,107 @@ decl(rule, superseded(ref),
 decl(rule, current(ref(claim)),
      'The claim is in force, because no other claim replaces it.',
      'claim @(1) is current').
+% 0.8.0 (scientific-method-overhaul, D50 to D54): the records. The rules are below, under
+% "The records". rules.pl cannot add clauses to them (lint E16).
+decl(rule, goal_current(ref(goal)),
+     'The goal is in force: no other goal replaces it.',
+     'goal @(1) is current').
+decl(rule, hypothesis_state(ref(hypothesis), oneof([superseded, retired, defeated, adopted, proposed])),
+     'The state of a hypothesis under a goal. Exactly one holds, the first that applies in this order: superseded, retired, defeated, adopted, proposed.',
+     'hypothesis @(1) is @(2)').
+decl(rule, hypothesis_current(ref(hypothesis)),
+     'The hypothesis is proposed or adopted, and its goal is current or the hypothesis is carried over to a current goal.',
+     'hypothesis @(1) is current').
+decl(rule, hypothesis_adopted(ref(hypothesis)),
+     'A human adopted the hypothesis (an adoption attestation). The discovery module adds: the human voted GO in a round after the hypothesis was written.',
+     'a human adopted hypothesis @(1)').
+decl(rule, hypothesis_retired(ref(hypothesis)),
+     'A retirement attestation names the hypothesis.',
+     'hypothesis @(1) is retired').
+decl(rule, hypothesis_defeated(ref(hypothesis)),
+     'A recorded case defeated the hypothesis (defeat/3). The build module adds: a confirmed location in the hypothesis or in a premise of it, or a not-wanted case placed against it.',
+     'hypothesis @(1) is defeated').
+decl(rule, hypothesis_superseded(ref(hypothesis)),
+     'Another hypothesis replaces the hypothesis.',
+     'hypothesis @(1) is superseded').
+decl(rule, hypothesis_out(ref(hypothesis)),
+     'The hypothesis is superseded, retired or defeated: it holds nothing up.',
+     'hypothesis @(1) is superseded, retired or defeated').
+decl(rule, hypothesis_goal_current(ref(hypothesis)),
+     'The goal of the hypothesis is current, or the hypothesis is carried over to a current goal.',
+     'hypothesis @(1) counts for a current goal').
+decl(rule, hypothesis_agent_written(ref(hypothesis)),
+     'The author of the hypothesis is agent or agent:NAME.',
+     'an agent wrote hypothesis @(1)').
+decl(rule, hypothesis_human_written(ref(hypothesis)),
+     'The author of the hypothesis is human or human:NAME.',
+     'a human wrote hypothesis @(1)').
+decl(rule, any_current_hypothesis,
+     'At least one hypothesis under a goal is current.',
+     'some hypothesis is current').
+decl(rule, hypothesis_cited(ref(hypothesis)),
+     'The ticket marks the hypothesis as adopted by the human (adoption_cited). Alone it adopts nothing.',
+     'the ticket cites the adoption of hypothesis @(1)').
+decl(rule, hypothesis_marked_untempered(ref(hypothesis)),
+     'An untempered fact names the hypothesis.',
+     'someone marked hypothesis @(1) as not tempered').
+decl(rule, tempered(ref(hypothesis)),
+     'The record of the hypothesis names one admissible case that would show it false (defeating_case/3), and nobody marked it untempered.',
+     'hypothesis @(1) is tempered').
+decl(rule, not_tempered(ref(hypothesis)),
+     'The hypothesis is current and not tempered. Lint W13 lists it.',
+     'hypothesis @(1) is current and not tempered').
+decl(rule, claim_predicted(ref(claim)),
+     'A predicts fact names the claim.',
+     'a hypothesis predicts claim @(1)').
+decl(rule, claim_of_goal(ref(claim)),
+     'The claim has no predicts fact: it hangs on the goal, and holds under every hypothesis.',
+     'claim @(1) is a claim of the goal').
+decl(rule, claim_under_current(ref(claim)),
+     'A current hypothesis predicts the claim.',
+     'a current hypothesis predicts claim @(1)').
+decl(rule, hypothesis_guess(ref(hypothesis)),
+     'An agent wrote the hypothesis, no human adopted it, and it is current. The report lists it under Residual, Wanted.',
+     'hypothesis @(1) is a guess: agent-written, not adopted').
+decl(rule, record_step(ref, ref),
+     'One step up inside the records of the KB: a run to its check, a check to its claim, a claim to its hypothesis or to the current goal, a hypothesis to its goal.',
+     '@(1) is one step below @(2)').
+decl(rule, record_up(ref, ref),
+     'One to four record steps up.',
+     '@(1) is below @(2) in the records').
+decl(rule, rests_on(ref, term),
+     'What a record rests on, one step up: a run on its check, a check on its claim, a claim on its hypothesis (predicts) or on the current goal, a hypothesis on its goal, a goal on what it supports (a goal id, or project(PG)). In a project KB also: a fact rests on a fact that it depends on, through one or more depends_on facts (D27; orbit-kb computes these when it reads the KB).',
+     '@(1) rests on @(2)').
+decl(rule, rests_above(ref, term),
+     'From a goal or a hypothesis: what it rests on through supports facts and the goal of a hypothesis.',
+     '@(1) supports @(2), directly or through others').
+decl(rule, rests_up(ref, term),
+     'What a record rests on, one step or more up: up to the goal, and to the project goal that the goal supports.',
+     '@(1) rests on @(2), directly or through others').
+decl(rule, supports_closure(ref, term),
+     'The first goal or hypothesis reaches the second through one or more supports facts. orbit-kb computes it when it reads the KB.',
+     '@(1) supports @(2), directly or through others').
+decl(rule, goal_written(ref(goal)),
+     'The goal is written as a goal/4 fact in kb.pl (not in the 0.7.2 form hypothesis/3). orbit-kb computes it when it reads the KB.',
+     'goal @(1) is written as a goal/4 fact').
+decl(rule, retirement_ignored(ref(hypothesis)),
+     'An agent retirement of the hypothesis does not count: a human wrote or adopted it, or the ticket marks it as adopted.',
+     'an agent retirement of hypothesis @(1) does not count').
+decl(rule, supports_missing(ref, atom),
+     'The goal names project(PG) in a supports fact, the project KB of project_kb/1 can be read, and it holds no goal PG. orbit-kb computes it when it reads the KB. Lint W20.',
+     '@(1) supports the project goal @(2), which the project KB does not hold').
+decl(rule, goal_supported(ref(goal)),
+     'A supports fact names what the goal supports.',
+     'goal @(1) names a goal above it').
+decl(rule, goal_unsupported(ref(goal)),
+     'The goal is current and names no goal above it (no supports fact). Lint W14 lists it. It blocks nothing.',
+     'goal @(1) is current and names no goal above it').
+decl(rule, made_by_new,
+     'The KB was made by orbit-kb 0.8.0 or later: its first "Made by" line names that version or a later one. orbit-kb computes it when it reads the KB. A KB of an older version gets no lint W14 and no lint W16.',
+     'the KB was made by orbit-kb 0.8.0 or later').
+decl(rule, claim_unplaced(ref(claim)),
+     'The claim is current, it is no preserve claim, and no hypothesis predicts it, in a KB made by orbit-kb 0.8.0 or later that has a current hypothesis. Lint W16 lists it.',
+     'claim @(1) is not placed under a hypothesis').
 decl(fact, writer_takeover(atom, atom, time),
      'A writer took the lock of the KB from another writer: with --take, or because the lease of the holder lapsed (T27).',
      '@(2) took the writer lock from @(1) at @(3)').
@@ -307,6 +485,9 @@ decl(rule, blocking(term),
 decl(rule, any_project_conflict,
      'An item of the project KB blocks this KB: the project KB does not load clean (project_kb_unclean), or a claim pins a fact that is in a contradiction there (project_contradiction). No draft blocks (T43). The project module adds the clauses (D23, D27).',
      'the project KB blocks this KB (project_kb_unclean or project_contradiction)').
+decl(rule, any_project_conflict_072,
+     'any_project_conflict, with no step through blocking/1: done_072 reads it (D57). The project module adds the clauses.',
+     'the project KB blocks this KB').
 % D30 H2: the state of a premise, and lint W10.
 decl(rule, premise_was_checked(ref(premise)),
      'A premise_checked fact names the premise.',
@@ -377,17 +558,52 @@ attest_type(approval,
             digest(digest),
             [human],
             'A human approves the subject at this digest.').
+% 0.8.0 (D55, claim c7): a run has three results. pass is the verdict meets, fail is conflicts,
+% and unresolved says that the run could not decide (unresolved_because/2 holds the reason).
 attest_type(test_result,
-            result(ref(check), int, oneof([pass, fail])),
+            result(ref(check), int, oneof([pass, fail, unresolved])),
             [script],
-            'The result of one numbered run of a check; only orbit-kb run writes it.').
+            'The result of one numbered run of a check; only orbit-kb run writes it. pass: the verdict meets. fail: it conflicts. unresolved: the run could not decide (unresolved_because/2 says why).').
+% 0.8.0 (D50, D52): the human adopts a hypothesis; a hypothesis is retired.
+attest_type(adoption,
+            adopted,
+            [human],
+            'The human adopts the hypothesis (the subject).').
+attest_type(retirement,
+            retired(text),
+            [human, agent],
+            'The hypothesis (the subject) is retired, and why. An agent retires only a hypothesis that an agent wrote and no human adopted.').
+% 0.8.0 (stage 2): the rules that read these types are in the build module.
+attest_type(measurement,
+            false(text),
+            [human, agent],
+            'The measurement premise (the subject) was found false. Each run of its check at or before that time is unresolved.').
+attest_type(location,
+            located(alt([build, measurement, premise(ref(premise)), hypothesis(ref(hypothesis)), claim(ref(claim))]), text),
+            [human, agent],
+            'Where the conflict of a run (the subject, a test_result attestation) lies, with the evidence: in the build, in the measurement, in a premise, in a hypothesis, or in a claim of the goal.').
+attest_type(confirmation,
+            confirms(text),
+            [human, agent],
+            'A pane that did not build, or the human, confirms a location (the subject, a location attestation).').
+attest_type(judgment,
+            alt([case(text, oneof([wanted, not_wanted])), satisfied, not_satisfied, accepts(ref(claim))]),
+            [human],
+            'A judgment of the human. On the goal (the subject): a concrete case that is wanted or not wanted, or the goal as a whole (satisfied, not_satisfied). On a formal statement (the subject): accepts(C), it says what claim C means.').
 
 % ---------------------------------------------------------------------
 % Core rules
 % ---------------------------------------------------------------------
 
 superseded(C) :- supersedes(_, C).
-current(C) :- claim(C, _, _), not superseded(C).
+% 0.8.0 (D51, c37, c38): a claim is current when no claim replaces it, and it is a claim of the
+% goal (no predicts fact) or a current hypothesis predicts it. In a KB with no predicts fact
+% (each KB of 0.7.2) this is the rule of 0.7.2.
+% 0.8.0 (D61, c42): after a change of the goal, a claim of the goal that stands before the new goal
+% in kb.pl is current only when a record carries it over (carried/2).
+current(C) :- claim(C, _, _), not superseded(C), claim_of_goal(C), not claim_not_carried(C).
+claim_not_carried(C) :- claim(C, _, _), before_goal(C, G), goal_current(G), not carried(C, G).
+current(C) :- claim(C, _, _), not superseded(C), claim_under_current(C).
 answered(Q) :- answer(Q, _, human).
 answered(Q) :- answer(Q, _, human:_).
 defeated(Q) :- assumed(Q, A), answer(Q, B, human), A \= B.
@@ -407,8 +623,12 @@ to_ask(Q) :- migration_question(Q), not answered(Q), not question_waived(Q).
 % a waiver attestation is a type of that module.
 any_to_ask :- to_ask(_).
 stale(A) :- attest(A, approval, S, digest(D0), human, _), subject(S, _, D1), D0 \= D1.
-passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R).
+% 0.8.0 (D55, c7): a later unresolved run takes the pass away too, as a later fail does. In a KB
+% with only pass and fail runs the answer is the one of 0.7.2.
+passed(K) :- attest(_, test_result, _, result(K, R, pass), _, _), not failed_after(K, R),
+             not unresolved_after(K, R).
 failed_after(K, R) :- attest(_, test_result, _, result(K, R2, fail), _, _), R2 > R.
+unresolved_after(K, R) :- attest(_, test_result, _, result(K, R2, unresolved), _, _), R2 > R.
 was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
               attest(_, test_result, _, result(K, R2, pass), _, _), R1 < R2.
 % 0.3.0 (K-F, D42 K3): the rules of trust of a model, moved from the discovery module, so that
@@ -482,13 +702,202 @@ any_request_stale :- request_stale(_).
 % D30 H2: premises. A premise of a superseded hypothesis is not asked for: it is no
 % guess, and W10 does not name its hypothesis.
 premise_was_checked(P) :- premise_checked(P, _).
-premise_unchecked(P) :- premise(P, H, _), not superseded(H), not premise_was_checked(P).
+premise_unchecked(P) :- premise(P, H, _), not superseded(H), not hypothesis_out(H), not premise_was_checked(P).
 premises_stated(H) :- premise(_, H, _).
 premises_stated(H) :- no_premises(H).
 % Review of K-A (finding 9): a premise and the record "Premises: none" on one hypothesis.
 lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the hypothesis (a new hypothesis with supersedes) with its premises, or with no_premises only.') :-
-    hypothesis(H, _, _), not superseded(H), premise(_, H, _), no_premises(H).
+    hypothesis(H, _, _), not goal_written(H), not superseded(H), premise(_, H, _), no_premises(H).
+lint_issue('W11', G, 'This goal has a premise and also the record no_premises ("Premises: none"). They contradict each other. Restate the goal (a new goal with supersedes) with its premises, or with no_premises only.') :-
+    goal_written(G), not superseded(G), premise(_, G, _), no_premises(G).
+lint_issue('W11', H, 'This hypothesis has a premise and also the record no_premises ("Premises: none"). They contradict each other. Add a new hypothesis with supersedes, with its premises, or with no_premises only.') :-
+    hypothesis_current(H), premise(_, H, _), no_premises(H).
 lint_issue('W12', K, 'This check of a current claim does not say in words what it checks. Add checks_that(K, Text): one line that a human reads (the Desk shows it).') :-
     check(K, C), not superseded(C), not checks_that(K, _).
 lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
-    hypothesis(H, _, _), not superseded(H), not premises_stated(H).
+    hypothesis(H, _, _), not goal_written(H), not superseded(H), not premises_stated(H).
+lint_issue('W10', G, 'This goal has no premise and no record "Premises: none". Add premise(P, G, Text) for each condition that it takes as given, or no_premises(G).') :-
+    goal_written(G), not superseded(G), not premises_stated(G).
+lint_issue('W10', H, 'This hypothesis has no premise and no record "Premises: none". Add premise(P, H, Text) for each condition that it takes as given, or no_premises(H).') :-
+    made_by_new, hypothesis_current(H), not premises_stated(H).
+
+% ---------------------------------------------------------------------
+% The records (0.8.0, D50 to D54): goal, hypotheses, predictions
+% ---------------------------------------------------------------------
+% When orbit-kb reads the KB it adds: goal(Id, Kind, agent, Text) for each hypothesis/3 fact of
+% kb.pl, hypothesis(G, Kind, Text) for each goal/4 fact, supports_closure/2 (the closure of the
+% supports facts), and made_by_new. No rule recurses, so the engine finishes on every KB.
+goal_current(G) :- goal(G, _, _, _), not superseded(G).
+hypothesis_superseded(H) :- hypothesis(H, _, _, _), superseded(H).
+hypothesis_agent_written(H) :- hypothesis(H, _, agent, _).
+hypothesis_agent_written(H) :- hypothesis(H, _, agent:_, _).
+hypothesis_human_written(H) :- hypothesis(H, _, human, _).
+hypothesis_human_written(H) :- hypothesis(H, _, human:_, _).
+% D52: only a human adopts. The discovery module adds the clause of the GO vote.
+hypothesis_adopted(H) :- hypothesis(H, _, _, _), attest(_, adoption, H, adopted, human, _).
+% D52 (c37): the retirement of an agent counts only for a hypothesis that an agent wrote, that
+% no human adopted, and that the ticket does not mark as adopted (adoption_cited).
+hypothesis_retired(H) :- hypothesis(H, _, _, _), attest(_, retirement, H, _, human, _).
+hypothesis_retired(H) :- attest(_, retirement, H, _, agent, _), hypothesis_agent_written(H),
+                         not hypothesis_adopted(H), not hypothesis_cited(H).
+hypothesis_cited(H) :- adoption_cited(H, _).
+hypothesis_defeated(H) :- hypothesis(H, _, _, _), defeat(_, H, _).
+hypothesis_out(H) :- hypothesis_superseded(H).
+hypothesis_out(H) :- hypothesis_retired(H).
+hypothesis_out(H) :- hypothesis_defeated(H).
+hypothesis_state(H, superseded) :- hypothesis_superseded(H).
+hypothesis_state(H, retired) :- hypothesis_retired(H), not hypothesis_superseded(H).
+hypothesis_state(H, defeated) :- hypothesis_defeated(H), not hypothesis_superseded(H), not hypothesis_retired(H).
+hypothesis_state(H, adopted) :- hypothesis_adopted(H), not hypothesis_out(H).
+hypothesis_state(H, proposed) :- hypothesis(H, _, _, _), not hypothesis_adopted(H), not hypothesis_out(H).
+hypothesis_goal_current(H) :- hypothesis(H, G, _, _), goal_current(G).
+hypothesis_goal_current(H) :- hypothesis(H, _, _, _), carried(H, G), goal_current(G).
+hypothesis_current(H) :- hypothesis(H, _, _, _), not hypothesis_out(H), hypothesis_goal_current(H).
+any_current_hypothesis :- hypothesis_current(_).
+tempered(H) :- defeating_case(H, _, _), not hypothesis_marked_untempered(H).
+hypothesis_marked_untempered(H) :- untempered(H, _, _).
+not_tempered(H) :- hypothesis_current(H), not tempered(H).
+claim_predicted(C) :- predicts(_, C).
+claim_of_goal(C) :- claim(C, _, _), not claim_predicted(C).
+claim_under_current(C) :- predicts(H, C), hypothesis_current(H).
+hypothesis_guess(H) :- hypothesis_agent_written(H), hypothesis_current(H), not hypothesis_adopted(H).
+% D53 (c38): what a record rests on. record_step/2 has at most four steps (a run, a check, a
+% claim, a hypothesis, a goal), so record_up/2 is written out.
+record_step(A, K) :- attest(A, test_result, _, result(K, _, _), _, _).
+record_step(K, C) :- check(K, C).
+record_step(C, H) :- predicts(H, C).
+record_step(C, G) :- claim_of_goal(C), goal_current(G).
+record_step(H, G) :- hypothesis(H, G, _, _).
+record_up(X, Y) :- record_step(X, Y).
+record_up(X, Y) :- record_step(X, Z), record_step(Z, Y).
+record_up(X, Y) :- record_step(X, Z1), record_step(Z1, Z2), record_step(Z2, Y).
+record_up(X, Y) :- record_step(X, Z1), record_step(Z1, Z2), record_step(Z2, Z3), record_step(Z3, Y).
+rests_on(X, Y) :- record_step(X, Y).
+rests_on(G, R) :- supports(G, R).
+rests_above(X, Y) :- supports_closure(X, Y).
+rests_above(X, Y) :- supports_closure(X, H), hypothesis(H, Y, _, _).
+rests_above(X, Y) :- supports_closure(X, H), hypothesis(H, G, _, _), supports_closure(G, Y).
+rests_up(X, Y) :- rests_on(X, Y).
+rests_up(X, Y) :- record_up(X, Y).
+rests_up(X, Y) :- rests_above(X, Y).
+rests_up(X, Y) :- record_up(X, Z), rests_above(Z, Y).
+goal_supported(G) :- supports(G, _).
+goal_unsupported(G) :- goal_current(G), not goal_supported(G).
+claim_unplaced(C) :- made_by_new, any_current_hypothesis, claim(C, L, _), L \= preserve,
+                     not superseded(C), claim_of_goal(C).
+lint_issue('W13', H, 'This current hypothesis is not tempered: its record names no admissible case that would show it false, or someone marked it untempered. Add defeating_case(H, By, Text): one case that would defeat it. To replace it, add a new hypothesis and supersedes(New, H).') :-
+    not_tempered(H).
+lint_issue('W14', G, 'This goal names no goal above it. Add supports(G, project(PG)) for the project goal that it supports, or supports(G, G2) for a goal of this KB. It blocks nothing.') :-
+    made_by_new, goal_unsupported(G).
+lint_issue('W15', C, 'Two current hypotheses predict this claim. A claim is a prediction of one hypothesis. Keep one predicts fact, or make it a claim of the goal (no predicts fact).') :-
+    predicts(H1, C), predicts(H2, C), H1 \= H2, hypothesis_current(H1), hypothesis_current(H2).
+lint_issue('W16', C, 'This claim is not placed: the KB has a current hypothesis, and no hypothesis predicts the claim. Add predicts(H, C) for the hypothesis that it is a prediction of. A claim that must hold under every hypothesis is a preserve claim.') :-
+    claim_unplaced(C).
+
+
+% =====================================================================
+% 0.8.0, stage 2: experiments and verdicts (D55 to D62; claims c6, c7, c39)
+% =====================================================================
+% One view for every kind of evidence. An experiment is one test of one claim, and it has
+% exactly one verdict: meets, conflicts, or unresolved (the definition Warrants of
+% ScientificMethod.lean). The build module adds the kinds proof and demo, the rules that read a
+% change (verdict_stale/2, control/1), and the location of a conflict.
+% rules.pl cannot add clauses to these rules (lint E16).
+
+decl(rule, unresolved_after(ref(check), int),
+     'The check was unresolved in a run with a higher number than the given run.',
+     'check @(1) was unresolved in a run after run @(2)').
+decl(rule, record_line(ref, int),
+     'The line of kb.pl that holds the record (an attestation, a change, a goal). orbit-kb computes it when it reads the KB. A record on a higher line was written later.',
+     'record @(1) is on line @(2) of kb.pl').
+decl(rule, before_goal(ref, ref),
+     'The record (a hypothesis, a claim, or a run) stands before the fact of the goal in kb.pl, and the goal replaces an older goal. orbit-kb computes it when it reads the KB.',
+     '@(1) was recorded before goal @(2) replaced the older goal').
+decl(rule, claim_not_carried(ref(claim)),
+     'The claim stands before the current goal in kb.pl, the goal replaced an older goal, and no carried fact carries the claim over. It is not current.',
+     'claim @(1) is not carried over to the current goal').
+decl(rule, upgrade_line(int),
+     'The line of kb.pl that holds the first upgraded/2 fact. orbit-kb computes it when it reads the KB.',
+     'the upgrade is recorded on line @(1) of kb.pl').
+decl(rule, later_run(ref(check), int),
+     'The check has a run with a higher number than the given run.',
+     'check @(1) has a run after run @(2)').
+decl(rule, latest_run(ref(check), ref(attest)),
+     'The attestation is the run of the check with the highest number.',
+     'run @(2) is the latest run of check @(1)').
+decl(rule, run_voided(ref(attest)),
+     'The run does not count as observed: a measurement premise of its check was found false after it, or a confirmed location places its conflict in the measurement.',
+     'the measurement of run @(1) does not stand').
+decl(rule, experiment(ref(attest), oneof([test, model, proof, demo, judgment]), ref),
+     'The attestation is an experiment of the claim (for a judgment of the goal: of the goal). Kind: a test run, a counted model result, a Lean proof, the approval of a demo, or a judgment of the human.',
+     '@(1) is an experiment (@(2)) of @(3)').
+decl(rule, verdict(ref(attest), oneof([meets, conflicts, unresolved])),
+     'The verdict of the experiment. Exactly one holds for each experiment.',
+     'the verdict of experiment @(1) is @(2)').
+decl(rule, model_tests_intro(ref(model)),
+     'The model is a target model that encodes an introduce claim: its bad_case check tests that claim.',
+     'the bad case of model @(1) tests an introduce claim').
+decl(rule, check_unresolved(ref(check)),
+     'The verdict of the latest run of the check is unresolved.',
+     'the latest run of check @(1) is unresolved').
+decl(rule, kb_before_upgrade,
+     'A version of orbit-kb before 0.8.0 made the KB, and no later version wrote to it. orbit-kb computes it when it reads the KB.',
+     'the KB is from before the upgrade to 0.8.0').
+
+
+later_run(K, N) :- attest(_, test_result, _, result(K, N2, _), _, _), N2 > N.
+latest_run(K, A) :- attest(A, test_result, _, result(K, N, _), _, _), not later_run(K, N).
+% A measurement premise that is found false voids each run of its check that was recorded
+% before the finding (D56, c39). The order is the order of kb.pl: the file only grows.
+run_voided(A) :- attest(A, test_result, _, result(K, _, _), _, _), measurement_premise(MP, K, _),
+                 attest(F, measurement, MP, false(_), _, _),
+                 record_line(A, LA), record_line(F, LF), LA < LF.
+experiment(A, test, C) :- attest(A, test_result, _, result(K, _, _), _, _), check(K, C).
+experiment(A, model, C) :- model_verdict(A, _, preserve(C), _).
+experiment(A, model, C) :- model_verdict(A, _, applies(C), _).
+experiment(A, model, C) :- model_verdict(A, M, bad_case, _), model_is_derived(M), encodes(M, C),
+                           claim(C, introduce, _).
+experiment(A, judgment, C) :- attest(A, judgment, _, accepts(C), human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, case(_, _), human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, satisfied, human, _).
+experiment(A, judgment, G) :- attest(A, judgment, G, not_satisfied, human, _).
+% A test run: pass is meets, fail is conflicts, and unresolved stays unresolved. A run whose
+% measurement does not stand is unresolved, whatever it showed.
+verdict(A, unresolved) :- attest(A, test_result, _, result(_, _, _), _, _), run_voided(A).
+verdict(A, meets) :- attest(A, test_result, _, result(_, _, pass), _, _), not run_voided(A).
+verdict(A, conflicts) :- attest(A, test_result, _, result(_, _, fail), _, _), not run_voided(A).
+verdict(A, unresolved) :- attest(A, test_result, _, result(_, _, unresolved), _, _), not run_voided(A).
+% A counted model result that names a claim: a case against the claim conflicts, no case meets,
+% and an unknown result is unresolved. An applies check shows no case against the claim.
+model_tests_intro(M) :- model_is_derived(M), encodes(M, C), claim(C, introduce, _).
+verdict(A, conflicts) :- model_verdict(A, _, preserve(_), R), model_shows_case(R).
+verdict(A, meets) :- model_verdict(A, _, preserve(_), R), model_shows_no_case(R).
+verdict(A, unresolved) :- model_verdict(A, _, preserve(_), R), not model_decided_result(R).
+verdict(A, meets) :- model_verdict(A, _, applies(_), R), model_decided_result(R).
+verdict(A, unresolved) :- model_verdict(A, _, applies(_), R), not model_decided_result(R).
+verdict(A, conflicts) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), model_shows_case(R).
+verdict(A, meets) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), model_shows_no_case(R).
+verdict(A, unresolved) :- model_verdict(A, M, bad_case, R), model_tests_intro(M), not model_decided_result(R).
+% A judgment of the human (D59): wanted, accepts and satisfied meet; not wanted and not
+% satisfied conflict. A judgment changes the verdict of no other experiment (c41).
+verdict(A, meets) :- attest(A, judgment, _, accepts(_), human, _).
+verdict(A, meets) :- attest(A, judgment, _, case(_, wanted), human, _).
+verdict(A, conflicts) :- attest(A, judgment, _, case(_, not_wanted), human, _).
+verdict(A, meets) :- attest(A, judgment, _, satisfied, human, _).
+verdict(A, conflicts) :- attest(A, judgment, _, not_satisfied, human, _).
+check_unresolved(K) :- latest_run(K, A), verdict(A, unresolved).
+
+hypothesis_of(H, G) :- hypothesis(H, G, _, _).
+decl(rule, hypothesis_of(ref, ref),
+     'The hypothesis (of the new sense) is a hypothesis of the goal.',
+     'hypothesis @(1) is a hypothesis of goal @(2)').
+% D52: an agent retirement that the rule does not count is named, so it is not a silent record.
+lint_issue('W19', A, 'This retirement by an agent does not count: a human wrote or adopted the hypothesis, or the ticket marks it as adopted by the human (adoption_cited). The hypothesis is not retired. Only the human retires it: orbit-kb retire H --reason TEXT --by human.') :-
+    attest(A, retirement, H, _, agent, _), hypothesis(H, _, _, _), retirement_ignored(H).
+retirement_ignored(H) :- hypothesis_human_written(H).
+retirement_ignored(H) :- hypothesis_adopted(H).
+retirement_ignored(H) :- hypothesis_cited(H).
+% D54: supports_missing/2 has no clauses here: orbit-kb computes it when the project KB of
+% project_kb/1 can be read and holds no goal with that id.
+lint_issue('W20', G, 'This goal supports a project goal that the project KB does not hold (supports(G, project(PG)): no goal PG there). Fix the id, or add the goal to the project KB.') :-
+    supports_missing(G, _).

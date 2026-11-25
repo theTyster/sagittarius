@@ -7,8 +7,8 @@ judge it. Build makes; you judge.
 
 - **Receives:** at intake, a report from the human. At verify, from **build**, the KB path and the diff.
 - **Gives:** from intake, to the pane that holds the ticket, the complaint with the KB path; or,
-  with no ticket, to **discovery**, a KB with your verdict, the evidence, and the time in UAT.
-  From verify, to the pane that asked, your findings.
+  with no ticket, to **discovery**, a KB with your classification, the evidence, and the time in
+  UAT. From verify, to the pane that asked, your findings; to **discovery**, a defeated hypothesis.
 
 ## Intake: the ticket first
 
@@ -23,7 +23,7 @@ judge it. Build makes; you judge.
   so, and give what you found. Do not guess.
 - For a regression or a gap, start a KB (`orbit-kb init DIR --request-file F --uses discovery`,
   with the report word for word in F; add `--source REF` when it is a tracker item). Record your
-  verdict, the evidence, and the time in UAT as `world` facts, each with its `source`. Then send
+  classification, the evidence, and the time in UAT as `world` facts, each with its `source`. Then send
   the KB path to **discovery**. That message is a handoff. Do not write the hypothesis or the
   ticket, and do not plan the fix.
 
@@ -47,8 +47,14 @@ judge it. Build makes; you judge.
 - Query `under(C)`, `over(X)`, and `to_ask(Q)`. Compare each claim with the request text
   that it cites, and look for parts of the request that no claim covers.
 - Run DISPROVE on each claim within a small budget: other inputs, boundaries, orders of
-  steps, and old data. Record one verdict for each claim (FULFILL brief, `orbit-kb help build`).
-  Say how long the work has been in UAT, or that it is not there yet.
+  steps, and old data. Record one disproof result for each claim: upheld, refuted, inconclusive or
+  abstained (FULFILL brief, `orbit-kb help build`). Say how long it has been in UAT, or that it is not there yet.
+- Record each experiment result and each judgment of the human on the ticket. Confirm or reject
+  each location that build proposed (PANES.md), with your own evidence. Show the human the
+  cases at the edge of the hypothesis, and record each judgment in the human's words.
+- A conflict that you confirm in a premise or in the hypothesis, or a case that the human
+  judges not wanted while every claim meets, defeats the hypothesis, not the build. Record
+  it against that hypothesis, and hand the ticket to **discovery** with a handoff row.
 - Return the work to build as a handoff: run `orbit-kb release`, record the handoff row to build
   with the kb ref (the procedure in PANES.md), and tell build the id of the row.
 

@@ -1,8 +1,8 @@
 # Instructions for the agent: set up a MindHole with the MindHole Kit
 
 This is the MindHole Kit, the template that makes a hub (a MindHole) for Sagittarius. It is part of Sagittarius
-(<https://github.com/theTyster/sagittarius>): its informal release. It needs Python 3 and git
-(`README.md`, "Install"): no bash, and no formal tools.
+(<https://github.com/theTyster/sagittarius>). It needs Python 3, git and SWI-Prolog 9 or later
+(`README.md`, "Install"): no bash. The hub gets its own copy of the tool, `orbit-kb`.
 
 You are setting up a **hub**: a git repo that a few long-lived Claude Code sessions share as their
 working memory. Read this whole file before you do anything. Do the steps in order. Each step ends
@@ -36,10 +36,11 @@ files. Step 3 is for a UAT install only; a normal install skips it.
    part names the section of the prompt it comes from. `CLAUDE.md` imports it. Read it to your
    human too.
 
-This kit installs the **informal edition**: five stores (the flow ledger, the memory files, the
-weeks, the bespoke tools, the tracker), and rules that name only those. `HUB-CORE.md` says where
-each fact is kept. A formal edition exists for teams that use the formal tools of Sagittarius; it is
-the last section of this file. Do not set it up unless your human asks for it.
+This kit installs one kind of hub, with seven stores: a spec KB for each ticket, the project KB,
+the flow ledger, the memory files, the weeks, the bespoke tools and the tracker. `HUB-CORE.md` says
+where each fact is kept. The hub's own `orbit-kb` writes the two KB stores; the last section of
+this file, "The formal edition", says how to set them up. (The name is from the time when the kit
+also made a hub with no tool. That release ended in kit 0.12.0: a hub needs the tool.)
 
 ## The kit
 
@@ -50,7 +51,6 @@ kit.json                        the template version, and which files are engine
 tools/hubkit.py                 install, status, upgrade (tests: tools/hubkit-test.py)
 hub/                            the files of a new hub, at the paths they take in the hub:
   HUB-CORE.md, PRINCIPLES.md      the shipped rules and principles (engine: an upgrade replaces them)
-                                  (the formal edition; editions/informal/ holds the informal files)
   CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md, W0/WEEK.md   owned by the hub from day one
   .claude/scripts/hubflow.py      the db tool (Python 3 stdlib only), and hubflow-test.py
   .claude/skills/hub-flow, hub-rotate   the two skills; a LOCAL.md next to SKILL.md holds local changes
@@ -86,7 +86,7 @@ so any shell runs it; add `--uat` to the install line when answer 5 is yes:
 
 ```
 git init "$HUB"
-python3 "$KIT/tools/hubkit.py" install --hub "$HUB" --edition informal
+python3 "$KIT/tools/hubkit.py" install --hub "$HUB"
 ```
 
 The later steps run from the hub root: change into `$HUB` first.
@@ -95,8 +95,9 @@ Edit only owned files: in `CLAUDE.md`, put answer 1, word for word, under `## Wh
 (replace the placeholder; no paraphrase), then the tracker and the sessions; `W0/WEEK.md` line 1
 (this week's Monday → Sunday); `flow/seed.json`, with the session names (answer 3) and the people.
 
-**Check:** `python3 "$KIT/tools/hubkit.py" status --hub "$HUB"` names the informal edition (and
-`UAT install` if you added `--uat`) and lists every engine file as `unchanged`; `CLAUDE.md` holds
+**Check:** `python3 "$KIT/tools/hubkit.py" status --hub "$HUB"` names the formal edition (and
+`UAT install` if you added `--uat`) and lists every engine file as `unchanged`, the hub's own
+orbit-kb under `.claude/orbit-kb/` too; `CLAUDE.md` holds
 answer 1 word for word; `CLAUDE.md` and `flow/seed.json` name the same sessions.
 
 ## Step 3: UAT installs only: test the kit
@@ -111,13 +112,11 @@ python3 .claude/scripts/hubflow-test.py            # about a minute or two
 python3 .claude/scripts/hubflow-test.py --mutants  # every mutant must say KILLED
 ```
 
-The last line of the plain suite says how many checks passed, failed and skipped. In a formal hub it
+The last line of the plain suite says how many checks passed, failed and skipped. In a hub it
 must be "N passed, 0 failed, 3 skipped". The 3 SKIP lines say "not run from the kit tree
 (hubkit/hub)": `t40-c12-skill-summary-is-no-decision`, `t40-c12-hub-core-raw-reports-agent-reads`
 and `t42-c6-skill-says-when-to-run-skip-waived` read files of the kit tree that a hub does not have.
-In an informal hub more checks skip: the ones that need the formal tools (their SKIP line names
-the missing tool), and the one that says "the informal edition has no kb refs". Any other SKIP, and
-any FAIL, is a defect of the kit.
+Any other SKIP, and any FAIL, is a defect of the kit.
 
 `--mutants` runs the whole suite once for each mutant: it takes an hour or more on a loaded machine.
 It prints one line per mutant as each one ends (`PASS mutant NAME: KILLED`), so a log that grows
@@ -158,15 +157,15 @@ To resume a role's session later, run the same line with `--resume "hub-<name>"`
 
 Never resume with `claude --continue`: every role shares the hub as cwd, so `--continue` can pick
 another role's conversation. A pane without `HUB_SESSION` can read the db, but every write fails.
-A formal hub has more writes that need `HUB_SESSION`: see "The formal edition" below.
+More writes need `HUB_SESSION`: see "The formal edition" below.
 
 **Check:** in each role's pane, `echo "$HUB_SESSION"` prints that role's name, and
-`python3 .claude/scripts/hubflow.py view v_inbox --session "$HUB_SESSION"` exits 0.
+`.claude/orbit-kb/bin/orbit hub ledger view v_inbox --session "$HUB_SESSION"` exits 0 (the door to the
+ledger; hubflow.py is its engine).
 
-## Step 6: formal edition only: the formal stores
+## Step 6: the formal stores
 
-An informal hub skips this step: go to step 7. A formal hub (installed with `--edition formal`)
-makes its project store now, before the commit: do the part "Step 6 (formal)" of "The formal
+The hub makes its project store now, before the commit: do the part "Step 6 (formal)" of "The formal
 edition" below.
 
 **Check:** `project-kb/kb.pl` exists, and `git status` lists `project-kb/`.
@@ -179,14 +178,7 @@ their name and email, and set them with `git config user.name "<name>"` and
 `git config user.email "<email>"` (in the hub only; do not change their global git config unless they
 ask).
 
-Informal edition:
-
-```
-git add .gitignore .hub-template.json CLAUDE.md HUB-CORE.md PRINCIPLES.md HEURISTICS.md TECHNOLOGIES.md .claude flow/seed.json flow/jsonl W0
-git commit -m "hub: initial layout and flow db"
-```
-
-Formal edition: the same, and the two stores of "The formal edition" below, `project-kb/` (made in
+Add the files of the hub, and the two stores of "The formal edition" below, `project-kb/` (made in
 step 6) and `specs/` (skip a store that does not exist yet; `git add` names no missing path):
 
 ```
@@ -215,7 +207,7 @@ python3 .claude/scripts/hubflow.py check
 Say what you set up, each check's result, and what you did not check. Then tell them the routine:
 
 - **Every session start, and after every compaction:** read `v_inbox` for that session.
-- **When an agent waits on the human:** `add ask --waits-on me` (a formal hub also needs
+- **When an agent waits on the human:** `add ask --waits-on me` (it also needs
   `--ref kb:<slug>` for the KB the ask rests on, or `--no-kb`, and `--note` with the case, the
   options and what each changes, and your default). Ask the human what is waiting on
   them with `view v_waiting_on --person me`.
@@ -230,8 +222,8 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 - The db is new. It has a test suite with mutation checks (step 3 runs them in a UAT install), but
   little time in daily use yet.
 - `rotate` requires `--week-start` to be a Monday, and an item is due at exactly 28 idle days.
-- Do not add `kb` refs in the informal edition: hubflow counts an item with one as blocking, so an
-  agent can never lapse it. On an escalated or blocking item, an agent's close, renew, park and
+- When the hub's orbit-kb cannot be asked (the copy is gone, or it does not run), hubflow counts an
+  item with a `kb` ref as blocking, so an agent cannot lapse it. On an escalated or blocking item, an agent's close, renew, park and
   `set --status` are refused too; a human does them with `--by human --note`. An agent can still
   pass `--by human` without a human's words, or edit the hub outside hubflow: the rule stops
   mistakes, not cheating.
@@ -240,16 +232,17 @@ Say what you set up, each check's result, and what you did not check. Then tell 
 
 ## The formal edition
 
-Only when your human asks for it. The formal edition adds two stores, written with Sagittarius's
-`orbit-kb` (it needs SWI-Prolog): a **spec KB** per ticket at `specs/<slug>/`, and a **project
+Every hub is the formal edition: `.hub-template.json` records `"edition": "formal"`. It has two
+stores that are written with Sagittarius's `orbit-kb` (it needs SWI-Prolog): a **spec KB** per ticket at `specs/<slug>/`, and a **project
 KB**: an orbit-kb KB with the `project` module, kept at the hub root as `project-kb/`. It records
 domain decisions, pins of the world, and drafts for the tracker.
 
-- **The hub's own orbit-kb.** A formal install copies the orbit-kb that this kit was tested with
+- **The hub's own orbit-kb.** The install copies the orbit-kb that this kit was tested with
   (`kb/bin/orbit-kb`, `kb/bin/repo-map` and `kb/share` of the Sagittarius checkout, about 0.7 MB) into
   the hub at `.claude/orbit-kb/`, as engine files: an upgrade replaces them. Run it from the hub root as
   `.claude/orbit-kb/bin/orbit-kb`, never as a bare `orbit-kb`: the one on the PATH may be another
-  version. `hubflow.py` and the skills run the copy too. It needs SWI-Prolog. Limits:
+  version. The same program is also installed as `.claude/orbit-kb/bin/orbit`, its name as the door to
+  every store. `hubflow.py` and the skills run the copy too. It needs SWI-Prolog. Limits:
   `ORBIT_KB_LIB` in the environment overrides the copy's `share/`, and `orbit-kb prove` still needs
   `lake` from the PATH.
 - **Step 6 (formal): make the project KB.** The project KB request is what the hub is for. From
@@ -279,9 +272,10 @@ domain decisions, pins of the world, and drafts for the tracker.
   them in its `runs` lines and says whether the files under `~/.claude/sagittarius/` are still the
   same. **Check:** the `runs prompt:` line says `the file there: same`; if not, the panes run
   another prompt than the one this hub was set up with: tell your human.
-- Install with `--edition formal` (only when your human asks for it; which `orbit-kb` is on the
-  PATH plays no part: with no `--edition`, install picks informal), or switch an informal hub with
-  `python3 "$KIT/tools/hubkit.py" edition --hub "$HUB" formal --yes`. The switch replaces the shipped
+- Which `orbit-kb` is on the PATH plays no part in the install: the hub runs its own copy.
+  `--edition formal` is still taken, and names the one kind of hub. A hub that an older kit made
+  with no tool moves with `python3 "$KIT/tools/hubkit.py" edition --hub "$HUB" formal --yes`
+  (`UPGRADING.md`, section 0.12.0). That switch replaces the shipped
   rules and skills and adds the orbit-kb copy; `CLAUDE.md` is the hub's own, so add its "Repos and the
   project KB" section by hand (copy it from `hub/CLAUDE.md`).
 - `.claude/orbit-kb/bin/orbit-kb pin-item` and `.claude/orbit-kb/bin/orbit-kb draft` record a dropped edit of the project KB in the ledger by

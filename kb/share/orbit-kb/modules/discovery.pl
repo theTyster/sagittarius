@@ -150,6 +150,7 @@ decl(rule, some_unasked_finding, 'Some finding needs a question.', 'some finding
 decl(rule, some_current_refuted, 'Some current claim is refuted.', 'some current claim is refuted').
 decl(rule, some_weak_rule, 'Some rule is weak.', 'some rule survived its mutation check with no reason').
 decl(rule, some_model_problem, 'Some model diverges, is vacuous, breaks a claim with no disproof, or has solvers that disagree.', 'some model has an open problem').
+decl(rule, cited_before_go(ref(hypothesis), ref(attest)), 'The adoption_cited fact of the hypothesis stands before this GO vote of the human in kb.pl. orbit-kb computes it when it reads the KB (0.8.0, D52).', 'the adoption of hypothesis @(1) was cited before the GO vote @(2)').
 decl(rule, vote_cast(by, int, atom), 'A vote: its writer, round, and choice.', 'the @(1) voted @(3) in round @(2)').
 decl(rule, discovery_vote_raised(int), 'A vote exists in a larger round than this one.', 'a vote exists in a round after round @(1)').
 decl(rule, vote_round(int), 'The current round: the largest round with a vote.', 'round @(1) is the current round of the vote').
@@ -175,6 +176,10 @@ discovery_system_evidence(S) :- discovery_evidence(S, system), not discovery_mod
 touched_system :- attest(_, reproduction, S, _, _, _), discovery_system_evidence(S).
 touched_system :- attest(_, test_result, K, _, _, _), discovery_system_evidence(K).
 discovery_hypothesis_touched(H) :- attest(_, reproduction, S, result(H, _), _, _), discovery_system_evidence(S).
+% 0.8.0 (review B3): a goal that replaces a statement keeps the reproduction of that statement
+% when a record carries the attestation over: carried(A, G).
+discovery_hypothesis_touched(G) :- carried(A, G), supersedes_closure(G, O),
+    attest(A, reproduction, S, result(O, _), _, _), discovery_system_evidence(S).
 % D33 R3 (question q_k_d_3b, default a): a red run of a system check of an introduce or a retire
 % claim is the system result of each hypothesis that no hypothesis supersedes (the rules that
 % read discovery_hypothesis_touched/1 skip a superseded one), if the run came after the
@@ -280,6 +285,10 @@ some_unratified_supersession :- discovery_unratified(_).
 % D30 H5, H8: vote_void/1 has no clauses here. orbit-kb computes it: a vote that a back
 % attestation follows (an earlier orbit), or a vote after a discovery_end that no back follows.
 vote_cast(W, R, C) :- attest(A, vote, _, vote(R, C), W, _), not vote_void(A).
+% 0.8.0 (D52, q29): a GO vote of the human adopts each hypothesis that the ticket marked as
+% adopted by the human before the vote (adoption_cited). It adopts no hypothesis without the
+% mark, and a mark that comes after the vote adopts nothing.
+hypothesis_adopted(H) :- hypothesis(H, _, _, _), cited_before_go(H, V), not vote_void(V).
 discovery_vote_raised(R) :- vote_cast(_, R, _), vote_cast(_, R2, _), R2 > R.
 vote_round(R) :- vote_cast(_, R, _), not discovery_vote_raised(R).
 human_vote(C) :- vote_cast(human, R, C), vote_round(R).
@@ -363,7 +372,9 @@ lint_issue('WD6', A, 'The problem did not reproduce on the current system. Tell 
     attest(A, reproduction, S, result(H, not_reproduced), _, _), discovery_system_evidence(S),
     not superseded(H).
 lint_issue('WD7', H, 'No result from the current system exists for this hypothesis. Reproduce it, or ask the human if it is a separate ticket.') :-
-    discovery_open, hypothesis(H, _, _), not superseded(H), not discovery_hypothesis_touched(H).
+    discovery_open, hypothesis(H, _, _), not goal_written(H), not superseded(H), not discovery_hypothesis_touched(H).
+lint_issue('WD7', G, 'No result from the current system exists for this goal. Reproduce it, or ask the human if it is a separate ticket. A result on the goal that it replaces counts when carried(A, G) names its attestation.') :-
+    discovery_open, goal_written(G), not superseded(G), not discovery_hypothesis_touched(G).
 lint_issue('WD8', A, 'This model result is on a log of an older digest of the model. It does not count. Run the solver again, into a new log.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), model_run_stale(S, M),
     not discovery_result_renewed(A).

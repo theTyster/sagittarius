@@ -1,0 +1,84 @@
+orbit-kb help hub: the door to every store of a hub (D63 to D69)
+
+The command has two names: orbit and orbit-kb. They are the same program. Each command of
+0.7.2 answers in the same form under both names.
+
+A hub has seven stores: spec, project, ledger, memory, weeks, bespoke, tracker. One command
+reaches each of them. The hub root is --hub DIR, else the nearest directory from here upward
+that holds .hub-template.json or flow/jsonl.
+
+Read
+  orbit-kb hub query 'GOAL' [-n N] [--hub DIR]    one query over every store; -n 0 gives all answers
+  orbit-kb hub stores [--hub DIR]                 the seven stores, with counts
+  orbit-kb hub files memory|weeks|bespoke         the files of a file store, with a sha256 each
+  orbit-kb hub orphans [--hub DIR]                the items of work with no purpose (below)
+
+Facts of a hub query
+  item(Id, Kind, Status, Title, Owner)   a ledger item: ask, thread, hold, handoff, summary
+  item_ref(Id, RefKind, Ref)             its refs: kb, goal, issue, pr, build, release, url, file, commit, transcript
+  item_link(Id, Rel, Id2)                blocks, follows, duplicates, supersedes, relates
+  item_closed(Id, Reason)                done, dropped or lapsed
+  item_opened(Id, Time)  item_waits(Id, Person)  item_parked(Id, Until)  item_due(Id, Date)
+  handoff(Id, From, To)  handoff_accepted(Id, Time)
+  ticket(Slug, Dir)                      a spec KB of the hub (specs/SLUG)
+  ticket_fact(Slug, Fact)                a fact or a rule answer of that spec KB: goal(G, K, A, T),
+                                         claim(C, L, T), done, blocking(X), and the rest
+  project_fact(Fact)                     a fact or a rule answer of the project KB
+  store_file(Store, Path, Digest)        Store: memory, weeks or bespoke
+  tracker_ref(Id, Ref)                   a pointer to the tracker (KIND:REF). A tool posts nothing there.
+The ledger is read from flow/jsonl. A spec KB is read only when a query asks for one of its facts.
+Example: each open handoff with the goal that it serves and what blocks that goal.
+  orbit-kb hub query "item(I, handoff, open, _, _), item_ref(I, kb, S), ticket_goal(S, G),
+      ticket_supports(S, G, PG), project_fact(goal(PG, _, _, Text)), ticket_fact(S, blocking(B))" -n 0
+
+Write
+  orbit-kb hub ledger ARGS...            every write to the ledger. It runs the hub's hubflow.py (the
+                                         storage engine, and the only writer of flow.db) with ARGS, and
+                                         gives its output and its exit code unchanged. Example:
+                                         orbit-kb hub ledger add hold --title T --owner build --ref goal:pg1
+  orbit-kb --dir specs/SLUG add ...      a spec KB, as before; the project KB too (--dir project-kb)
+  orbit-kb run, orbit-kb prove           orbit runs each experiment and writes the result itself
+
+Purpose (c44)
+  An item of work has a purpose when a live chain of records leads from it to a project goal
+  that is not dropped. The steps: an item names its ticket (kb ref) or its goal directly (the
+  ledger ref goal:PG); an item links to another item with blocks, follows, duplicates or
+  supersedes (a relates link passes no purpose); a ticket has a goal; the goal supports a
+  project goal: supports(G, project(PG)) in the spec KB. A chain is not live through a dropped
+  or lapsed item, through a ticket that ended with NO-GO, or to a dropped goal. A done item
+  passes its purpose on.
+  Queries: has_purpose(I), orphan(I), ends_at(I, End), serves_goal(I, PG), rests_on_dropped(I, PG),
+  over(I), report_on_done_ticket(I), ticket_goal(S, G), ticket_goal_unsupported(S, G),
+  ticket_goal_rests_on_dropped(S, G, PG).
+  orbit-kb hub orphans prints three lists, apart: Orphans (each open item with no purpose, once,
+  with where its chain ends), Over (an open row whose ticket is done, opened before that), and
+  Reports on a done ticket (an open row opened after its ticket was done). Orphans is grouped by
+  where the chain ends, the largest group first, with one count line per group; in the group of
+  the ticket goals that name no project goal, each such ticket goal is named once with its items
+  under it. Then the ticket goals with no live project goal, each dropped project goal with what
+  rested on it, and the two commands that give an item a purpose:
+      orbit-kb --dir specs/SLUG add "supports(G, project(PG))"   the ticket goal names a project goal
+      orbit-kb hub ledger ref ID add goal:PG                     an item with no ticket names one
+  It is a list: nothing is stopped or closed. The time of done is the time of the newest record that
+  can make done true: a passed run, an approval, a proof, a judgment, a waiver, a pinned answer.
+
+Project goals (c17, c42)
+  In the project KB: goal(PG, Kind, Author, Text), hypothesis(H, PG, Author, Text), premise/3.
+  orbit-kb --dir PROJECT_KB drop-goal PG --by human --note 'WORDS'   the owner drops a goal. It writes
+      dropped(PG, human, Time, Text). add refuses dropped/4. No divergence is recorded, and a
+      goal is never recorded as defeated.
+  In a spec KB that uses the project module, with project_kb/1:
+      supports(g1, project(pg1))        the ticket goal names its project goal
+      goal_rests_on_dropped(G, PG)      the project goal was dropped (lint WP11; it blocks nothing)
+      lint WP10                         the project KB does not hold that goal
+      contradicts(g1, project(pg1))     the ticket goal contradicts a project goal. It blocks
+                                        (goal_contradicts(G)) until a human answers a question
+                                        about the goal: question(Q, g1, TEXT), then the answer.
+
+System 1 (c46)
+  orbit-kb s1-record [--hub DIR] [--session S] [--dir KB] --json
+  One JSON object, and nothing else: ticket, goal, hypotheses (with predictions), questions,
+  goal_sentences (each project goal and each current ticket goal of the hub), sent (the ids of
+  the records). The active ticket is the spec KB of the newest open item that the session
+  ($HUB_SESSION or --session) owns with a kb ref; --dir names it directly. With no ticket:
+  null and empty lists. The record of a KB is kept in the cache directory until kb.pl changes.

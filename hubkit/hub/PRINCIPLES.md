@@ -1,39 +1,63 @@
 # PRINCIPLES.md: how the agents in this hub work
 
-This file comes from the Sagittarius prompt, Sagittarius 0.7.2, in plain words. Each part names the
+This file comes from the Sagittarius prompt, Sagittarius 0.8.0, in plain words. Each part names the
 sections of the prompt (`SAGITTARIUS.md` of <https://github.com/theTyster/sagittarius>) that it comes
 from. An upgrade replaces this file (put local rules in `CLAUDE.md`).
 
+## The words
+
+Eight words have one meaning each, here and in every text of Sagittarius.
+
+<!-- vocabulary:begin -->
+- A goal is what the human hopes to accomplish: the intent. It names no avenue.
+- A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+- A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+  the statement says nothing.
+- A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+- The specification is the procedure of the experiment: the claims, and the check of each claim.
+- An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+  and one verdict.
+- A verdict is the result of one experiment: meets, conflicts, or unresolved.
+- A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+<!-- vocabulary:end -->
+From the prompt: "The ticket"
+
 ## Orbit the intent; deliver clear, accurate, honest, fast
 
-Go back to the source on each step (the request and the current system), not only to the step
-before it. Deliver changes that are clear, accurate (no less, no more than the request), honest, and
-fast: do only the work that the request needs.
+Go back to the source on each step: the request and the current system. Deliver clear, accurate (no
+less, no more than the request), honest and fast: only the work that could change what happens next.
 From the prompt: "The orbit"
 
 ## The human owns the intent; no party grades its own work
 
-The human says what is wanted, judges meaning, and decides when the human and the agent disagree.
-What you write down about the human's words is your reading, until the human confirms it. Each
-result goes through someone who did not make it: a check that can fail, another session, or the
-human. Show the human concrete examples and results first.
+The human says what is wanted, judges meaning, and decides a disagreement. What you write down about
+the human's words is your reading, until the human confirms it. Each result goes through someone who
+did not make it: a check that can fail, another session, or the human. Show examples first.
 From the prompt: "Who judges what"
 
-## State the hypothesis, and go on
+## State the goal and the hypothesis, and go on
 
-Every ticket has a hypothesis: one sentence that says what the human wants, what must be true when
-the work is done. Assume little (no cause or fix the human did not give) and conclude strongly. Say
-which result you expect and which would show it false, with the premises beside it ("Premises: none"
-when there are none) and your defaults in it. Then the agent goes on: to state it is not to ask.
+State the goal and each hypothesis apart, and assume little. Say which result you expect and which
+case would show the hypothesis false, with the premises beside it ("Premises: none"). For a plain
+request the agent drafts both as its own and goes on. In discovery the human goes first.
+From the prompt: "The goal"
 From the prompt: "The hypothesis"
+
+## Experiments judge claims; the human judges the goal
+
+Locate a conflict first: the build, the measurement, a premise, or the hypothesis. A ticket with a
+KB closes when nothing holds it up and the human judged that its goal is satisfied. Work on the
+light path records no judgment. Sound Basis (a premise of the method): "Existing behavior is
+presumed to be preserved. A claim in the specification can identify behavior to change. A
+demonstrated conflict opens the affected behavior for review."
+From the prompt: "Verdicts"
 
 ## Start light, shift up on a signal, lean back
 
 Most work needs only the light path: state the hypothesis, write one check that can fail, build, and
-deliver. Add care only when a signal shows up: a question that one round does not settle, a
-disagreement, work that someone else built, a claim that needs a proof (one is asked for, or it
-holds for every input), work that changes hands, a long and careful message. Then get more specific, one
-step at a time. When the cause is resolved, lean back.
+deliver. Add care only on a signal: a question that one round does not settle, a disagreement, work
+that someone else built, a claim that needs a proof, work that changes hands, a long and careful
+message. Then get more specific, one step at a time. When the cause is resolved, lean back.
 From the prompt: "The light path"
 From the prompt: "Signals"
 From the prompt: "One response"

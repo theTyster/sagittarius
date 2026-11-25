@@ -125,6 +125,7 @@ class InstallLink(unittest.TestCase):
         sag = ver("VERSION")
         want = {
             os.path.join(".local", "bin", "orbit-kb"): ("orbit-kb", sag),
+            os.path.join(".local", "bin", "orbit"): ("orbit-kb", sag),
             os.path.join(".local", "share", "orbit-kb"): ("orbit-kb", sag),
             os.path.join(".claude", "sagittarius"): ("sagittarius", sag),
             os.path.join(".claude", "sagittarius-s1"): ("system-1", sag),

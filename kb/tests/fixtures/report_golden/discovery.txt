@@ -37,14 +37,16 @@
 # Not explored:
   - None is recorded. Say what you did not explore.
 
-# Guesses:
-  - None. No question has a default.
+# Residual:
+  - **Wanted:**
+    - None. No question has a default, and no hypothesis waits for the human.
+  - **Happens:**
+    - None. No claim is current.
+  - **Follows:**
+    - None. No claim has a formal statement.
 
 # Disclosures:
   - None.
-
-# Not checked:
-  - None. No claim is current.
 
 # Open:
   - **not ready**: Discovery is not ready, no_hypothesis: no current hypothesis

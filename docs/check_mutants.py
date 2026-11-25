@@ -18,7 +18,8 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The version in the tree now, so the VERSION mutant case applies at every release (it was "0.3.0").
 VERSION_NOW = open(os.path.join(ROOT, "VERSION"), encoding="utf-8").read().strip()
-COPY = ["docs", "prompt", "hubkit", "kb/share/orbit-kb/help", "kb/share/orbit-kb/core.pl", "README.md",
+COPY = ["docs", "prompt", "hubkit", "kb/share/orbit-kb/help", "kb/bin/orbit-kb", "kb/share/orbit-kb/core.pl", "kb/share/orbit-kb/vocabulary.json",
+        "kb/CONTRACT.md", "README.md",
         "CLAUDE.md", "CHANGELOG.md", "VERSION", "s1"]
 P = "prompt/SAGITTARIUS.md"
 CASES = [
@@ -26,8 +27,13 @@ CASES = [
     (["docs/check_consistency.py", "c9"], P, "more than 0.5", "more than 0.4", "the vote needs 0.4"),
     (["docs/check_consistency.py", "c9"], P, "\n## The vote\n", "\n## The ballot\n", "no heading The vote (a failure, not a stop)"),
     (["docs/check_words.py", "c2"], P, "Oscillation is an intentional heuristic", "Oscillation is a habit", "no oscillation sentence"),
-    (["docs/check_words.py", "c2"], P, "\n## The vote\n", "\n## The ballot\n", "a section that a principle names is gone"),
-    (["docs/check_hub_guidance.py", "c5"], P, "`orbit-kb show\nopen`", "`orbit-kb lint`", "the prompt does not name orbit-kb show open"),
+    (["docs/check_words.py", "c2"], P, "\n## The vote\n", "\n## The ballot\n", "a section that a protocol row names is gone"),
+    # Philosophy 3.0.0 (review H-0129, step 4): c2 reads the protocol table of the philosophy
+    (["docs/check_words.py", "c2"], "docs/PHILOSOPHY.md", '| "Delivery" |\n| 19 |', '| "The delivery" |\n| 19 |',
+     "a protocol row names a section that the prompt does not have"),
+    (["docs/check_words.py", "c2"], P, "\n## Scope\n", "\n## Range\n",
+     "a section that no protocol row names is new, and rows 6 and 20 name one that is gone"),
+    (["docs/check_hub_guidance.py", "c5"], P, "`orbit show\nopen`", "`orbit lint`", "the prompt does not name orbit show open"),
     (["docs/check_hub_fixes.py", "t31c9"], P, "Err toward the general and soft", "Err toward the exact", "no err-soft sentence"),
     (["docs/check_prompt_small.py"], P, "Signals:     <questions", "Triggers:    <questions", "no Signals: field in the delivery block"),
     (["docs/check_prompt_small.py"], P, "Formal:      <the formal statement", "Form:        <the formal statement", "no Formal: field"),
@@ -35,7 +41,8 @@ CASES = [
     (["docs/check_prompt_small.py"], P, "\n## Honesty\n", "\n## Manners\n", "no Honesty heading"),
     # each delivery field and each rule sentence of the prompt has a key phrase (review finding 4)
     (["docs/check_prompt_small.py"], P, 'KB:          <"No KB"', 'Store:       <"No KB"', "no KB: field"),
-    (["docs/check_prompt_small.py"], P, "Guesses:     <defaults", "Hunches:     <defaults", "no Guesses: field"),
+    (["docs/check_prompt_small.py"], P, "Residual:    <what could still show this wrong", "Leftover:    <what could still show this wrong",
+     "no Residual: field"),
     (["docs/check_prompt_small.py"], P, "Disclosures: <unverified", "Notes:       <unverified", "no Disclosures: field"),
     (["docs/check_prompt_small.py"], P, "Claims:      <each claim", "Results:     <each claim", "no Claims: field"),
     (["docs/check_prompt_small.py"], P, ' Never state a\n   bounded result as "always" or "never".', "", "the bounded-result rule is gone"),
@@ -49,6 +56,11 @@ CASES = [
     (["docs/check_prompt_small.py"], P, "- discovery: research, specify.", "- discovery: explore.", "the phases of discovery are gone"),
     (["docs/check_prompt_small.py"], P, "- build: build, verify.", "- build: make.", "the phases of build are gone"),
     (["docs/check_prompt_small.py"], P, "significant effort or verbosity from the human", "a long message", "the effort signal lost its words"),
+    # Philosophy 3.0.0 (review H-0129, step 3): rules that the rebuilt prompt added
+    (["docs/check_prompt_small.py"], P, "**Explore freely. Confirm sealed.** ", "", "the explore-and-confirm rule lost its name"),
+    (["docs/check_prompt_small.py"], P, "5. Keep what failed. ", "5. ", "the keep-what-failed rule is gone"),
+    (["docs/check_prompt_small.py"], P, "Give a pass the\n   question that you give a fail: would this have passed if I were wrong? ", "",
+     "the rule for a pass is gone"),
     # c4 holds the route of a report in PANES.md, not four words anywhere in it (review finding 5)
     (["docs/check_consistency.py", "c4"], "prompt/PANES.md",
      "Intake is where new work starts: it finds the ticket that a\n  report is about and hands the report to the pane that holds it; a report with no ticket it\n  judges (regression or gap) and sends to discovery. ",
@@ -60,16 +72,68 @@ CASES = [
     # docs/check_mindhole.py (review finding 5, kit3): the MindHole checks can fail too
     (["docs/check_mindhole.py", "mg2"], "hubkit/README.md", "The **MindHole Kit** is the template that makes a hub",
      "The **MindHole Kit** is the hub", "the kit README says the MindHole Kit is the hub"),
-    (["docs/check_mindhole.py", "mb7"], "hubkit/editions/informal/.claude/skills/hub-flow/SKILL.md",
-     '$HF note T-0002 "vote: GO: ', '$HF note T-0002 "ballot: ', "the informal skill lost the vote note"),
+    # scientific-method-overhaul c22: the kit names no release with no tool, and the check can fail
+    (["docs/check_kit_release.py", "c2"], "hubkit/hub/HUB-CORE.md", "## Panes\n", "## Without orbit-kb\n\nA hub with no tool.\n\n## Panes\n",
+     "HUB-CORE.md has a section Without orbit-kb again"),
     # 0.3.0 c_sg5b: a retired term in a text that an agent reads
     (["docs/check_terms.py"], "prompt/PANES.md", "A handoff is a signal", "A handoff is a trigger",
      "PANES.md calls a handoff a trigger (the term is signal)"),
     # 0.3.0 c_sg4b: the prompt gives the sentence with a cause another verdict than the Lean file and the help
-    (["docs/check_examples.py", "c1"], P, '- Too strong: "The tier is read from a cache that loads once."',
+    (["docs/check_examples.py", "c1"], P, '- Brittle: "The tier is read from a cache that loads once."',
      '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (Lean)"),
-    (["docs/check_examples.py", "c2"], P, '- Too strong: "The tier is read from a cache that loads once."',
+    (["docs/check_examples.py", "c2"], P, '- Brittle: "The tier is read from a cache that loads once."',
      '- Fit: "The tier is read from a cache that loads once."', "the prompt calls the sentence with a cause Fit (help)"),
+    # Philosophy 3.0.0 (review H-0129, step 5): the cells of the philosophy start with Soft, Brittle, Fit
+    (["docs/check_examples.py", "c3"], "docs/PHILOSOPHY.md", "| Soft: not tempered. |", "| Fit: tempered. |",
+     "the philosophy calls the soft sentence Fit"),
+    # 0.8.0 scientific-method-overhaul c12: a hand edit of one copy of the vocabulary
+    (["docs/check_vocabulary.py", "panes"], "prompt/PANES.md", "It names no avenue.", "It names one avenue.",
+     "a hand edit of the goal sentence in PANES.md"),
+    (["docs/check_vocabulary.py", "prompt"], P, "meets, conflicts, or unresolved.\n- A hypothesis is tempered",
+     "meets or conflicts.\n- A hypothesis is tempered", "a hand edit of the verdict sentence in the prompt"),
+    (["docs/check_vocabulary.py", "help"], "kb/share/orbit-kb/help/core.txt", "how we think we will get there",
+     "how we will get there", "a hand edit of the hypothesis sentence in help core"),
+    (["docs/check_vocabulary.py", "temper"], "s1/temper.py", "when one admissible case can demonstrate", "when a case can demonstrate",
+     "a hand edit of TEMPERED_DEFINITION"),
+    (["docs/check_vocabulary.py", "desk"], "kb/share/orbit-kb/vocabulary.json", "A claim is a prediction", "A claim is a wish",
+     "a hand edit of the Desk copy"),
+    (["docs/check_vocabulary.py", "principles"], "hubkit/hub/PRINCIPLES.md", "<!-- vocabulary:end -->", "",
+     "the block of PRINCIPLES.md lost its end marker"),
+    # 0.8.0 scientific-method-overhaul: the phrase tests of the method (docs/check_method_texts.py)
+    (["docs/check_method_texts.py", "c7"], P, "An unresolved\n  verdict fulfils nothing, defeats nothing, and keeps its claim open.", "",
+     "the unresolved rule is gone"),
+    (["docs/check_method_texts.py", "c9"], P, "Before you reopen anything, locate\nthe conflict", "Reopen the hypothesis",
+     "the prompt does not locate first"),
+    (["docs/check_method_texts.py", "c10"], P, "the case defeats the\n  hypothesis that allowed it, not the build", "the build is wrong",
+     "a not-wanted case with every claim meeting blames the build"),
+    (["docs/check_method_texts.py", "c11"], "kb/share/orbit-kb/help/discovery.txt", "It is the statement of the intent",
+     "It is your closest statement of the intent", "the old definition is back in help discovery"),
+    (["docs/check_method_texts.py", "c13"], P, "formalize the\nsmallest claim whose precision", "formalize each claim whose precision",
+     "the one rule of formal language lost its words"),
+    (["docs/check_method_texts.py", "c14"], P, "say that they are yours\n  (\"Goal (mine): ... Hypothesis (mine): ...\")", "show them",
+     "the agent does not say that its drafts are its own"),
+    (["docs/check_method_texts.py", "c14"], P, "ask the human for theirs before you\nshow yours", "show yours, then ask for theirs",
+     "the human no longer goes first (review H-0129, step 6)"),
+    (["docs/check_method_texts.py", "c15"], "prompt/panes/build.md", "record\n  the new goal in the words of the human: it supersedes the old one",
+     "restate the hypothesis", "build.md tells build to restate the hypothesis"),
+    (["docs/check_method_texts.py", "c16"], P, "Existing behavior is presumed to be\npreserved.", "Existing behavior is preserved.",
+     "Sound Basis is not in the words of Ty"),
+    (["docs/check_method_texts.py", "h1"], "kb/share/orbit-kb/help/build.txt", "Locate the conflict first, with the evidence.",
+     "If the answer says what it changes to, restate it: the new hypothesis supersedes the old one.",
+     "help build tells build to restate a hypothesis"),
+    (["docs/check_method_texts.py", "h1"], "kb/bin/orbit-kb", "report); build when you can state it. Every ticket has a goal.",
+     "report); build when you can state it. Every ticket has a\",\n\"     hypothesis.",
+     "the first help screen says that every ticket has a hypothesis"),
+    (["docs/check_method_texts.py", "h1"], "kb/share/orbit-kb/help/shift.txt", "the intent; it names no avenue: goal(g1, K, AUTHOR, TEXT).",
+     "what must be true when the ticket is done: hypothesis(h1, K, TEXT).",
+     "help shift keeps the old definition of --hypothesis"),
+    (["docs/check_method_texts.py", "c45"], P, "7. **Keep watching.**", "7. Ask the human to adopt the hypothesis.\n8. **Keep watching.**",
+     "the light path has an eighth Build step"),
+    # 0.8.0 scientific-method-overhaul review R1: the hub texts teach the door, not the engine
+    (["docs/check_mindhole.py", "r1"], "hubkit/hub/HUB-CORE.md", "`.claude/orbit-kb/bin/orbit hub ledger view v_inbox",
+     "`python3 .claude/scripts/hubflow.py view v_inbox", "HUB-CORE.md tells a session to read its inbox with hubflow.py"),
+    (["docs/check_panes.py", "--only", "c5"], "prompt/panes/discovery.md", "Re-evaluate the goal, the premises and the\n  measurement, and temper a new hypothesis",
+     "Ask build", "discovery does not temper a new hypothesis"),
 ]
 
 

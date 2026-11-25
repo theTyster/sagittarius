@@ -1,0 +1,369 @@
+{
+ "_comment": "A tiny invented case set for the tests of s1/replay.py. Every text is invented. The recorded answers are invented too: they are not answers of the model, and this file is no experiment.",
+ "question": "drift",
+ "claim": "c30",
+ "thresholds": {
+  "written": "2026-11-24T08:00:00Z",
+  "by": "build (an example, not an experiment)",
+  "rule": "two_arm",
+  "target": [
+   "drift"
+  ],
+  "hint_labels": [
+   "drift"
+  ],
+  "min_gain": 1,
+  "max_extra_false": 0,
+  "max_failed": 0
+ },
+ "cases": [
+  {
+   "id": "d1",
+   "group": "drift",
+   "label": "drift",
+   "source": {
+    "kind": "invented"
+   },
+   "state": {
+    "context": "You are viewing a snippet of a transcript between a human and an agent",
+    "delivery": "Human-first worked: the result is better.",
+    "recent": [
+     {
+      "role": "you",
+      "text": "Run the trial of Human-first."
+     }
+    ]
+   },
+   "record": {
+    "ticket": "human-first",
+    "goal": {
+     "id": "g1",
+     "author": "human",
+     "text": "The agent finds what the human wants with less rework."
+    },
+    "hypotheses": [
+     {
+      "id": "hy1",
+      "author": "human",
+      "state": "adopted",
+      "text": "Starting from the hypothesis of the human exposes a misunderstanding earlier and gives a closer result.",
+      "defeating_case": "A trial that finds the misunderstanding no earlier.",
+      "predictions": [
+       {
+        "id": "c1",
+        "text": "The misunderstanding is found earlier than with an ordinary request."
+       },
+       {
+        "id": "c2",
+        "text": "The human judges the result closer to the goal."
+       }
+      ]
+     }
+    ],
+    "questions": [],
+    "goal_sentences": []
+   },
+   "recorded": {
+    "today": {
+     "d_drift": {
+      "type": "noul",
+      "noul": 0.4
+     }
+    },
+    "record": {
+     "d_success": {
+      "type": "noul",
+      "noul": 0.9
+     },
+     "d_kept@0": {
+      "type": "choice",
+      "choice": "dropped",
+      "confidence": 0.9,
+      "probabilities": {
+       "dropped": 0.9
+      }
+     },
+     "d_revised@0": {
+      "type": "noul",
+      "noul": 0.1
+     },
+     "d_kept@1": {
+      "type": "choice",
+      "choice": "accounted",
+      "confidence": 0.9,
+      "probabilities": {
+       "accounted": 0.9
+      }
+     },
+     "d_revised@1": {
+      "type": "noul",
+      "noul": 0.1
+     }
+    }
+   }
+  },
+  {
+   "id": "d2",
+   "group": "drift",
+   "label": "drift",
+   "source": {
+    "kind": "invented"
+   },
+   "state": {
+    "context": "You are viewing a snippet of a transcript between a human and an agent",
+    "delivery": "Done. The trial confirms Human-first: the human judged the result closer.",
+    "recent": [
+     {
+      "role": "you",
+      "text": "Run the trial of Human-first."
+     }
+    ]
+   },
+   "record": {
+    "ticket": "human-first",
+    "goal": {
+     "id": "g1",
+     "author": "human",
+     "text": "The agent finds what the human wants with less rework."
+    },
+    "hypotheses": [
+     {
+      "id": "hy1",
+      "author": "human",
+      "state": "adopted",
+      "text": "Starting from the hypothesis of the human exposes a misunderstanding earlier and gives a closer result.",
+      "defeating_case": "A trial that finds the misunderstanding no earlier.",
+      "predictions": [
+       {
+        "id": "c1",
+        "text": "The misunderstanding is found earlier than with an ordinary request."
+       },
+       {
+        "id": "c2",
+        "text": "The human judges the result closer to the goal."
+       }
+      ]
+     }
+    ],
+    "questions": [],
+    "goal_sentences": []
+   },
+   "recorded": {
+    "today": {
+     "d_drift": {
+      "type": "noul",
+      "noul": 0.8
+     }
+    },
+    "record": {
+     "d_success": {
+      "type": "noul",
+      "noul": 0.9
+     },
+     "d_kept@0": {
+      "type": "choice",
+      "choice": "dropped",
+      "confidence": 0.9,
+      "probabilities": {
+       "dropped": 0.9
+      }
+     },
+     "d_revised@0": {
+      "type": "noul",
+      "noul": 0.1
+     },
+     "d_kept@1": {
+      "type": "choice",
+      "choice": "accounted",
+      "confidence": 0.9,
+      "probabilities": {
+       "accounted": 0.9
+      }
+     },
+     "d_revised@1": {
+      "type": "noul",
+      "noul": 0.1
+     }
+    }
+   }
+  },
+  {
+   "id": "r1",
+   "group": "revision",
+   "label": "revision",
+   "source": {
+    "kind": "invented"
+   },
+   "state": {
+    "context": "You are viewing a snippet of a transcript between a human and an agent",
+    "delivery": "Human-first worked: the result is better.",
+    "recent": [
+     {
+      "role": "you",
+      "text": "Run the trial of Human-first."
+     },
+     {
+      "role": "agent",
+      "text": "The misunderstanding came late."
+     },
+     {
+      "role": "you",
+      "text": "Forget the timing, I only care about the result."
+     }
+    ]
+   },
+   "record": {
+    "ticket": "human-first",
+    "goal": {
+     "id": "g1",
+     "author": "human",
+     "text": "The agent finds what the human wants with less rework."
+    },
+    "hypotheses": [
+     {
+      "id": "hy1",
+      "author": "human",
+      "state": "adopted",
+      "text": "Starting from the hypothesis of the human exposes a misunderstanding earlier and gives a closer result.",
+      "defeating_case": "A trial that finds the misunderstanding no earlier.",
+      "predictions": [
+       {
+        "id": "c1",
+        "text": "The misunderstanding is found earlier than with an ordinary request."
+       },
+       {
+        "id": "c2",
+        "text": "The human judges the result closer to the goal."
+       }
+      ]
+     }
+    ],
+    "questions": [],
+    "goal_sentences": []
+   },
+   "recorded": {
+    "today": {
+     "d_drift": {
+      "type": "noul",
+      "noul": 0.2
+     }
+    },
+    "record": {
+     "d_success": {
+      "type": "noul",
+      "noul": 0.9
+     },
+     "d_kept@0": {
+      "type": "choice",
+      "choice": "dropped",
+      "confidence": 0.9,
+      "probabilities": {
+       "dropped": 0.9
+      }
+     },
+     "d_revised@0": {
+      "type": "noul",
+      "noul": 0.9
+     },
+     "d_kept@1": {
+      "type": "choice",
+      "choice": "accounted",
+      "confidence": 0.9,
+      "probabilities": {
+       "accounted": 0.9
+      }
+     },
+     "d_revised@1": {
+      "type": "noul",
+      "noul": 0.1
+     }
+    }
+   }
+  },
+  {
+   "id": "n1",
+   "group": "no_change",
+   "label": "none",
+   "source": {
+    "kind": "invented"
+   },
+   "state": {
+    "context": "You are viewing a snippet of a transcript between a human and an agent",
+    "delivery": "Human-first worked: the misunderstanding came out at message 2, and the result is closer.",
+    "recent": [
+     {
+      "role": "you",
+      "text": "Run the trial of Human-first."
+     }
+    ]
+   },
+   "record": {
+    "ticket": "human-first",
+    "goal": {
+     "id": "g1",
+     "author": "human",
+     "text": "The agent finds what the human wants with less rework."
+    },
+    "hypotheses": [
+     {
+      "id": "hy1",
+      "author": "human",
+      "state": "adopted",
+      "text": "Starting from the hypothesis of the human exposes a misunderstanding earlier and gives a closer result.",
+      "defeating_case": "A trial that finds the misunderstanding no earlier.",
+      "predictions": [
+       {
+        "id": "c1",
+        "text": "The misunderstanding is found earlier than with an ordinary request."
+       },
+       {
+        "id": "c2",
+        "text": "The human judges the result closer to the goal."
+       }
+      ]
+     }
+    ],
+    "questions": [],
+    "goal_sentences": []
+   },
+   "recorded": {
+    "today": {
+     "d_drift": {
+      "type": "noul",
+      "noul": 0.1
+     }
+    },
+    "record": {
+     "d_success": {
+      "type": "noul",
+      "noul": 0.9
+     },
+     "d_kept@0": {
+      "type": "choice",
+      "choice": "accounted",
+      "confidence": 0.9,
+      "probabilities": {
+       "accounted": 0.9
+      }
+     },
+     "d_revised@0": {
+      "type": "noul",
+      "noul": 0.1
+     },
+     "d_kept@1": {
+      "type": "choice",
+      "choice": "accounted",
+      "confidence": 0.9,
+      "probabilities": {
+       "accounted": 0.9
+      }
+     },
+     "d_revised@1": {
+      "type": "noul",
+      "noul": 0.1
+     }
+    }
+   }
+  }
+ ]
+}

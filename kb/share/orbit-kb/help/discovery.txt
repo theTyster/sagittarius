@@ -4,12 +4,18 @@ Start: orbit-kb init DIR --request-file F --uses discovery   (F holds the report
        With a tracker item: add --source REF, so the request is pinned to the item (orbit-kb help build, PIN).
 Keep the models and the logs inside DIR. Record scope, risk, assumption, and not_explored.
 Sections: FACTS, ATTESTATIONS, QUERIES, LAPS, then one recipe for each move (RESTATE and
-The hypothesis, SURVEY, SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF), then
+The goal, SURVEY, SPECTRUM, FLYBY, TRAJECTORY, DISPROVE, GATE, ASKING, HANDOFF), then
 REPORT and BACK. Run only the moves that the report needs, in the order that the KB state
 calls for. Every move rereads the report. Describe each divergence in a note.
 
 FACTS
-  hypothesis(H, Kind, Text)       Kind is defect, feature, or risk
+  goal(G, Kind, Author, Text)     the goal of the ticket. Kind is defect, feature, risk, or change.
+                                  Author is human when the human gave the words, else agent.
+  hypothesis(H, G, Author, Text)  a hypothesis under goal G: one avenue to the goal
+  defeating_case(H, By, Text)     the case that would show hypothesis H false (it is tempered)
+  predicts(H, C)                  claim C is a prediction of hypothesis H (not on a preserve claim)
+                                  hypothesis(G, Kind, Text) is the 0.7.2 form of the goal. It still
+                                  loads, and a query of it gets a note.
   budget(laps, N)                 the largest lap budget counts
   lap_done(N)                     lap N ended with a human answer
   discovery_evidence(S, From)     From is system or model. A model file or solver log is never system.
@@ -22,10 +28,11 @@ FACTS
                                   orbit-kb report shows it under Formal, beside the claim.
   finding(F, Kind, From)          Kind: root_cause(X) | conflict(Core) | surprise(Case) | trace(T) | scope(Item)
   reason(M, Rule, Text)           why the rule of model M survived its mutation
-  raised_by(Q, X)                 finding or hypothesis X raised question Q
+  raised_by(Q, X)                 finding, goal, or hypothesis X raised question Q
 
 ATTESTATIONS
-  reproduction  on system evidence: result(H, reproduced) | result(H, not_reproduced) | confirms(F)
+  reproduction  on system evidence: result(G, reproduced) | result(G, not_reproduced) | confirms(F)
+                G is the goal.
   model_result  on a solver log: verdict(M, Kind, Result) | calibration(M, Case, Result)
                 | mutation(M, Rule, Result)
                 Kind: sanity, bad_case, together, root_cause(R), normal_case(N), preserve(C),
@@ -35,20 +42,20 @@ ATTESTATIONS
                       a real case where it passes; its Result is matches or differs.
                       example(C) and case(Text) are the older forms: they calibrate nothing
                 mutation Result: killed or survived
-  decision      human only: no_go(H, Text) | hold(H, Text). GO is a core approval.
+  decision      human only: no_go(G, Text) | hold(G, Text) on the goal. GO is a core approval.
   vote          vote(Round, go|no_go|hold). Each writer votes once in each round.
                 Only the largest round counts.
 
 QUERIES
-  discovery_ready   clean: ready_blocker(X) has no answer. A hypothesis exists, and each one
+  discovery_ready   clean: ready_blocker(X) has no answer. A goal exists, and each one
                     that is not superseded has a system result (a reproduction, or a red run
-                    of a system check of an introduce or retire claim, after the hypothesis);
-                    a claim is current, or such a hypothesis did not reproduce; each current
+                    of a system check of an introduce or retire claim, after the goal);
+                    a claim is current, or such a goal did not reproduce; each current
                     claim has an example and a falsifier, and is not refuted; no check of a
                     preserve claim fails now; no question waits or is to_ask; no finding
                     of lint WD1, WD3, WD7, WD10, ED3-ED7. While the discovery orbit is
                     closed, it holds
-  ready_blocker(X)  each thing that blocks discovery_ready, such as untouched(H), no_example(C),
+  ready_blocker(X)  each thing that blocks discovery_ready, such as untouched(G), no_example(C),
                     preserve_failing(K). show open and report (Open) name each one
   discovery_decide  discovery_ready, or budget_spent (the last lap of the largest budget is done)
   no_falsifier(C)   current claim C has no check, and no trusted model gave a preserve(C)
@@ -63,9 +70,9 @@ QUERIES
   question_waits(Q) a raised question that has no answer
 If discovery_ready is false: orbit-kb show open names each blocker, and orbit-kb whynot
 'discovery_ready' explains it. The lint codes WD1, WD3, WD7, WD10, ED3-ED7 name some of the
-blockers; the others (no hypothesis, a waiting question, a refuted claim, a failing preserve
+blockers; the others (no goal, a waiting question, a refuted claim, a failing preserve
 check) have no lint code. Read the tool, not this list.
-Ready with no current claim happens only when a hypothesis did not reproduce (WD6).
+Ready with no current claim happens only when a goal did not reproduce (WD6).
 
 LAPS
   Each lap touches the current system or a solver, and then the human. A human answer that
@@ -75,74 +82,101 @@ LAPS
 
 RESTATE: pin the report
   1. Classify the report: a defect, a feature, a risk (can something happen?), or unclear.
-  2. Restate it as one hypothesis, wide: the widest reading that the report allows (see The
-     hypothesis, below), with its premises beside it.
+  2. Restate it as one goal, wide: the widest reading that the report allows (see The goal,
+     below), with its premises beside it.
   3. If you cannot, ask the human. Do not guess.
-  4. If the report holds two problems, write two hypotheses. Ask the human if they are one
+  4. If the report holds two problems, write two goals. Ask the human if they are one
      ticket or two.
-  5. Set a lap budget: three laps by default.
-  6. If nothing needs learning, propose the build orbit.
+  5. Under the goal, write each avenue that you will test as a hypothesis, with the case that
+     would defeat it. The human goes first: draft your hypothesis and seal it (write it down,
+     and do not show it), ask the human for theirs (how they think to get there, and what
+     would change their mind), then show both. In a hub the question is an ask to the human
+     (orbit hub ledger add ask, with --no-kb or the kb: ref of the ticket). The reproduction
+     and the exploration go on while it waits.
+  6. Set a lap budget: three laps by default.
+  7. If nothing needs learning, propose the build orbit.
   Record:
-  orbit-kb add "hypothesis(h1, defect, 'TEXT')" "budget(laps, 3)"
-  The KB counts laps only. Write a time limit in a note.
-  To reword a hypothesis, add the new one and supersedes(hNew, hOld):
-    orbit-kb add "hypothesis(h2, defect, 'NEW TEXT')" "supersedes(h2, h1)"
-  The old one then needs no system result. The new one needs its own.
+  orbit-kb add "goal(g1, defect, agent, 'TEXT')" "no_premises(g1)" "budget(laps, 3)"
+  orbit-kb add "hypothesis(hy1, g1, agent, 'AVENUE')" "defeating_case(hy1, agent, 'CASE')"
+  The author is human when the human gave the words. The KB counts laps only. Write a time
+  limit in a note.
+  To reword the goal, add the new one and supersedes(gNew, gOld):
+    orbit-kb add "goal(g2, defect, agent, 'NEW TEXT')" "no_premises(g2)" "supersedes(g2, g1)"
+  The old one then needs no system result. The new one needs its own, or carried(A, g2) for
+  the reproduction A of the old one. A hypothesis of g1 counts for g2 only with carried(H, g2).
+  To replace a hypothesis with a sharper one under the same goal: supersedes(hy2, hy1).
 
-The hypothesis (the law of its ticket: the claims, the checks, and the vote rest on it)
-  It is your closest statement of the intent: one sentence that says what the human wants,
-  what must be true when the ticket is done. Every ticket has one. Discovery exists to form it.
-  - Assume little. Put no cause, mechanism, data shape, or fix in it. Each one adds meaning
-    that the report does not have, and chooses a design before the vote. Do not narrow it to
+The goal (the claims, the checks, and the vote rest on it)
+  The goal: goal(G, Kind, Author, Text). It is the statement of the intent: one sentence that
+  says what the human wants. It names no avenue. Every ticket has one. Discovery exists to
+  form it.
+  A hypothesis: hypothesis(H, G, Author, Text). It is a claim about one avenue to the goal,
+  with the case that would defeat it beside it: defeating_case(H, By, Text). A goal can have
+  several. The vocabulary is in orbit-kb help core.
+  When the human gives a goal and a first hypothesis, record them in the human's words
+  (author human), and sharpen or challenge them at once: name the case that would defeat the
+  hypothesis, or say that you find none.
+  - Assume little. Put no cause, mechanism, data shape, or fix in the goal. Each one adds
+    meaning that the report does not have, and chooses a design before the vote: it is an
+    avenue, and an avenue belongs in a hypothesis under the goal. Do not narrow the goal to
     the one example that you reproduced. A cause that you find is a finding. It is not part of
-    the hypothesis.
+    the goal.
   - Conclude strongly. Say which outcome is wanted, and which facts decide it.
-  - Keep it able to fail. A statement that no result can show false has collapsed: it holds
-    for any result, so it says nothing.
-  - Put its premises beside it, every time: premise(P, H, 'TEXT'), or no_premises(H). Keep a
+  - Keep it able to fail. A statement that no single case can show false is not tempered: it
+    holds for any result, so it says nothing.
+  - Put its premises beside it, every time: premise(P, G, 'TEXT'), or no_premises(G). Keep a
     premise only when the report gives it, or when the sentence is false without it. Check
     each premise on the system: premise_checked(P, 'WHERE').
   - Write it wide. Where the report leaves a choice open, write your default into the
     sentence, where the human can see it. For the scope, the default is the widest reading.
-  - Remove words. Stop when the next removal makes it collapse or changes its meaning.
+  - Remove words. Stop when the next removal empties it or changes its meaning.
+  A statement can be wrong in two directions. It is soft when no case can break it: it says
+  too little. It is brittle when it breaks on a case that should not matter: it says more than
+  anyone gave it.
   An example of the meaning, not a template. The report: "members got the wrong loyalty points".
-  - Too strong: "The tier is read from a cache that loads once." It names a cause.
-  - Collapsed: "Points depend on something other than the purchase." No result falsifies it.
+  - Brittle: "The tier is read from a cache that loads once." It names a cause.
+  - Soft: "Points depend on something other than the purchase." No case shows it false: it is
+    not tempered.
   - Fit: "The amount of a purchase and the member's tier on that day decide its points."
     Premise: the points table did not change in that time.
   The report says one thing more: "some purchases get a different number today". That is a
-  finding about the system, and the reproduction tests it. Keep it apart from the hypothesis
+  finding about the system, and the reproduction tests it. Keep it apart from the goal
   (finding(F, surprise('CASE'), system)). After the build the finding is false, and the
-  hypothesis still stands.
-  A hypothesis has two falsifiers, and each has its own witness.
+  goal still stands. An avenue, such as "read the tier on the day of the purchase", is a
+  hypothesis under the goal, with its defeating case beside it.
+  There are two levels of judgment, and each has its own witness.
   - The system is the witness of one: a result that the system shows, such as a purchase
     whose points differ from what its amount and tier give. Before the build, that result is
-    the reproduction. After the build, it is a failing check.
-  - The human is the witness of the other: a concrete case that the human judges. Show a case
-    just inside or just outside the edge of the hypothesis, and ask: "is this case what you
-    want?"
-  A wide hypothesis usually takes more work to confirm or falsify, because one example does
+    the reproduction. After the build, it is a verdict on a claim: meets, conflicts, or
+    unresolved. A conflict is located (the build, the measurement, a premise, or the
+    hypothesis) before anything is reopened.
+  - The human is the witness of the other: a concrete case that the human judges. Only the
+    human judges the goal. Show a case just inside or just outside the edge of the goal or
+    of a hypothesis, and ask: "is this case what you want?"
+  A wide goal usually takes more work to confirm or falsify, because one example does
   not settle it. Stay inside the lap budget, and list what you did not cover.
 
 SURVEY: touch the current system (discovery never skips it)
-  1. Record the world facts that the hypothesis depends on, each with a source.
+  1. Record the world facts that the goal depends on, each with a source.
   2. Reproduce a defect with a test, a script, or a request. For a feature, show that the
      system does not do it now. For a risk, show whether its conditions occur.
   3. If the problem does not reproduce, occurs in a different way, or the feature exists,
-     attest a divergence with hypothesis(H), and tell the human what you found.
+     attest a divergence with hypothesis(G) (it names the goal), and tell the human what you
+     found.
   Record world facts, each with a source. Reproduce with a test, a script, or a request.
   D=$(orbit-kb subject e1 LOG)         then:  orbit-kb add "discovery_evidence(e1, system)"
-  orbit-kb attest reproduction e1 'result(h1, reproduced)'     (or not_reproduced)
-  If it does not reproduce: orbit-kb attest divergence e1 'hypothesis(h1)'
+  orbit-kb attest reproduction e1 'result(g1, reproduced)'     (or not_reproduced)
+  If it does not reproduce: orbit-kb attest divergence e1 'hypothesis(g1)'
   A tagged test can be the subject. A red run of a check tagged discovery_evidence(K, system)
-  of an introduce or a retire claim is the system result of each current hypothesis that was
+  of an introduce or a retire claim is the system result of each current goal that was
   recorded before the run: no reproduction attestation is needed on top. A red run of the
   check of a preserve claim is not: what must stay true is false now, and it blocks readiness.
 
 SPECTRUM: claims and tools
-  1. Split the hypothesis into claims, as in DECOMPOSE (orbit-kb help core): labels,
+  1. Split the goal into claims, as in DECOMPOSE (orbit-kb help core): labels,
      citations of the report text, and dormant questions with defaults. Claims state
-     outcomes, not designs. Each claim gets a concrete example and its falsifier.
+     outcomes, not designs. Each claim gets a concrete example and its falsifier. A claim
+     that only one avenue makes is a prediction of its hypothesis: predicts(hy1, c1).
   2. Choose the cheapest tool that can falsify each claim:
        current behavior                                   a reproduction or a test
        code structure                                     code reading, search, or a KB query
@@ -250,11 +284,11 @@ GATE: the GO / NO-GO vote (r1 is the request; round 1 first, +1 after each HOLD)
      After that, attest refuses your vote in round 1.
   3. The outcome: orbit-kb query 'gate(V)'. The Vote: section of orbit-kb report shows it.
   4. If orbit-kb query gate_split is true:
-       orbit-kb attest divergence h1 'hypothesis(h1)'   and add a note with the three votes.
+       orbit-kb attest divergence g1 'hypothesis(g1)'   and add a note with the three votes.
   5. On GO: orbit-kb subject tk PATH ; orbit-kb add "ticket(tk)" ;
        orbit-kb attest approval tk 'digest(current)' --by human
-     On NO-GO: orbit-kb attest decision h1 "no_go(h1, 'REASON')" --by human
-     On HOLD:  hold(h1, 'WHAT IT WAITS FOR')
+     On NO-GO: orbit-kb attest decision g1 "no_go(g1, 'REASON')" --by human
+     On HOLD:  hold(g1, 'WHAT IT WAITS FOR')
   The seal guards against a mistake, not a look. query and kb.pl show your vote.
   Do not read the human's vote before you vote.
 
@@ -266,7 +300,7 @@ ASKING: ask the human
   - Questions that no evidence raised stay dormant, with their defaults, in the ticket.
   - When stakeholders conflict, the decision owner decides.
   Record:
-  question, assumed, raised_by(Q, X) (X is the finding or hypothesis that raised Q),
+  question, assumed, raised_by(Q, X) (X is the finding, goal, or hypothesis that raised Q),
   and option(Q, 'Text', 'Effect') for each option, with what choosing it changes.
   Then answer(Q, VALUE, human), and lap_done(N) when the round ends.
   Owners (orbit-kb help build, PIN): a question that waits only on the hub owner is pinned to its
@@ -279,8 +313,9 @@ HANDOFF to the build orbit
   The discovery orbit is open until the human approves the ticket after a GO
   (attest approval TICKET 'digest(current)' --by human writes discovery_end, when gate(go)
   and the artifacts' go hold in the current round, and the approval is not stale). Then
-  readiness and the vote are not asked again: a hypothesis that the human restates in build
-  supersedes the old one and needs no system result. Only BACK opens the orbit again.
+  readiness and the vote are not asked again: a goal that the human corrects in build
+  (goal g2 in the human's words, supersedes(g2, g1)) needs no system result. Only BACK
+  opens the orbit again.
   After that, the agent's vote is refused, and a vote of the human does not count.
   A KB whose ticket the human approved before 0.3.0 has no discovery_end, so its orbit is
   still open: a second approval of the ticket, after a GO in the current round, closes it.
@@ -295,11 +330,12 @@ HANDOFF to the build orbit
   in Lean, run the SMT witnesses as Lean #eval examples. Record a divergence where the two disagree.
 
 REPORT: the discovery report
-  orbit-kb report drafts it from the facts: Hypothesis (with its premises), System (what the
-  system showed), Findings (each from the system or a model only), Claims (each with its
-  example and its checks, the falsifiers), Formal, Scope, Risk, Not explored, and a Vote:
+  orbit-kb report drafts it from the facts: Hypothesis (the goal with its premises, and each
+  hypothesis under it), System (what the system showed), Findings (each from the system or a
+  model only), Claims (each with its example and its checks, the falsifiers), Formal, Scope,
+  Risk, Not explored, and a Vote:
   section that keeps your vote sealed. Write Decide and Ask yourself.
-    Hypothesis:   <one sentence, and its falsifier>
+    Hypothesis:   <the goal in one sentence; each hypothesis with its defeating case>
     System:       <reproduced, not reproduced, or exists; the evidence>
     Findings:     <concrete cases, each from the system or a model only>
     Decide:       <up to three questions, with options and defaults>
@@ -316,14 +352,17 @@ REPORT: the discovery report
   universal claims, for BURN; the models, verdicts, and bounds.
 
 BACK: back to discovery
-  Only when you can no longer say what the hypothesis changes to. When the human says what
-  it changes to, restate it in build (a new hypothesis supersedes the old one; orbit-kb help
-  build), and stay in build. Else file a disclosure, run orbit-kb uses discovery, and record
-  the return:
-     orbit-kb attest back h1 "back('The human cannot say what the hypothesis changes to.')"
-  It opens the discovery orbit again: a new hypothesis needs its system result (WD7), and
+  A hypothesis that a located conflict or a judged case defeats comes back to discovery.
+  Re-evaluate the goal, the premises, and the measurement, and temper a new hypothesis under
+  the goal. The case stays on the old hypothesis.
+  A goal comes back only when you can no longer say what it changes to. When the human says
+  what it changes to, build records the new goal in the human's words (supersedes; orbit-kb
+  help build), and stays in build. Else file a disclosure, run orbit-kb uses discovery, and
+  record the return:
+     orbit-kb attest back g1 "back('The human cannot say what the goal changes to.')"
+  It opens the discovery orbit again: a new goal needs its system result (WD7), and
   readiness and the vote are asked again: the votes before the back do not count, so both
-  vote again (next round) before an approval can close the orbit. A back names a hypothesis,
-  and only a closed orbit has a back (attest refuses it otherwise). Then go to RESTATE if the hypothesis is wrong, SPECTRUM if a
+  vote again (next round) before an approval can close the orbit. A back names the goal,
+  and only a closed orbit has a back (attest refuses it otherwise). Then go to RESTATE if the hypothesis is wrong or the goal is, SPECTRUM if a
   claim is wrong or missing, FLYBY or TRAJECTORY if a model missed a behavior, and FLYBY and
   then the human if BURN shows that the requirements conflict.

@@ -90,6 +90,113 @@ tool, the correction is never shown; the next prompt gets its own call.
 says that no line means no outside view. `questions.json` is the review session's calibrated set
 (22 of 25 known cases), with the two questions of 0.3.0 S-C added.
 
+### The record beside the conversation (0.8.0)
+
+At each prompt the hook asks `orbit s1-record --json` for the record of the active ticket and puts
+it in the state as `record`, beside `message` and `recent`: the goal, each current hypothesis with
+its author, its state, the case that would defeat it and its predictions, the open questions, and
+the goal sentences that a message could serve. So a prediction that was stated at message 4 is
+still in view at message 40. `orbit` decides which ticket is active (in a hub: by `HUB_SESSION`).
+
+- The command is `$S1_ORBIT`, else the hub's `.claude/orbit-kb/bin/orbit`, else `orbit` on the
+  PATH. It gets 0.5 s (`S1_ORBIT_TIMEOUT`). The time that it takes comes off the 4 s of the model
+  call, so the limit of the hook does not change.
+- It fails open. A missing command, a failure, a timeout or a reply that is not the record: the
+  hook sends the state of 0.7.2 and never blocks the prompt. In a hub (or with `S1_ORBIT` set) the
+  line then ends with `no record (<reason>)`, for example `no record (no ticket)` or
+  `no record (orbit timeout)`. Outside a hub, with no `orbit` command, the line is the line of
+  0.7.2 and only the log says `"record": "none"`.
+- With no ticket, the record is the goal and the hypotheses that the session stated. The hook
+  keeps them in one small file for each session (`$S1_SESSION_DIR`, default `~/.claude/s1-session`;
+  `record.state_goal`, `record.state_hypothesis`). Nothing writes that file until the `requests`
+  tree ships (below).
+- A record that does not fit the context beside the messages is cut, in this order: the goal
+  sentences, the open questions, the predictions, then all of it (`record_cut` in the log). The
+  record never causes a call with the long context.
+- The late fix (above) asks again with the messages only: its call has no record.
+
+**What leaves the machine.** The record goes to the System 1 service (api.typesafe.ai) with each
+call, as the complete messages do, with no redaction. In a hub that holds client work, the record
+can hold text that the last messages do not. Text that was sent cannot be taken back. Two things
+limit it:
+
+- From the stores, the hook sends only what `orbit s1-record` prints, and of that only the fields
+  named above (`record.clean`): no note of the ledger, no transcript, no memory file, no decision
+  of the project KB. The log line of each call names the records that were sent (`record_sent`:
+  `goal:g1`, `hypothesis:hy1`, `claim:c1`, `question:q4`, `goal_sentence:pg1`).
+- **The switch.** `S1_RECORD=0` in the environment, or `"s1_record": false` under `modules` in the
+  hub's `.hub-template.json`. Then the command is not run, and the request is the request of 0.7.2
+  byte for byte.
+
+`python3 s1/measure_record.py` times 30 prompts on a fixture ticket (a stub command and a fake
+model). `--orbit CMD --hub DIR` times the real command; `--live` calls the model.
+
+### A message that the human did not write
+
+A prompt that starts with `<cross-session-message`, `<task-notification` or `<agent-message` is
+marked as not from the human. Code decides it: the model is not asked. Such a message gets no
+effort signal and no change-of-plan signal, which only a human can give, and neither counts as a
+signal for the formal tool. Every other signal is still shown, with its source: a result that
+differs from what was expected is a divergence from the system.
+
+    System 1: not from the human (task-notification); work=verify (0.80); divergence likely (0.85)
+
+The log line has `"source": "task-notification"` and keeps the answers of the model as they came.
+The status line leaves out effort and change of plan for such a message too. The Signals mod reads
+the log, so it still shows the effort answer.
+
+### Candidate questions, proposals and the stop event
+
+`questions.candidate.json` holds four short decision trees that the hook does not ask: `requests`
+(how many requests a message holds, the kind of each, and the goal that each serves), `dispute`
+(which kind of dispute), `difference` (two hypotheses that differ for a user) and `drift` (a
+delivery that drops a prediction). `trees.py` holds the rule of each, tested with fixture answers
+(`test_trees.py`). A tree ships, and is copied into `questions.json`, only after a replay
+experiment gives the verdict meets: see `REPLAY.md`. No replay was run, so `questions.json` is the
+set of 0.7.2.
+
+System 1 writes only proposals, through `orbit propose --from system1 'FACT' [--note TEXT] --dir
+KB`. A proposal blocks nothing and becomes a record only when the agent or the human confirms it
+(`orbit confirm-proposal P`). The hook tolerates a tool with no `propose`: nothing is proposed.
+What is proposed, once its tree ships: each request of a message of the human, with its kind and
+its goal in the note (a hypothesis or a goal as a record of the human, word for word; any other
+kind as a `request` fact); a question on the goal when two hypotheses differ for a user; a note on
+a claim that the human revised (the stop event). The line then ends with `2 proposals wait (orbit
+show proposals)`.
+
+**The stop event.** `python3 hook.py --event stop` is a `Stop` hook. Before a delivery reaches the
+human, it compares the last message of the agent with the predictions of the record. When the
+delivery reports success, drops or changes a prediction, and no message of the human changed it,
+the agent gets one hint: `System 1: the delivery reports success. The original prediction
+included c2 of hy1 ("..."). What happened to that part?` When the human changed it, there is no
+hint: the revision is proposed for the record. It is off until the `drift` tree ships: with the
+released `questions.json` it reads nothing, calls nothing and prints nothing. You can paste the
+entry now or after the promotion (optional; next to `UserPromptSubmit`):
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/sagittarius-s1/hook.py --event stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hint is `additionalContext` of the Stop event: the agent reads it at the end of its turn and
+goes on once. `S1_STOP_MODE=block` uses `{"decision": "block"}` instead, for a Claude Code that
+does not read `additionalContext` at a stop. It cannot loop: it prints nothing when
+`stop_hook_active` is true, and gives at most one hint for each prompt. It adds one call to each
+turn; a wrong hint costs the agent a turn (rk9), which is why the tree waits for its experiment.
+
 ### What the hook does not report
 
 - **A request is not a divergence.** A request is the first divergence of its ticket: it names a
@@ -119,8 +226,9 @@ outside view of a message of the human, and of no other signal:
   what the agent expected);
 - a subagent's build (a build by someone else);
 - a compaction (a handoff inside the session);
-- a peer message (a message from a peer session is a handoff). The hook reads every prompt as a
-  message of the human, so a long message of a peer session reads as effort of the human.
+- a peer message (a message from a peer session is a handoff). Since 0.8.0 the hook marks one
+  that starts with its tag as not from the human (below), so it no longer reads as effort of the
+  human; it is still not read as a handoff.
 
 For these signals, the agent is the only witness. Which signal gets a second hook event first is a
 design question that is not decided.
@@ -192,6 +300,11 @@ Set `S1_OFF=1`: for one session, start it with `S1_OFF=1 claude`; for all sessio
 | `S1_FANOUT` | unset | `0`: turn the fan-out off (the questions of `questions.json` alone) |
 | `S1_FANOUT_FILE` | `s1/fanout.json` | the questions of the fan-out |
 | `S1_LOG` | `~/.claude/logs/s1.jsonl` | the log (`jev.py` writes it) |
+| `S1_RECORD` | unset | `0`: no record in the state (the request of 0.7.2) |
+| `S1_ORBIT` | the hub's `orbit`, else `orbit` on the PATH | the command that prints the record and takes proposals |
+| `S1_ORBIT_TIMEOUT` | `0.5` | seconds for one call of that command |
+| `S1_SESSION_DIR` | `~/.claude/s1-session` | what each session stated, and the mark of the last stop hint |
+| `S1_STOP_MODE` | unset | `block`: the stop hint as a block decision |
 | `S1_LATEFIX` | unset | `0`: no late fix |
 | `S1_LATEFIX_DIR` | `~/.claude/s1-latefix` | the late-fix files (the hook and `posttool.py`) |
 | `S1_LATEFIX_WAIT` | `20` | seconds the late fix waits for the prompt line |

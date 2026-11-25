@@ -82,7 +82,7 @@ usage: hubflow.py [--hub DIR] [--session S] [--by WHO] COMMAND [ARGS]
   transcripts --find NAME@sha256:HEX           the path of that file in whichever W slot holds it
                                                now; exit 1 if it is gone or its sha256 changed
   reopen ID [--note N]
-  ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url
+  ref ID add|rm KIND:REF                       KIND: issue pr build release kb file commit url goal
                                                transcript
   link FROM TO KIND                            KIND: blocks duplicates relates supersedes follows
   note ID TEXT                                 an event with verb note (--by human: TEXT is the
@@ -240,7 +240,7 @@ Views: clock v_open (with escalated) v_escalated v_waiting_on v_inbox v_stale (n
 import datetime, hashlib, json, os, re, shlex, sqlite3, subprocess, sys
 from urllib.parse import quote
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 # Schema steps: MIGRATIONS[v] is the SQL that takes a db from schema v to v + 1. DDL is the shape of
 # schema 1; init and rebuild run DDL and then every step, so a new db and a migrated db are the
 # same. A release that changes the schema raises SCHEMA_VERSION and adds its step to MIGRATIONS.
@@ -257,7 +257,10 @@ ADDABLE = ("ask", "thread", "hold", "summary")
 STATUSES = ("open", "waiting", "done", "dropped", "lapsed")
 OPEN = ("open", "waiting")
 PREFIX = {"ask": "A", "thread": "T", "hold": "K", "handoff": "H", "summary": "S"}
-REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript")
+REF_KINDS = ("issue", "pr", "build", "release", "kb", "file", "commit", "url", "transcript", "goal")
+# A goal ref (schema 9): the id of the project goal that the item serves directly, with no ticket
+# (`--ref goal:pg1`; scientific-method-overhaul c44). orbit reads it for the purpose of the item.
+GOAL_REF = re.compile(r"^[a-z][A-Za-z0-9_]*\Z")
 # A transcript ref: the file name and its sha256, so it still resolves after the file moves to
 # another W slot at rotation (`transcripts --find REF`).
 # T40 c12: a name has no '/', '\\', '@', control character (a newline) or '..'; \Z, not $, so no trailing newline
@@ -561,6 +564,18 @@ V8_STEPS = [
     f" BEGIN SELECT RAISE(ABORT, '{PARK_DUE_MSG.replace(chr(39), chr(39) * 2)}'); END",
 ]
 
+# Schema 9 (scientific-method-overhaul c44): the ref kind `goal` (the project goal that an item names
+# directly). item_ref is copied into a table with the new CHECK, as schema 4 did for `transcript`.
+V9_STEPS = [
+    "PRAGMA legacy_alter_table=ON",
+    _swap(_swap(_swap(ITEM_REF_DDL, "CREATE TABLE item_ref(", "CREATE TABLE item_ref_v9("), "'url')", "'url','transcript','goal')"),
+          "REFERENCES item(id)", "REFERENCES item(id)"),
+    "INSERT INTO item_ref_v9 SELECT * FROM item_ref",
+    "DROP TABLE item_ref",
+    "ALTER TABLE item_ref_v9 RENAME TO item_ref",
+    "PRAGMA legacy_alter_table=OFF",
+]
+
 MIGRATIONS = {
     1: V2_STEPS,
     2: V3_STEPS,
@@ -569,6 +584,7 @@ MIGRATIONS = {
     5: V6_STEPS,
     6: V7_STEPS,
     7: V8_STEPS,
+    8: V9_STEPS,
 }
 
 # view name -> (sql view, filter option -> column, ORDER BY)
@@ -918,6 +934,10 @@ def parse_ref(s):
     elif kind == "url":
         if not re.match(r"^https?://\S+$", ref):
             raise Bad(f"url ref {ref!r} must start with http:// or https://")
+    elif kind == "goal":
+        if not GOAL_REF.match(ref):  # goal ref form
+            raise Bad(f"goal ref {ref!r} must be the id of a project goal: a lowercase letter, then letters, digits or _"
+                      " (goal:pg1)")
     elif kind == "transcript":
         if not TRANSCRIPT_REF.match(ref):  # transcript ref form
             raise Bad(f"transcript ref {ref!r} must be NAME@sha256:HEX: the file name (no directory, no W slot) and its"
@@ -1150,8 +1170,6 @@ def cmd_init(g, a):
 
 def common_item_opts(g, o):
     refs = [parse_ref(x) for x in o.get("ref", [])]
-    if any(k == "kb" for k, _ in refs):
-        formal_only(g, "a kb ref")  # T44 c1: no kb ref on any path of an informal hub
     for kind, ref in refs:
         check_kb_home(kind, ref)
     if o.get("title") is not None:
@@ -1164,8 +1182,6 @@ def common_item_opts(g, o):
 def cmd_add(g, a):
     pos, o = parse(a, {**WOPT, "--title": "one", "--owner": "one", "--waits-on": "one", "--analysis": "one",
                        "--ref": "many", "--status": "one", "--reserved": "one", "--due": "one", "--no-kb": "flag"})
-    if o.get("analysis") is not None:
-        formal_only(g, "--analysis")
     if len(pos) != 1:
         usage("add ask|thread|hold --title T [--owner S] [--waits-on P] [--reserved WHY] [--due YYYY-MM-DD]"
               " [--analysis SLUG] [--ref KIND:REF ... | --no-kb]")
@@ -1247,13 +1263,12 @@ ASK_KB = ("an ask says whether it rests on a KB: give --ref kb:<slug> (or kb:/ab
 
 
 def check_no_kb(g, kind, no_kb, has_kb):
-    """q5: a new ask in a formal hub carries a kb ref or --no-kb (not both). Returns no_kb. An informal
-    hub has no KB: it does not need --no-kb, and takes it, so that one command works in both editions."""
+    """q5: a new ask carries a kb ref or --no-kb (not both). Returns no_kb."""
     if no_kb and kind != "ask":
         raise Bad("--no-kb belongs to an ask: it says that the ask rests on no KB")
     if no_kb and has_kb:
         raise Bad("--no-kb says that the ask rests on no KB, but it has a kb ref; give one or the other")
-    if kind == "ask" and not no_kb and not has_kb and not informal(g):  # an ask says whether it rests on a KB
+    if kind == "ask" and not no_kb and not has_kb:  # an ask says whether it rests on a KB
         raise Bad(ASK_KB)
     return no_kb
 
@@ -1263,9 +1278,8 @@ ASK_NOTE = ("an ask needs --note TEXT, the context that the Desk shows with it: 
 
 
 def check_ask_note(g, kind, note):
-    """c13: a new ask in a formal hub carries a context note (not blank). The Desk shows the notes of an ask
-    as its context. An informal hub has no Desk: it does not need the note (and takes it)."""
-    if kind == "ask" and not (note or "").strip() and not informal(g):  # an ask carries a context note
+    """c13: a new ask carries a context note (not blank). The Desk shows the notes of an ask as its context."""
+    if kind == "ask" and not (note or "").strip():  # an ask carries a context note
         raise Bad(ASK_NOTE)
 
 
@@ -1273,8 +1287,6 @@ def cmd_handoff(g, a):
     pos, o = parse(a, {**WOPT, "--to": "one", "--title": "one", "--gate": "one", "--analysis": "one", "--ref": "many"})
     if pos or not o.get("to") or o.get("title") is None:
         usage("handoff --to S --title T [--gate G] [--analysis SLUG] [--ref KIND:REF ...] [--note N]")
-    if o.get("analysis") is not None:
-        formal_only(g, "--analysis")
     refs = common_item_opts(g, o)
 
     def fn(c, w):
@@ -1369,7 +1381,6 @@ def cmd_set(g, a):
     if "status" in o and o["status"] not in OPEN:
         raise Bad("--status is open or waiting (close with the close command)")
     if o.get("analysis") not in (None, "none"):
-        formal_only(g, "--analysis")
         check_analysis(o["analysis"])
     if "status" in o:
         agent_guard(g, o, pos[0], "change the status of", waiver=True)
@@ -1498,7 +1509,6 @@ def cmd_ref(g, a):
         usage("ref ID add|rm KIND:REF")
     kind, ref = parse_ref(pos[2])
     if pos[1] == "add" and kind == "kb":
-        formal_only(g, "a kb ref")
         check_kb_home(kind, ref)
     if pos[1] == "rm" and kind == "kb":
         agent_guard(g, o, pos[0], "remove the kb ref of", waiver=True)
@@ -1579,9 +1589,6 @@ def cmd_show(g, a):
     for x in caps:
         x["paths"] = json.loads(x["paths"])
     c.close()
-    if informal(g):  # T44 c1: no analysis key in an informal hub (nor no_kb: no KB there)
-        d["item"].pop("analysis", None)
-        d["item"].pop("no_kb", None)
     d = {"capsule": caps[0] if caps else None, "capsules": caps, **d}  # the capsule comes first
     if fmt == "json":
         print(json.dumps(d, indent=1, ensure_ascii=False))
@@ -1595,8 +1602,6 @@ def cmd_show(g, a):
               + (f"; {len(caps) - 1} older capsule(s) in --format json" if len(caps) > 1 else ""))
         print()
     for k, v in d["item"].items():
-        if k == "analysis" and informal(g):  # T44 c1: an informal hub shows no analysis line
-            continue
         print(f"{k}: {'' if v is None else v}")
     if d["handoff"]:
         print("handoff: " + ", ".join(f"{k}={'' if v is None else v}" for k, v in d["handoff"].items() if k != "item_id"))
@@ -1640,10 +1645,6 @@ def cmd_view(g, a):
     if name == "retention_due":  # T40 c11: would=lapse only for the summaries that rotate lapses
         rows = retention_due_rows(c, hub_dir(g), cols, rows)
     c.close()
-    if informal(g) and "analysis" in cols:  # T44 c1: an informal hub shows no analysis column
-        i = cols.index("analysis")
-        cols = [x for j, x in enumerate(cols) if j != i]
-        rows = [[x for j, x in enumerate(r) if j != i] for r in rows]
     print(render(rows, cols, fmt))
 
 
@@ -1759,7 +1760,7 @@ IMPORT_KEYS = {"kind", "title", "status", "owner", "waits_on", "analysis", "refs
                "parked_until", "closed_at", "close_reason", "note", "from", "to", "gate", "accepted_at"}
 
 
-def validate_row(c, obj, formal=True):
+def validate_row(c, obj):
     if not isinstance(obj, dict):
         raise Bad("the row is not a JSON object")
     extra = sorted(set(obj) - IMPORT_KEYS)
@@ -1775,15 +1776,11 @@ def validate_row(c, obj, formal=True):
     row = {"kind": kind, "title": obj["title"], "status": status, "note": obj.get("note")}
     row["owner"] = resolve_session(c, obj["owner"]) if obj.get("owner") else None
     row["waits_on"] = check_person(c, obj["waits_on"]) if obj.get("waits_on") else None
-    if obj.get("analysis") and not formal:
-        raise Bad("an analysis belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
     row["analysis"] = check_analysis(obj["analysis"]) if obj.get("analysis") else None
     refs = obj.get("refs", [])
     if not isinstance(refs, list):
         raise Bad("refs must be a list of KIND:REF strings")
     row["refs"] = [parse_ref(x) for x in refs]
-    if not formal and any(k == "kb" for k, _ in row["refs"]):
-        raise Bad("a kb ref belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
     for k, ref in row["refs"]:
         check_kb_home(k, ref)
     row["opened_at"] = parse_ts(obj["opened_at"], "opened_at") if obj.get("opened_at") else None
@@ -1830,13 +1827,13 @@ def read_import(path):
     return out
 
 
-def validate_all(c, parsed, formal=True):
+def validate_all(c, parsed):
     rows, rejected = [], []
     for n, obj, err in parsed:
         try:
             if err:
                 raise Bad(err)
-            rows.append((n, validate_row(c, obj, formal)))
+            rows.append((n, validate_row(c, obj)))
         except Bad as e:
             rejected.append({"line": n, "reason": str(e)})
     return rows, rejected
@@ -1850,7 +1847,7 @@ def cmd_import(g, a):
     parsed = read_import(pos[0])
     if not o.get("yes"):
         c = connect_ro(flow_dir(g))
-        rows, rejected = validate_all(c, parsed, not informal(g))
+        rows, rejected = validate_all(c, parsed)
         c.close()
         counts = {"kind": {}, "owner": {}, "waits_on": {}}
         for _, r in rows:
@@ -1871,7 +1868,7 @@ def cmd_import(g, a):
         return
 
     def fn(c, w):
-        rows, rejected = validate_all(c, parsed, not informal(g))
+        rows, rejected = validate_all(c, parsed)
         if rejected:
             shown = "; ".join(f"line {x['line']}: {x['reason']}" for x in rejected[:5])
             raise Bad(f"import refused, {len(rejected)} row(s) rejected, nothing written: {shown}")
@@ -1898,7 +1895,7 @@ def orbit_kb_cmd():
     """The orbit-kb command: HUBFLOW_ORBIT_KB (split like a shell word list); else the hub's own copy,
     .claude/orbit-kb/bin/orbit-kb beside this script's .claude/scripts/ (the orbit-kb that the kit was
     tested with; install UX c3), whatever orbit-kb is on the PATH; else `orbit-kb` (a hub without the
-    copy: informal, or made before kit 0.6.0)."""
+    copy: made before kit 0.6.0, or its copy is gone)."""
     if os.environ.get("HUBFLOW_ORBIT_KB"):
         return shlex.split(os.environ["HUBFLOW_ORBIT_KB"])
     own = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "orbit-kb", "bin", "orbit-kb"))
@@ -1951,10 +1948,6 @@ def kb_checks(hub, refs):
     """One check per kb ref: {ref, path, state, items, why}. A dir that is not found is unknown."""
     out = []
     for ref in refs:
-        if informal_at(hub):  # no spec KB here: never run a tool; a kb ref stays blocking (fail-safe)
-            out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
-                        "why": "this hub has no check for a kb ref"})
-            continue
         path = kb_dir(hub, ref)
         if path is None:
             out.append({"ref": ref, "path": None, "state": "unknown", "items": [],
@@ -2107,8 +2100,6 @@ def skip_candidates(g):
     """The read of skip-waived: [(item id, until, escalated)] for each open item whose kb refs all read
     clear and rest on a live human waiver, and that is not parked through `until` yet."""
     hub = hub_dir(g)
-    if informal_at(hub):
-        return []
     c = connect_ro(flow_dir(g))
     cand = []
     for it in c.execute("SELECT id, parked_until FROM item WHERE status IN ('open','waiting') ORDER BY id").fetchall():
@@ -2474,9 +2465,7 @@ def kb_slug_items(c, slug, summaries=True):
 
 def untriaged_spec_kbs(c, hub):
     """The spec KBs at specs/<slug> whose every referring item is closed and that have no recorded
-    decision (a spec_triage event) since the last of them closed. None in an informal hub."""
-    if informal_at(hub):
-        return []
+    decision (a spec_triage event) since the last of them closed."""
     slugs = set()
     for (ref,) in c.execute("SELECT DISTINCT ref FROM item_ref WHERE kind = 'kb'"):
         if not kb_outside(ref):  # a KB outside the hub is not a spec KB of specs/
@@ -2548,8 +2537,7 @@ def cmd_rotate(g, a):
         print(f"week_start: {wk}")
         print("untriaged: " + (" ".join(untriaged) or "none"))
         print("lapsed: " + (" ".join(lapse) or "none"))
-        if not informal(g):
-            print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
+        print("spec_kbs_untriaged: " + (" ".join(specs) or "none"))
         print("escalated: " + (" ".join(escalated) or "none"))
         print("pruned: " + (" ".join(prune) or "none"))
         print("pruned_sessions: " + (" ".join(sessions) or "none"))
@@ -2753,9 +2741,6 @@ def hub_kb_dirs(hub):
 def cmd_migrations(g, a):
     parse(a, {})
     hub = hub_dir(g)
-    if informal_at(hub):
-        print("this hub is informal: it has no spec KB, so no migration")
-        return
     kbs = hub_kb_dirs(hub)
     c = connect_ro(flow_dir(g))
     frozen = [lab for lab, slug, _ in kbs if spec_kb_closed(c, slug)]
@@ -2816,83 +2801,12 @@ COMMANDS = {"init": cmd_init, "add": cmd_add, "handoff": cmd_handoff, "accept": 
             "triage": cmd_triage, "capsule": cmd_capsule, "transcripts": cmd_transcripts}
 
 
-# ---- the edition: an informal hub shows only the five informal stores (T36) ----
-
-def informal_at(hub):
-    """True when the hub's .hub-template.json records the informal edition. A hub with no manifest
-    or no edition (the formal text, or a test dir) is formal."""
-    try:
-        with open(os.path.join(hub, ".hub-template.json"), encoding="utf-8") as f:
-            return json.load(f).get("edition") == "informal"
-    except (OSError, ValueError, AttributeError):
-        return False
-
-
-def informal(g):
-    return informal_at(hub_dir(g))
-
-
-def formal_only(g, what):
-    """Refuse a formal-only option in an informal hub (T41): the line names the formal edition."""
-    if informal(g):
-        raise Bad(f"{what} belongs to the formal edition; this hub is informal (`hubkit.py edition formal` switches it)")
-
-
-INFORMAL_ONLY_COMMANDS = ("where", "spec-triage", "skip-waived", "migrations", "kb-state")  # they read a spec KB: not in an informal hub
-# The informal --help: the formal text, with these edits (old regex, new text). A pattern that no
-# longer matches leaves a formal word in the help, and docs/check_informal_hub.py t36c1 fails.
-INFORMAL_HELP = (
-    (r"(set --status\n\s+)or ref rm the kb ref of an item that is escalated\n\s+or whose spec KB blocks", "\\1of an item that is escalated"),
-    (r" \[--analysis SLUG(\|none)?\]", ""),
-    (r" \[--no-kb( yes\|no)?\]", ""),
-    (r"\n\s+An ask says whether it rests on a KB:.*?add ask exits 1", ""),
-    (r"\n\s+An ask also needs --note N.*?add ask\n\s+exits 1", ""),
-    (r"\n\s+--no-kb yes is refused while.*?sets it to no", ""),
-    (r"close_reason, due, no_kb\)", "close_reason, due)"),
-    (r"; no_kb: 1 when an\n.*?schema 7\)", ""),
-    (r"adds item\.due and item\.no_kb; every\nrow keeps its values, and no_kb is 0", "adds item.due and item.no_kb"),
-    (r"\n\s+or whose spec KB blocks", ""),
-    (r"\n\s+linked spec KB; it never runs one", ""),
-    (r"close ID --reason human_skip --by human --note QUOTE\n(\s+)a person's skip: also closes the open items linked\n\s+to ID by `blocks` \(either way\), and prints the\n\s+waiver command for each blocking item of each",
-     "close ID --reason human_skip --by human --note QUOTE\n\\1a person's skip: also closes the open items linked\n\\1to ID by `blocks` (either way)"),
-    (r"\.? An agent's keep, lapse or capsule of\n\s+an item whose spec KB blocks becomes escalate", ""),
-    (r"  where SLUG.*?\n  spec-triage .*?\n  import ", "  import "),
-    (r"  skip-waived .*?Run it after the human runs a waiver command\n", ""),
-    (r"; it\n\s+also names the items that skip-waived would park\n\s+\(skip_waived: IDs; the exit code does not change\)", ""),
-    (r" \(the\nquestion server, `orbit-kb serve questions --hub DIR`, closes an ask this way\)", ""),
-    (r"  HUBFLOW_ORBIT_KB .*?\n  HUBFLOW_NOW", "  HUBFLOW_NOW"),
-    (r"A spec KB has the ticket's clock.*?`where` and the retention windows below follow this\.", "The retention windows below follow this."),
-    (r"Copies\. The ledger holds a pointer.*?for a ticket, so the digest names what the agent read\.",
-     "The ledger holds a pointer (issue:123) and the flow state around it, never a copy of the tracker's text."),
-    (r", or one\n\s+whose spec KB is not clear or is clear only by a live waiver, stays open", " stays open"),
-    (r" A kb ref whose specs/<slug> is gone.*?not as unknown", ""),
-    (r"; nor close,\n.*?an agent's triage lapse of it is escalate\)", ""),
-    (r"a kb ref is <slug> \(the spec KB at\n.*?when the ref is added\); never W0/...;", "never W0/...;"),
-    (r"(KIND: issue pr build release) kb (file commit url)", "\\1 \\2"),
-    (r"the item's kb and file\n(\s+)refs", "the item's file\n\\1refs"),
-    (r" analysis \(a slug, never a W-slot path\),", ""),
-    (r"  migrations .*?\n  kb-state SLUG .*?refuses\n\s+to write a closed one\)\n", ""),
-)
-
-
-def help_text(g):
-    doc = __doc__
-    if informal(g):
-        for rx, new in INFORMAL_HELP:
-            doc = re.sub(rx, new, doc, flags=re.S)
-    return doc
-
-
-def command_names(g):
-    return [c for c in COMMANDS if not (informal(g) and c in INFORMAL_ONLY_COMMANDS)]
-
-
 def main():
     a = sys.argv[1:]
     g = {}
     while a and a[0].startswith("-"):
         if a[0] in ("-h", "--help"):
-            print(help_text(g))
+            print(__doc__)
             sys.exit(0)
         if a[0] not in ("--hub", "--session", "--by"):
             die(1, f"unknown option {a[0]}")
@@ -2900,8 +2814,8 @@ def main():
             die(1, f"{a[0]} needs a value")
         g[a[0][2:]] = a[1]
         a = a[2:]
-    if not a or a[0] not in command_names(g):
-        die(1, "command must be one of " + ", ".join(command_names(g)))
+    if not a or a[0] not in COMMANDS:
+        die(1, "command must be one of " + ", ".join(COMMANDS))
     try:
         COMMANDS[a[0]](g, a[1:])
     except Bad as e:

@@ -3,20 +3,50 @@ orbit-kb help core: facts, attestation types, and queries that every KB has
 Write facts with: orbit-kb add "claim(c1, introduce, 'Primary buttons are purple.')"
 Quote text with single marks. Do not edit kb.pl by hand.
 
+Vocabulary (generated; docs/vocabulary.py)
+  A goal is what the human hopes to accomplish: the intent. It names no avenue.
+  A hypothesis is a claim about an avenue to the goal: how we think we will get there.
+  A premise is a condition that a goal or a hypothesis takes as given. Where it does not hold,
+    the statement says nothing.
+  A claim is a prediction: what must be observable if its hypothesis and the premises hold.
+  The specification is the procedure of the experiment: the claims, and the check of each claim.
+  An experiment is one test of one claim: a procedure, its measurement premises, an observation,
+    and one verdict.
+  A verdict is the result of one experiment: meets, conflicts, or unresolved.
+  A hypothesis is tempered when one admissible case can demonstrate that its claim is false.
+End of vocabulary
+
 Facts
   request(Id, Text)              the human's words, word for word. A decision that the human gives
                                  during the ticket goes in as a further request, in the human's own
                                  words: add "request(r2, 'only on the settings page')" --by human.
                                  report prints each request under KB.
-  hypothesis(Id, Kind, Text)     what must be true when the ticket is done. Every ticket has one.
+  goal(G, Kind, Author, Text)    the goal of the ticket: what the human hopes to accomplish. It names
+                                 no avenue. Author is human, agent, human:NAME or agent:NAME.
+  hypothesis(H, Goal, Author, Text)   a hypothesis under goal Goal: a claim about an avenue to the
+                                 goal. A goal can have several. A ticket with a goal and no
+                                 hypothesis is valid: its claims hang on the goal.
+  supports(G, Ref)               the goal above goal G: a goal id, or project(PG) for a goal of the
+                                 project KB. lint W14 names a goal with none (new KBs only).
+  defeating_case(H, By, Text)    the admissible case that would show hypothesis H false. With one,
+                                 H is tempered. lint W13 names a current hypothesis with none.
+  untempered(H, By, Text)        the human or the agent marks H as not tempered, and why
+  predicts(H, Claim)             the claim is a prediction of hypothesis H. A claim with no predicts
+                                 fact is a claim of the goal. A preserve claim is always one (E21).
+  defeat(D, H, Text)             case D defeated hypothesis H. The case stays on H.
+  adoption_cited(H, Words)       your reading: the human adopted H, in these words. Alone it adopts
+                                 nothing: a human adoption, or a later GO vote of the human, does.
+  carried(X, G)                  record X of an older goal is carried over to goal G
+  hypothesis(Id, Kind, Text)     the 0.7.2 form of the goal. It still loads, and gives goal(Id, Kind, agent, Text).
                                  Kind is defect, feature, risk, or change (a direct build of a
                                  document or a configuration).
   premise(P, Hyp, Text)          a condition that the hypothesis takes as given
   premise_checked(P, Where)      you checked premise P on the system, at Where (file:line, a query)
   no_premises(Hyp)               "Premises: none". lint W10 names a hypothesis with neither,
                                  W11 one with both.
-                                 A premise that the system shows false: record a divergence on
-                                 the hypothesis, and restate it (a new hypothesis supersedes it).
+                                 A premise that the system shows false: locate the conflict in
+                                 it (orbit-kb help build). Confirmed, it defeats the hypothesis,
+                                 and discovery tempers a new one.
   claim(Id, Label, Text)         Label is preserve (true now, must stay true),
                                  retire (true now, must become false),
                                  or introduce (false now, must become true)
@@ -33,6 +63,12 @@ Facts
                                  and the burns: "no" for a kind with no record.
   lean_back(Id, Text)            a lean back: "Leaning back: <what stopped>. Still active: <what
                                  continues>." report prints it under Signals.
+  proposed(P, system1, FactText, Time)   a proposal of System 1: a fact as text. It is not a record and
+                                 it blocks nothing. orbit-kb propose --from system1 'FACT' [--note TEXT]
+                                 writes it; orbit-kb show proposals lists each one.
+  proposal_confirmed(P, By, Time)   the agent or the human confirmed proposal P: orbit-kb
+                                 confirm-proposal P [--by human] adds its fact as add does, with the
+                                 usual checks, and writes this fact.
   universal(Claim)               the claim is about every input; it burns (orbit-kb help build)
   check(K, Claim)                K is an executable check of the claim. A check never moves:
                                  for a claim that replaces it, add a new check (lint W5).
@@ -44,7 +80,7 @@ Facts
                                  A fact that you did not record is false.
   question(Q, Claim, Text), assumed(Q, Default), answer(Q, Answer, By)
                                  A question can hang on a hypothesis: its default marks a default
-                                 of the hypothesis ("every screen"). report lists it under Guesses.
+                                 of the hypothesis ("every screen"). report lists it under Residual, Wanted.
   option(Q, Text, Effect)        an option of question Q, and what choosing it changes. The question
                                  view (orbit-kb help view) shows each option with its effect. It changes no rule.
   due(X, 'TIME')                 claim, check, or question X is due at TIME. While X is open
@@ -91,6 +127,8 @@ Attestation types
                | self_error(Text) | other(Text)                      agent or human
   divergence   claim(C) | hypothesis(H) | model(M)                   human or agent
                Put the description in a note.
+               The fact below is named verdict/2 for 0.7.2 compatibility; it is a disproof
+               result, not a verdict of an experiment.
   disproof     verdict(C, upheld(Text) | refuted(Text) | inconclusive(Text) | abstained(Text))
                agent. The text says what was tried. upheld(Text): the attempt did not break
                the claim. Put the counterexample in the text of refuted. The bare inconclusive
@@ -110,7 +148,7 @@ Queries (orbit-kb query 'current(C)' -n 0)
   passed(K)          the latest run of K passed
   was_red(K)         K failed before it passed
   stale(A)           approval A is for a digest that is no longer current
-  premise_unchecked(P)  nobody checked premise P on the system: a guess (report, Guesses)
+  premise_unchecked(P)  nobody checked premise P on the system (report: Residual, Happens)
   blocking(X)        X blocks done: to_ask(Q), burn_open(C), flare_open(C), under(C), over(X),
                      check_failing(K), check_unrun(K), waiver_lapsed(W), past_due(X),
                      supersede_cycle(C), no_claim. orbit-kb show blocking prints each with its text.
@@ -179,3 +217,16 @@ Speed
   Run independent tool calls in parallel. Give long mechanical work (wide searches, long test
   runs) to a subagent on a fast model. A small task does not need a subagent.
   Report results, not process.
+
+The records (0.8.0)
+  orbit-kb show hypotheses       the goal first with its author, then each hypothesis under it with
+                                 author, state, defeating case, premises and predictions
+  orbit-kb adopt H --by human [--note 'the words']    the human adopts H (attest adoption)
+  orbit-kb retire H --reason TEXT [--by human|agent]  retire H (attest retirement). An agent cannot
+                                 retire a hypothesis that a human wrote or adopted, or one with adoption_cited.
+  orbit-kb rests ID              "up:" what ID rests on, to the project goal; "down:" what rests on it
+  Queries: goal_current(G)  hypothesis_state(H, S) (superseded, retired, defeated, adopted, proposed)
+           hypothesis_current(H)  hypothesis_adopted(H)  tempered(H)  not_tempered(H)
+           claim_of_goal(C)  hypothesis_guess(H)  rests_on(X, Y)  rests_up(X, Y)  goal_unsupported(G)
+  current(C): no claim replaces C, and C is a claim of the goal or a current hypothesis predicts it.
+  A query of hypothesis(H, K, T) answers as at 0.7.2 on every KB (it gives the goal), with a note.

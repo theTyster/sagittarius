@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.7.2 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
-| Philosophy | 2.0.0 (proposed) | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.11.2 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| Sagittarius | 0.8.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
+| MindHole Kit | 0.12.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,50 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.8.0 and MindHole Kit 0.12.0 (2026-11-24)
+
+MINOR for both: the method follows the scientific method (hub spec KB scientific-method-overhaul;
+Ty, 2026-11-23). Philosophy 3.0.0 (Ty, 2026-11-24: "Lets make this live immediately."): the text
+is reworked, and the prompt is rebuilt on it (hub spec KB philosophy-3).
+
+- **What an agent sees from Philosophy 3.0.0.** A lap has five steps: state, seal, run, read,
+  keep. Seal: before a run, write down what you expect and which result counts against you. The
+  control: a check of a change fails before the change. Three instruments answer three questions:
+  the human (what is wanted), the system (what happens), a formal tool (what follows); the agent
+  is none of them. The delivery has `Residual:` in place of `Guesses:` and `Not checked:`: what
+  could still show the work wrong, by question (Wanted, Happens, Follows). `orbit report` prints
+  it, and each claim says if the control of its check was seen. A statement that says too
+  little is Soft, and one that says too much is Brittle (the prompt and `orbit help discovery`).
+  In discovery the human goes first: the agent seals its hypothesis, asks the human for theirs,
+  then shows both.
+
+- **A ticket is a goal with hypotheses, claims and experiments.** The goal is the intent and names
+  no avenue (`goal/4`). A hypothesis is a claim about an avenue to the goal (`hypothesis/4`), with
+  its author, its state (proposed, adopted, retired, defeated) and the case that would defeat it.
+  A claim is a prediction of one hypothesis (`predicts/2`); a preserve claim hangs on the goal.
+  The `hypothesis/3` of 0.7.2 was the statement of the intent: it is read as the goal, with no
+  rewrite of a KB, and every 0.7.2 query of it answers as before.
+- **Verdicts.** A run is pass (meets), fail (conflicts) or unresolved (a kill, a timeout, exit 77,
+  a solver that answers unknown). A verdict counts only for the state that its experiment
+  observed: a later change that serves the claim, or a false measurement premise, makes it stale.
+  A conflict is located (build, measurement, premise, hypothesis) before anything is reopened.
+- **Judgments of the human.** A ticket with a KB is done when nothing holds it up and the human
+  judged that its goal is satisfied. A ticket that was done before the upgrade stays done.
+  A ticket of 0.8.0 that states no goal is not done (`goal_missing`, lint EB1). `judge` and `adopt
+  --by human` keep the human's words (`--note`); an agent session must give them.
+- **The command.** `orbit` and `orbit-kb` are one program, and each screen names the tool as it was
+  called. `shift --goal` writes the goal and the hypothesis under it. `orbit hub orphans` lists the
+  open items with no chain to a project goal, grouped by where the chain ends. The hub texts teach
+  `orbit hub ledger`; hubflow.py is its engine and still works.
+- **The texts.** The prompt, the pane prompts, the philosophy, the kit texts and the help share one
+  vocabulary (`docs/vocabulary.json`). Sound Basis is stated in Ty's words. Formal language can
+  enter while forming the hypothesis, while exploring, and while verifying.
+- **The kit.** The release for a hub with no tool is dropped. The kit installs `bin/orbit`.
+- **The Desk** shows the goal, each hypothesis with author and state, and unresolved apart from
+  conflicts; Ty can adopt a hypothesis and judge a case or the goal there.
+- **Lean.** `kb/proofs/scientific_method/ScientificMethod.lean` (the handoff of 2026-11-18) is
+  checked by the suite; the verdict rule follows its definition `Warrants`.
 
 ## Sagittarius 0.7.2 and MindHole Kit 0.11.2 (2026-11-23)
 

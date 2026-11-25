@@ -243,14 +243,15 @@ def c5(_):
     check("c5 prompt has 'When you resume'", i >= 0, "missing")
     para = pr[i:i + 300]
     # 0.3.0: the prompt holds no hub text ("A workspace, such as a hub, names its own tools, roles,
-    # and routing"): it keeps `orbit-kb show open` for a resume; the inbox and hubflow recipe live
+    # and routing"): it keeps `orbit show open` for a resume (`orbit-kb show open` before 0.8.0); the inbox and hubflow recipe live
     # in the hub's text (PANES.md, the hub-flow skill).
-    has("c5 prompt resume paragraph", para, "orbit-kb show open")
+    has("c5 prompt resume paragraph", para, "orbit show open")
     lacks("c5 prompt", pr, "hubflow")
     # Sagittarius 0.3.0 (c_m_b_1): the prompt has no hub lines; the hub's own HUB-CORE.md, always loaded in a
     # hub, holds the resume rule (read the inbox at session start and after a compaction, then each kb ref).
     flow = section(read(CORE), "Flow state lives in the db")
-    has("c5 HUB-CORE.md 'Flow state lives in the db'", flow, "session start", "compaction", "v_inbox", "hubflow.py where", "orbit-kb show open")
+    # review R1 (0.8.0): the kb ref is followed through the door, `orbit hub ledger where` (it was "hubflow.py where")
+    has("c5 HUB-CORE.md 'Flow state lives in the db'", flow, "session start", "compaction", "v_inbox", "orbit hub ledger where", "orbit-kb show open")
     pan = read(PANES)
     has("c5 PANES.md handoff procedure", pan, "hubflow handoff", "inbox", "v_inbox", "hubflow where", "kb ref", "orbit-kb show open")
     has("c5 hub-flow SKILL.md reads the inbox", read(SKILL_FLOW), "v_inbox")

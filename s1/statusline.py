@@ -135,6 +135,8 @@ def render(session_id, log_path, now=None):
         answers = rec.get("answers")
         if rec.get("error") or not isinstance(answers, dict):
             return "S1 err"
+        if rec.get("source"):  # c34: not from the human: no effort and no change-of-plan signal
+            answers = {k: v for k, v in answers.items() if k not in ("h_effort", "h_change_of_plan")}
         parts = []
         signal = False
         c = _choice(answers.get("h_work"))

@@ -134,6 +134,12 @@ oldkind(o2, 'second').
 EOF
 }
 plan_seen() { okb --dir "$K" migrate plan "$@"; SEEN=$(printf '%s\n' "$out" | sed -n 's/^Seen: //p' | head -n1); }
+# give_goal [DIR]: review G1 (orbit-kb 0.8.0): after the first write of 0.8.0 a ticket states its
+# goal, and done needs the human's judgment of it (goal_missing, goal_unjudged). A test of done that
+# is about something else gets a goal that the human judged satisfied, in the fact form of judge.
+give_goal() {
+    printf "goal(g0, feature, human, 'The goal of this test.').\nno_premises(g0).\nattest(j0, judgment, g0, satisfied, human, '2026-10-15T09:00:00Z').\n" >> "${1:-$K}/kb.pl"
+}
 # a hub with the ledger: mkhub DIR
 mkhub() { mkdir -p "$1/.claude/scripts" "$1/specs"; cp "$REPO/hubkit/hub/.claude/scripts/hubflow.py" "$REPO/hubkit/hub/.claude/scripts/desk.py" "$1/.claude/scripts/"
           cp "$REPO/hubkit/hub/flow/seed.json" "$1/seed.json"
@@ -304,7 +310,8 @@ t_MG9() {
         # the agent step of the closed KB (its checks have no words) has no fix on the Desk; the open one has
         grep -Fq "fix:words:$T/h/specs/closed" "$T/page.html" && note "the Desk shows the words step of the closed KB"
         grep -Fq "fix:words:$T/h/specs/open" "$T/page.html" || note "the Desk does not show the words step of the open KB"
-        grep -Eiq 'retired|WM1' "$T/page.html" && note "the Desk shows a retired-predicate warning"
+        # 0.8.0 (c24, c37): the Desk has the hypothesis state retired (the CSS class s-retired); it is no warning
+        sed 's/s-retired//g' "$T/page.html" | grep -Eiq 'retired|WM1' && note "the Desk shows a retired-predicate warning"
     fi
     kill "$spid" 2>/dev/null; wait "$spid" 2>/dev/null
     same_file "$T/h/specs/closed/kb.pl" "$T/closed.before" "the closed KB after the run"
@@ -312,6 +319,7 @@ t_MG9() {
 t_MG10() {
     fxlib || return; hub_two || return
     K=$T/h/specs/open; plan_seen; okb --dir "$K" migrate apply --seen "$SEEN"; rc_is 0 || return
+    give_goal   # after the apply: the question of the human step hangs on claim c1, as the test reads it
     # the agent step of W12 is required: do it, so only the human step is left
     okb --dir "$K" add "checks_that(k1, 'the first line names the columns')"; rc_is 0
     # review a94: make done hold but for the question, so is_false done can fail
@@ -356,7 +364,8 @@ check(k2, c1).
 EOF
     # a tool migration that backfills checks_that(k2), declared as S = {checks_that/2} only:
     # lint W12 reads checks_that under not, so it is in the reach, and it changes; current(c1) is not
-    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.5.0-checks_that.pl"
+    # 0.8.0 (scientific-method-overhaul c19): the migration of 0.8.0 declares current/1 as changed, so it goes too
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.5.0-checks_that.pl" "$T/lib/migrations/0.8.0-scientific-method.pl"
     cat > "$T/lib/migrations/9.9.9-words.pl" <<'EOF'
 migration(m_words, '9.9.9', 'Backfill the words of each check.').
 changes(m_words, [checks_that/2]).
@@ -380,7 +389,8 @@ EOF
 # ================================================================ c7: an additive migration
 t_MG7() {
     fxlib || return
-    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.6.0-project-root.pl"   # the additive migration alone
+    # 0.8.0 (scientific-method-overhaul c19): the migration of 0.8.0 declares changes of old rules, so it goes too
+    rm -f "$T/lib/migrations/9.9.9-fixture.pl" "$T/lib/migrations/0.6.0-project-root.pl" "$T/lib/migrations/0.8.0-scientific-method.pl"   # the additive migration alone
     # the new version adds a fact kind and a rule that only reads it; no old rule reads either
     cat >> "$T/lib/core.pl" <<'EOF'
 decl(fact, fx_bounds(atom, text), 'The bounds of the runs of a check (a fixture).', 'check @(1) runs with bounds @(2)').
@@ -628,7 +638,7 @@ EOF
 
 # ================================================================ c16: the cut-fail clause
 t_MG16() {
-    fxlib || return; kb_old "$T/k"
+    fxlib || return; kb_old "$T/k"; give_goal
     printf '%s\n' '%% doc: An item that reads the old kind.' 'old_reader(X) :- oldkind(X, _).' > "$K/rules.pl"
     okb --dir "$K" add "cites(c1, 'Exports keep their header row')"; rc_is 0
     okb --dir "$K" run k1 -- false >/dev/null; okb --dir "$K" run k1 -- true >/dev/null; rc_is 0 "setup: run k1 red, then green"

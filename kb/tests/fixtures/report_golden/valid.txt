@@ -21,6 +21,7 @@
   - c1 **introduce**: The widget can be saved
     - Status: fulfilled.
     - Example: Save a widget, close the app, open it again, and see the widget.
+    - Control of check k1: not seen.
     - Checks: k1 (passed).
   - c2 **preserve**: Loading stays fast
     - Status: fulfilled.
@@ -43,9 +44,14 @@
 # Not explored:
   - The network save path
 
-# Guesses:
-  - q2: Does saving need a progress bar
-    - The default is no. No human answered it.
+# Residual:
+  - **Wanted:**
+    - q2: Does saving need a progress bar
+      - The default is no. No human answered it.
+  - **Happens:**
+    - None. Every current claim has a check.
+  - **Follows:**
+    - None. No claim has a formal statement.
 
 # Disclosures:
   - a5 **guess**: q2
@@ -55,9 +61,6 @@
 
 # Waivers:
   - None.
-
-# Not checked:
-  - None. Every current claim has a check.
 
 # Open:
   - Nothing is open.
