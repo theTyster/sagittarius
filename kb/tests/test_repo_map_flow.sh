@@ -119,14 +119,21 @@ EOF
     mkfacts "$base/k2-facts.json" 'd["steps"] = [s for s in d["steps"] if "judgment" not in s["kinds"]]'
     run python3 "$V" check --root "$ROOT" --facts "$base/k2-facts.json"; [ "$rc" = 1 ] || fail "judgment arrows removed: still green"
     has "kind judgment has no write arrow"; has "kind judgment has no read arrow"
+    # the required kinds live in views.py: moving premise to left_out in the facts must go red
+    mkfacts "$base/k2-prem.json" 'd["kinds"] = [k for k in d["kinds"] if k["id"] != "premise"]
+d["steps"] = [s for s in d["steps"] if "premise" not in s["kinds"] or s["kinds"].remove("premise") or s["kinds"]]
+d["left_out"].append({"reason": "a plant", "names": ["premise"]})
+d.pop("required_kinds", None)'
+    run python3 "$V" check --root "$ROOT" --facts "$base/k2-prem.json"; [ "$rc" = 1 ] || fail "premise moved to left_out stays green"
+    has "kind premise is required and is not a kind of the flow view"
 }
 
 t_K3() {
     run python3 "$V" check --root "$ROOT"; [ "$rc" = 0 ] || fail "check is red: $out"
     has "views check: green"
-    mkfacts "$base/k3a.json" 'd["steps"][28]["sources"][1]["name"] = "cmd_judgement"'
+    mkfacts "$base/k3a.json" '[x.update(name="cmd_judgement") for s in d["steps"] for x in s["sources"] if x["name"] == "cmd_judge"]'
     run python3 "$V" check --root "$ROOT" --facts "$base/k3a.json"; [ "$rc" = 1 ] || fail "cmd_judgement stays green"
-    has "arrow s29: pred cmd_judgement is not in kb/bin/orbit-kb"
+    has "pred cmd_judgement is not in kb/bin/orbit-kb"
     mkfacts "$base/k3b.json" 'd["steps"][3]["sources"] = []'
     run python3 "$V" check --root "$ROOT" --facts "$base/k3b.json"; [ "$rc" = 1 ] || fail "an arrow with no source stays green"
     has "arrow s04: no source"
@@ -172,10 +179,12 @@ t_K5() {
     local n; n=$(printf '%s\n' "$out" | grep -c '^line ')
     local sum; sum=$(printf '%s\n' "$out" | sed -n 's/^counts: //p' | grep -o '[0-9]\+' | awk '{s+=$1} END {print s}')
     [ "$n" = "$sum" ] || fail "placed $n records, the KB holds $sum"
+    printf '%s\n' "$out" | grep -q '^line .* verdict .*J=satisfied V=meets' || fail "the verdict of the judgment shows no J= and V="
+    printf '%s\n' "$out" | grep -q '^line .* verdict .*experiment/3' || fail "the verdict of the judgment is not on its own step"
     for k in request goal hypothesis claim check run verdict judgment; do
         printf '%s\n' "$out" | grep -q "^line [0-9 ]*$k " || fail "no $k record placed"
     done
-    mkfacts "$base/k5-facts.json" 'd["steps"] = [s for s in d["steps"] if s["id"] != "s23"]'
+    mkfacts "$base/k5-facts.json" 'd["steps"] = [s for s in d["steps"] if not s["label"].startswith("orbit run K")]'
     run python3 "$V" trace "$base/k5kb" --root "$ROOT" --facts "$base/k5-facts.json"; [ "$rc" = 1 ] || fail "run arrow removed: still green"
     local left; left=$(printf '%s\n' "$out" | grep -c '^FAIL run .* is on no arrow')
     [ "$left" = 73 ] || fail "run arrow removed: $left runs left over, want 73"
@@ -192,7 +201,8 @@ measure() {
 shot() {  # one image of one view: the other view and the tables are hidden in a scratch copy
     local view=$1 w=$2 h=$3 hide
     case $view in groups) hide='#v-flow';; flow) hide='#v-groups';; esac
-    sed "s|</style>|$hide, .tw, h2 ~ .tw { display: none; } </style>|" "$MAP" > "$base/s-$view.html"
+    # each image shows one view: the other view and the source tables (section v-sources) are hidden
+    sed "s|</style>|$hide, #v-sources { display: none; } </style>|" "$MAP" > "$base/s-$view.html"
     mkdir -p "$SHOTS"
     timeout 90 "$CHROMIUM" --headless --disable-gpu --user-data-dir="$base/chrome" --window-size="$w,$h" \
         --hide-scrollbars --screenshot="$SHOTS/$view-$w.png" "file://$base/s-$view.html" >/dev/null 2>&1
@@ -209,7 +219,7 @@ t_K6() {
         python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); [print("    ", p) for p in d["problems"][:10]]; print("     %s px: %d boxes, %d labels, smallest label %.1f px, %d problems" % (sys.argv[2], d["boxes"], d["labels"], d["minFont"], len(d["problems"]))); sys.exit(1 if d["problems"] or d["boxes"] < 40 else 0)' "$base/measure-$w.json" "$w" \
             || fail "the map at $w px has problems"
     done
-    shot groups 1600 1400; shot flow 1600 2100; shot groups 400 2400; shot flow 400 2400
+    shot groups 1600 1400; shot flow 1600 4200; shot groups 400 2400; shot flow 400 4400
     # plant: 20 boxes in one row, scaled to the width of the window
     {
         printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body><svg width="100%%" viewBox="0 0 2000 60">'

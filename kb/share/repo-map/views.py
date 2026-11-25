@@ -35,6 +35,9 @@ HTML_NAME = "sagittarius-map.html"
 DECL_FILES = ["kb/share/orbit-kb/core.pl", "kb/share/orbit-kb/modules/build.pl",
               "kb/share/orbit-kb/modules/discovery.pl"]
 STORE_FACTS = "hubkit/tools/store-facts.json"
+# The kinds that the flow view must carry, each with a write (or derive) arrow and a read arrow
+# (claim c2). They live here, not in the facts file, so that an edit of the facts cannot drop one.
+REQUIRED_KINDS = ["request", "goal", "hypothesis", "premise", "claim", "check", "run", "verdict", "judgment"]
 
 # Layout constants (px). The font is monospace, so the width of a label is its length times CH.
 FONT = 12
@@ -42,8 +45,9 @@ SMALL = 11
 CH = 7.6          # an upper bound of the advance of one character at 12 px in a monospace font
 CH_SMALL = 7.0
 PAD = 10
+HEAD_EVERY = 10  # the lane headers come again every so many steps
 LINE = 18        # the distance of two lines of one label (px)
-WRAP = 46        # the longest line of a step label in the flow view (characters)
+WRAP = 40        # the longest line of a step label in the flow view (characters)
 
 
 class MapError(Exception):
@@ -182,7 +186,7 @@ def model(root, facts):
     outside = [dict(o) for o in facts.get("outside", [])]
     return {"groups": groups, "stores": store_boxes, "outside": outside,
             "lanes": facts.get("lanes", []), "kinds": facts.get("kinds", []),
-            "steps": facts.get("steps", [])}, errors
+            "steps": facts.get("steps", []), "not_drawn": facts.get("not_drawn", [])}, errors
 
 
 def boxes(m):
@@ -299,9 +303,11 @@ def step_text(s):
 
 
 def svg_flow(m):
+    """Lanes side by side; one row for each step, top to bottom: the label on top, the arrow under
+    it. The row of lane headers comes again every HEAD_EVERY steps."""
     lanes = m["lanes"]
     li = {l["id"]: i for i, l in enumerate(lanes)}
-    # lane headers: two lines each
+
     def two(label):
         w = label.split(" ")
         best = None
@@ -315,49 +321,50 @@ def svg_flow(m):
     mods = ["(%s)" % l.get("module", "") for l in lanes]
     lw = max(max(tw(a), tw(b), tw(c, CH_SMALL)) for (a, b), c in zip(heads, mods)) + 2 * PAD
     lgap = 6
+    margin = 20
+    x0 = margin
+    W = x0 + len(lanes) * (lw + lgap) + margin
     texts = [textwrap.wrap(step_text(s), WRAP, break_long_words=True) for s in m["steps"]]
     notes = [s.get("store_map", "") for s in m["steps"]]
-    tcol = max(max(tw(x) for t in texts for x in t), max([tw(n, CH_SMALL) for n in notes if n] or [0])) + 2 * PAD + int(4 * CH)
-    margin = 20
-    x0 = margin + tcol
-    W = x0 + len(lanes) * (lw + lgap) + margin
-    out = []
+    out, lifes = [], []
     y = margin
-    out.append('<text x="%d" y="%d" class="h">The flow of the records over time (one row for each step, top to bottom)</text>'
-               % (margin, y + 14))
-    y += 26
+    out.append('<text x="%d" y="%d" class="h">The flow of the records over time</text>' % (margin, y + 14))
+    y += 22
+    out.append('<text x="%d" y="%d" class="sm">One row for each step, top to bottom: what happens, then the arrow.</text>'
+               % (margin, y + 12))
+    y += 22
     hh = 62
-    for i, l in enumerate(lanes):
-        x = x0 + i * (lw + lgap)
-        a, b = heads[i]
-        out.append('<g data-box="lane:%s"><rect class="lane" x="%d" y="%d" width="%d" height="%d" rx="4"/>'
-                   '<text class="lb" x="%d" y="%d">%s</text><text class="lb" x="%d" y="%d">%s</text>'
-                   '<text class="sm" x="%d" y="%d">%s</text></g>'
-                   % (esc(l["id"]), x, y, lw, hh, x + PAD, y + 17, esc(a), x + PAD, y + 35, esc(b),
-                      x + PAD, y + 53, esc(mods[i])))
-    ytop = y + hh
-    y = ytop + 10
-    rows = []
-    for s, t, n in zip(m["steps"], texts, notes):
-        rh = 8 + LINE * len(t) + (16 if n else 0)
-        rows.append((s, t, n, y, rh))
-        y += rh + 4
-    ybot = y
-    for i in range(len(lanes)):
-        cx = x0 + i * (lw + lgap) + lw // 2
-        out.append('<line class="life" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (cx, ytop, cx, ybot))
-    for s, t, n, ry, rh in rows:
+
+    def header(y):
+        for i, l in enumerate(lanes):
+            x = x0 + i * (lw + lgap)
+            a, b = heads[i]
+            out.append('<g data-box="lane:%s"><rect class="lane" x="%d" y="%d" width="%d" height="%d" rx="4"/>'
+                       '<text class="lb" x="%d" y="%d">%s</text><text class="lb" x="%d" y="%d">%s</text>'
+                       '<text class="sm" x="%d" y="%d">%s</text></g>'
+                       % (esc(l["id"]), x, y, lw, hh, x + PAD, y + 17, esc(a), x + PAD, y + 35, esc(b),
+                          x + PAD, y + 53, esc(mods[i])))
+        return y + hh + 8
+    seg_top = None
+    for n, (s, t, note) in enumerate(zip(m["steps"], texts, notes)):
+        if n % HEAD_EVERY == 0:
+            if seg_top is not None:
+                lifes.append((seg_top, y))
+            y = header(y)
+            seg_top = y - 8
+        rh = 8 + LINE * len(t) + (16 if note else 0) + 20
+        ry = y
         out.append('<g data-step="%s"><rect class="row" x="%d" y="%d" width="%d" height="%d"/>'
                    % (esc(s["id"]), margin, ry, W - 2 * margin, rh))
         for j, part in enumerate(t):
             out.append('<text class="lb" data-label="%s" x="%d" y="%d">%s</text>'
                        % (esc(s["id"]), margin + PAD + (0 if j == 0 else 4 * CH), ry + 16 + LINE * j, esc(part)))
-        if n:
-            out.append('<text class="sm mark" x="%d" y="%d">%s</text>' % (margin + PAD, ry + 15 + LINE * len(t), esc("! " + n)))
+        if note:
+            out.append('<text class="sm mark" x="%d" y="%d">%s</text>' % (margin + PAD, ry + 15 + LINE * len(t), esc("! " + note)))
         if s["from"] in li and s["to"] in li:
             fx = x0 + li[s["from"]] * (lw + lgap) + lw // 2
             tx = x0 + li[s["to"]] * (lw + lgap) + lw // 2
-            ay = ry + 12
+            ay = ry + rh - 11
             d = 1 if tx > fx else -1
             cls = VERB_CLASS.get(s["verb"], "c")
             out.append('<line class="ar %s" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (cls, fx, ay, tx - d * 7, ay))
@@ -365,15 +372,36 @@ def svg_flow(m):
                        % (cls, tx, ay, tx - d * 8, ay - 5, tx - d * 8, ay + 5))
             out.append('<circle class="dot" cx="%d" cy="%d" r="3"/>' % (fx, ay))
         out.append('</g>')
-    y = ybot + 12
-    legend = [("w", "write"), ("r", "read"), ("d", "derive (the tool computes it)"), ("c", "carry (words or a carrier)")]
+        y += rh + 4
+    lifes.append((seg_top, y))
+    lines = []
+    for top, bot in lifes:
+        for i in range(len(lanes)):
+            cx = x0 + i * (lw + lgap) + lw // 2
+            lines.append('<line class="life" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (cx, top, cx, bot))
+    out = out[:2] + lines + out[2:]
+    y += 12
+    legend = [("w", "write"), ("r", "read"), ("d", "derive"), ("c", "carry")]
     lx = margin
     for cls, word in legend:
         out.append('<line class="ar %s" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (cls, lx, y + 6, lx + 30, y + 6))
         out.append('<text class="lb" x="%d" y="%d">%s</text>' % (lx + 38, y + 10, esc(word)))
-        lx += 38 + tw(word) + 30
-    H = y + 30
+        lx += 38 + tw(word) + 24
+    y += 24
+    for line in LEGEND_LINES:
+        for part in textwrap.wrap(line, int((W - 2 * margin) / CH)):
+            out.append('<text class="lb" x="%d" y="%d">%s</text>' % (margin, y + 10, esc(part)))
+            y += LINE
+    H = y + 20
     return W, H, "\n".join(out)
+
+
+LEGEND_LINES = [
+    "derive: the tool computes it from the record; carry: words of a person, or a carrier (letter, handoff, proposal).",
+    "An experiment is a check with its runs: each run (test_result) gives one verdict (meets, conflicts, unresolved). "
+    "A judgment of the human is an experiment of the goal, with its own verdict (the step experiment/3, verdict/2 of the judgment).",
+    "A Desk write goes through a queue: the Desk appends to answers.pending, and apply-pending writes kb.pl.",
+]
 
 
 CSS = """
@@ -442,12 +470,13 @@ def render_html(m):
         '(store-facts.json) names another owner than the code writes to.</p>\n'
         '<div class="frame"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
         'viewBox="0 0 %d %d" role="img" aria-label="Flow view">\n%s\n</svg></div>\n</section>\n'
+        '<section id="v-sources">\n<h2>What this map does not draw</h2>\n<ul>%s</ul>\n'
         '<h2>Sources of the arrows</h2>\n<div class="tw"><table><tr><th>step</th><th>kinds</th><th>verb</th>'
         '<th>from, to</th><th>what</th><th>sources (file, kind, name)</th></tr>\n%s\n</table></div>\n'
-        '<h2>Sources of the boxes</h2>\n<div class="tw"><table><tr><th>box</th><th>source</th></tr>\n%s\n</table></div>\n'
+        '<h2>Sources of the boxes</h2>\n<div class="tw"><table><tr><th>box</th><th>source</th></tr>\n%s\n</table></div>\n</section>\n'
         '<script type="application/json" id="repo-map-data">%s</script>\n'
         '</main>\n</body>\n</html>\n'
-    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, "\n".join(rows), "\n".join(brows), data)
+    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, "".join("<li>%s</li>" % esc(x) for x in m["not_drawn"]), "\n".join(rows), "\n".join(brows), data)
 
 
 # ---------------------------------------------------------------- render: Markdown with Mermaid
@@ -499,6 +528,7 @@ def render_md(m):
             s["id"], "/".join(s["kinds"]), s["verb"], s["from"], s["to"],
             s["label"].replace("|", "/") + ((" (" + s["store_map"] + ")") if s.get("store_map") else ""),
             "<br>".join("`%s`" % src_text(x).replace("|", "/") for x in s.get("sources", []))))
+    L += ["", "## What this map does not draw", ""] + ["- " + x for x in m["not_drawn"]]
     L += ["", "## Sources of the boxes", "", "| box | source |", "|---|---|"]
     for bid, src in boxes(m):
         L.append("| `%s` | `%s` |" % (bid, src_text(src).replace("|", "/")))
@@ -552,7 +582,9 @@ def check(root, facts_path, out_dir):
             if r:
                 errs.append("kind %s: %s" % (k["id"], r))
     # c2 (k2): each required kind has a write (or derive) arrow and a read arrow
-    for k in facts.get("required_kinds", []):
+    for k in REQUIRED_KINDS:
+        if k not in kind_ids:
+            errs.append("kind %s is required and is not a kind of the flow view" % k)
         w = [s for s in m["steps"] if k in s["kinds"] and s["verb"] in ("write", "derive")]
         r = [s for s in m["steps"] if k in s["kinds"] and s["verb"] in ("read", "carry")]
         if not w:
@@ -634,28 +666,33 @@ def check(root, facts_path, out_dir):
 
 # ---------------------------------------------------------------- trace (c5)
 
-TRACE_QUERIES = [
-    ("request", "request(R,_)", "R"),
-    ("goal", "goal(G,_,_,_)", "G"),
-    ("hypothesis", "hypothesis(H,_,_,_)", "H"),
-    ("premise", "premise(P,_,_)", "P"),
-    ("claim", "claim(C,_,_)", "C"),
-    ("check", "check(K,_)", "K"),
-    ("run", "attest(A,test_result,_,_,_,_)", "A"),
-    ("verdict", "verdict(A,_)", "A"),
-    ("adoption", "attest(A,adoption,_,_,_,_)", "A"),
-    ("judgment", "attest(A,judgment,_,_,_,_)", "A"),
+TRACE_QUERIES = [  # kind, query, the variable that names the record, the variables shown
+    ("request", "request(R,_)", "R", []),
+    ("goal", "goal(G,_,_,_)", "G", []),
+    ("hypothesis", "hypothesis(H,_,_,_)", "H", []),
+    ("premise", "premise(P,_,_)", "P", []),
+    ("question", "question(Q,_,_)", "Q", []),
+    ("answer", "answer(Q,_,B)", "Q", ["B"]),
+    ("claim", "claim(C,_,_)", "C", []),
+    ("check", "check(K,_)", "K", []),
+    ("vote", "attest(A,vote,_,V,B,_)", "A", ["V", "B"]),
+    ("run", "attest(A,test_result,K,result(_,_,X),_,_)", "A", ["K", "X"]),
+    ("adoption", "attest(A,adoption,H,_,_,_)", "A", ["H"]),
+    ("judgment", "attest(A,judgment,G,J,_,_)", "A", ["G", "J"]),
+    ("verdict", "verdict(A,V)", "A", ["V"]),   # after run and judgment: its line names them
 ]
 
 
-def kb_query(orbit, kb_dir, q, var):
+def kb_query(orbit, kb_dir, q):
+    """The answers of query Q as dicts {variable: atom}; a binding that is not an atom is kept as text."""
     r = subprocess.run([orbit, "--dir", kb_dir, "query", q, "-n", "0"], capture_output=True, text=True)
     out = []
     for line in r.stdout.splitlines():
-        mm = re.match(r"%s = ([a-z][A-Za-z0-9_]*)" % var, line.strip())
-        if mm:
-            out.append(mm.group(1))
-    if r.returncode not in (0, 1) or (not out and r.stdout.strip() not in ("", "false")):
+        line = line.strip()
+        if not line or line == "false":
+            continue
+        out.append(dict(re.findall(r"\b([A-Z]\w*) = ([a-z][A-Za-z0-9_]*|'[^']*')", line)))
+    if r.returncode not in (0, 1) or (r.stdout.strip() not in ("", "false") and not out):
         raise MapError("orbit-kb query %s failed: %s" % (q, (r.stderr or r.stdout).strip()[:200]))
     return out
 
@@ -667,49 +704,63 @@ def trace(root, facts_path, kb_dir):
     orbit = os.path.join(root, "kb", "bin", "orbit-kb")
     with open(os.path.join(kb_dir, "kb.pl"), encoding="utf-8") as f:
         lines = f.read().splitlines()
-    first = {}
-    times = {}
+    first, times, actors = {}, {}, {}
     for i, line in enumerate(lines, 1):
         mm = re.match(r"([a-z_]+)\(([a-z][A-Za-z0-9_]*)\s*,", line)
         if mm:
-            first.setdefault(mm.group(2), i)
+            first.setdefault((mm.group(1), mm.group(2)), i)
+            first.setdefault(("*", mm.group(2)), i)
         mm = re.match(r"attest\(([a-z][A-Za-z0-9_]*),.*'(\d{4}-\d\d-\d\dT[0-9:]+Z)'\)\.\s*$", line)
         if mm:
             times[mm.group(1)] = mm.group(2)
-    actors = {}
-    for line in lines:
         mm = re.match(r"actor\(([a-z][A-Za-z0-9_]*),\s*([a-z_]+),", line)
         if mm:
             actors[mm.group(1)] = mm.group(2)
+    judgments, runs = {}, {}
     recs, errs, counts = [], [], {}
-    for kind, q, var in TRACE_QUERIES:
-        ids = kb_query(orbit, kb_dir, q, var)
-        counts[kind] = len(ids)
-        for rid in ids:
+    for kind, q, var, show in TRACE_QUERIES:
+        rows = kb_query(orbit, kb_dir, q)
+        counts[kind] = len(rows)
+        if kind == "judgment":
+            judgments = {r.get("A"): "G=%s J=%s" % (r.get("G"), r.get("J")) for r in rows}
+        if kind == "run":
+            runs = {r.get("A"): "K=%s X=%s" % (r.get("K"), r.get("X")) for r in rows}
+        n_req = 0
+        for r in rows:
+            rid = r.get(var)
             sid = tmap.get(kind)
+            if kind == "request":
+                sid = (sid or [None, None])[0 if n_req == 0 else 1]
+                n_req += 1
             if kind in ("adoption", "judgment") and actors.get(rid) == "desk":
-                sid = {"adoption": "s21", "judgment": "s28"}[kind]
+                sid = tmap.get(kind + "_desk")
+            if kind == "verdict" and rid in judgments:
+                sid = tmap.get("verdict_of_judgment")
             if sid not in steps or kind not in steps[sid]["kinds"]:
                 errs.append("%s %s is on no arrow of the flow view" % (kind, rid))
                 continue
-            line = first.get(rid)
+            src = {"answer": "answer"}.get(kind)
+            line = first.get((src, rid)) if src else first.get(("*", rid))
             if line is None:
                 errs.append("%s %s has no line in kb.pl" % (kind, rid))
                 continue
-            # a verdict comes right after its run, on the same line order
-            recs.append((line, 1 if kind == "verdict" else 0, kind, rid, sid, times.get(rid, "")))
+            detail = " ".join("%s=%s" % (v, r.get(v, "?")) for v in show)
+            if kind == "verdict":
+                detail = (runs.get(rid) or judgments.get(rid) or "?") + " " + detail
+            recs.append((line, 1 if kind == "verdict" else 0, kind, rid, sid, times.get(rid, ""), detail))
+    # a verdict of a judgment comes after the judgment, which may appear later in the file
     recs.sort()
     last_t = ""
     out = []
-    for line, _, kind, rid, sid, t in recs:
+    for line, _, kind, rid, sid, t, detail in recs:
         if t and last_t and t < last_t:
             errs.append("the time of %s %s (%s) goes back before %s" % (kind, rid, t, last_t))
         if t and kind != "verdict":
             last_t = t
         s = steps[sid]
-        out.append("line %-4d %-10s %-6s %-20s %s %s->%s: %s" % (
-            line, kind, rid, t or "-", sid, s["from"], s["to"], s["label"]))
-    summary = "counts: " + ", ".join("%s %d" % (k, counts[k]) for k, _, _ in TRACE_QUERIES)
+        out.append("line %-4d %-10s %-6s %-20s %s %s->%s: %s%s" % (
+            line, kind, rid, t or "-", sid, s["from"], s["to"], s["label"], ("  [" + detail + "]") if detail else ""))
+    summary = "counts: " + ", ".join("%s %d" % (k, counts[k]) for k, _, _, _ in TRACE_QUERIES)
     return out, summary, errs
 
 
