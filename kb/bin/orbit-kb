@@ -2148,11 +2148,19 @@ spec_pins_of(PDir, RootOpt, Ts) :-
     append(Dirs0, RDs, Dirs1), sort(Dirs1, Dirs),
     findall(t(SD, C, X),
             ( member(SD0, Dirs), absolute_file_name(SD0, SD), SD \== PA,
-              serve_kb_project(SD, some(PA)),
+              spec_kb_project(SD, some(PA)),
               serve_kb_items(SD, Items),
               kb_term(Items, pins(C, project, X, _)), atom(C), atom(X) ),
             Ts0),
     sort(Ts0, Ts).
+
+% spec_kb_project(+Dir, ?P): serve_kb_project/2; in the Desk, its kept answer (desk_kbinfo/3, desk
+% speed), with kb.pl recorded for the engine that is being built.
+spec_kb_project(Dir, P) :-
+    (   desk_mode
+    ->  directory_file_path(Dir, 'kb.pl', F), desk_note_file(F), desk_kb_project(Dir, P)
+    ;   serve_kb_project(Dir, P)
+    ).
 
 % The registry of pinning spec KBs (T34 c2): spec_kbs.txt in the project KB holds one
 % absolute directory per line. add writes the line when a spec KB records a project_kb or a
@@ -6606,11 +6614,11 @@ desk_dep_state(walk(R, _), walk(R)-Ds) :- desk_walk(R, Ds).
 
 % The memo of one page (desk speed): the facts of each project KB (project_kb_facts/3) and the
 % result of each tree walk are made once per page, and dropped when the page is made.
-:- dynamic desk_pf_memo/3, desk_walk_memo/2, desk_kbinfo_page/3.
+:- dynamic desk_pf_memo/3, desk_walk_memo/2, desk_kbinfo_page/3, desk_fstat_memo/2.
 desk_page_memo_on :- nb_current(desk_page_memo, on).
 desk_page_memo_clear :-
     retractall(desk_pf_memo(_, _, _)), retractall(desk_walk_memo(_, _)), retractall(desk_pre_memo(_, _)),
-    retractall(desk_kbinfo_page(_, _, _)).
+    retractall(desk_kbinfo_page(_, _, _)), retractall(desk_fstat_memo(_, _)).
 desk_with_page_memo(G) :-
     ( nb_current(desk_page_memo, Old) -> true ; Old = off ),
     setup_call_cleanup(( desk_page_memo_clear, nb_setval(desk_page_memo, on) ), G,
@@ -6618,9 +6626,34 @@ desk_with_page_memo(G) :-
 
 desk_walk(R, Ds) :-
     (   desk_page_memo_on, desk_walk_memo(R, Ds0) -> Ds = Ds0
-    ;   findall(D, serve_walk(R, 0, D), Ds0), sort(Ds0, Ds),
+    ;   desk_walk_kept(R, Ds),
         ( desk_page_memo_on -> assertz(desk_walk_memo(R, Ds)) ; true )
     ).
+
+% desk_walk_kept(+Root, -Dirs) (desk speed): the walk of serve_find_kbs/2, kept between pages with
+% the time of each directory that it looked into. A file or directory added, removed or renamed in
+% a directory changes the time of that directory, so while no time changed, the walk finds the
+% same KBs, and the directories are not listed again.
+:- dynamic desk_walk_cache/3.
+desk_walk_kept(R, Ds) :-
+    (   desk_walk_cache(R, Ds0, Seen), forall(member(D-T, Seen), catch(time_file(D, T), _, fail))
+    ->  Ds = Ds0
+    ;   findall(K-(D-T), desk_walk_(R, 0, D, T, K), L),
+        findall(D, member(kb-(D-_), L), Ds1), sort(Ds1, Ds),
+        findall(D-T, member(dir-(D-T), L), Seen0), sort(Seen0, Seen),
+        retractall(desk_walk_cache(R, _, _)), assertz(desk_walk_cache(R, Ds, Seen))
+    ).
+% desk_walk_(+Dir, +Depth, -D, -T, -Kind): as serve_walk/3; each directory it looks into (Kind dir)
+% with its time, and each KB that it finds (Kind kb).
+desk_walk_(Dir, _, Dir, T, dir) :- catch(time_file(Dir, T), _, fail).
+desk_walk_(Dir, _, Dir, 0, kb) :- directory_file_path(Dir, 'kb.pl', F), exists_file(F).
+desk_walk_(Dir, Depth, D, T, K) :-
+    Depth < 8,
+    catch(directory_files(Dir, Es), _, fail),
+    member(E, Es), \+ sub_atom(E, 0, _, _, '.'), E \== runs,
+    directory_file_path(Dir, E, Sub), exists_directory(Sub),
+    D1 is Depth + 1,
+    desk_walk_(Sub, D1, D, T, K).
 
 desk_kb_stamp(Dir, Fs) :-
     findall(N-T-S, ( member(N, ['kb.pl', 'answers.pending', 'answers.applied']),
@@ -6653,7 +6686,12 @@ desk_eng_fresh(Deps, Until) :-
     ( Until == none -> true ; utc_now(Now), \+ Until @< Now ),
     forall(member(S, Deps), desk_dep_same(S)).
 desk_dep_same(walk(R)-Ds) :- !, desk_dep_state(walk(R, _), walk(R)-Ds1), Ds1 == Ds.
-desk_dep_same(F-St) :- desk_dep_state(file(F), F-St1), St1 == St.
+desk_dep_same(F-St) :-
+    (   desk_page_memo_on                        % one look at each file per page
+    ->  ( desk_fstat_memo(F, St1) -> true ; desk_dep_state(file(F), F-St1), assertz(desk_fstat_memo(F, St1)) )
+    ;   desk_dep_state(file(F), F-St1)
+    ),
+    St1 == St.
 
 desk_wipe(M) :-
     retractall(desk_eng_mod(M)), retractall(desk_ans(_, M, _, _)),
