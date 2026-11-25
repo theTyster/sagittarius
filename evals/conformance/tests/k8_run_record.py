@@ -11,7 +11,8 @@ RUN_DIR defaults to evals/conformance/fixtures/run-sample. It passes only when:
 - `runner.py record` writes s1_hooks from the environment: off with S1_OFF=1, on without it;
 - `runner.py live` (1 session, stub commands, no model) writes record.json with s1_hooks off and
   gives the agent command S1_OFF=1: the stub plants a hint line when S1_OFF is not 1, and the
-  run must end clean.
+  run must end clean; and a live run whose stub always plants a hint line must fail (the runner
+  checks its own run).
 Exit 0: pass. Exit 1: one finding or more, each on its own line. No model is called.
 """
 import json
@@ -28,7 +29,7 @@ PLANTED = ["System 1: work=build (0.83)",
 
 AGENT_STUB = """#!/bin/sh
 cp "$K8_TRANSCRIPT" "$4"
-if [ "$S1_OFF" != "1" ]; then
+if [ "$S1_OFF" != "1" ] || [ -n "$K8_ALWAYS_HINT" ]; then
   printf '%s\\n' '{"type":"system","subtype":"hook_response","output":"System 1: work=build (0.83)"}' >> "$4"
 fi
 """
@@ -119,6 +120,13 @@ def main(argv):
             bad += [f"runner.py live: {b}" for b in record_findings(got)]
         except (OSError, ValueError):
             bad.append("runner.py live wrote no record.json")
+        # The run checks itself: a stub that always plants a hint line must make live fail.
+        env["K8_ALWAYS_HINT"] = "1"
+        r = runner_run("live", "--tasks", "1", "--arms", "1", "--runs", "1", "--budget", "100",
+                       "--out", os.path.join(tmp, "live-hint"), env=env)
+        if r.returncode != 1 or "System 1: work=build (0.83)" not in r.stdout:
+            bad.append(f"runner.py live does not check its run: a transcript with a hint line ends "
+                       f"with exit {r.returncode}")
     for b in bad:
         print(b)
     if not bad:
