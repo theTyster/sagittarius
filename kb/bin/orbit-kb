@@ -4325,7 +4325,7 @@ crud_own_rule(Items, O) :-
 crud_dropped(Ids, Ls, it(kb, _, L, T, _, _)) :-
     nonvar(T), compound(T),
     (   memberchk(L, Ls)
-    ;   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, supersedes]),
+    ;   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, replaced, supersedes]),
         arg(1, T, A), atom(A), memberchk(A, Ids)
     ), !.
 
@@ -4367,10 +4367,14 @@ crud_target(KB, Text0, Target, LTs) :-
 % crud_human_record(+Fact): a record of the human: a request, or a fact with the argument human.
 crud_human_record(T) :- nonvar(T), T = request(_, _), !.
 crud_human_record(T) :-
-    nonvar(T), compound(T), \+ T = struck_disclosure(_, _, _, _), \+ T = struck(_, _, _, _), \+ T = erased(_, _, _, _),
+    nonvar(T), compound(T), \+ T = struck_disclosure(_, _, _, _), \+ T = struck(_, _, _, _), \+ T = erased(_, _, _, _), \+ T = replaced(_, _, _, _),
     \+ T = actor(_, _, _), T =.. [_|As], memberchk(human, As), !.
 
 crud_guard(LTs, Target, By, Opts) :-
+    (   memberchk('--disclose'-D0, Opts), atom_string(D0, DS0), split_string(DS0, "", " \t\r\n", [""])
+    ->  reject(["--disclose is empty.", "Fix: say what the human said and where, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
+    ;   true
+    ),
     (   By == agent, member(_-T, LTs), crud_human_record(T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
         fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
@@ -4435,14 +4439,14 @@ cmd_replace(KB, Args, Code) :-
     utc_now(Now), kb_file(KB, KbFile),
     (   Strike == true
     ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
-    ;   Ls0 = []
+    ;   clause_line(replaced(Target, By, Now, Why), [], L1), Ls0 = [L1]     % who, when and why are a record, not only the message
     ),
     crud_disclosure_line(Target, By, Now, Opts, DLs),
     append(Ls0, DLs, Ls),
     append_lines(KbFile, Ls),
     forall(member(L, Ls), format("~w~n", [L])),
     (   Strike == false
-    ->  format(user_error, "NOTE: ~w is replaced (supersedes): it no longer counts. Reason: ~w~n", [Target, Why])
+    ->  format(user_error, "NOTE: ~w is replaced (supersedes): it no longer counts. Reason: ~w (kept as replaced/4)~n", [Target, Why])
     ;   true
     ),
     Code = 0.
@@ -4453,8 +4457,10 @@ cmd_erase(KB, Args, Code) :-
     crud_by(Opts, By), crud_why(Opts, none, Why),
     crud_target(KB, X, Target, LTs),
     crud_guard(LTs, Target, By, Opts),
+    crud_erase_refs(KB, Target, LTs),
     utc_now(Now), kb_file(KB, KbFile),
-    kb_lines_without(KbFile, LTs, Out0),
+    kb_lines_without(KbFile, LTs, Out00),
+    crud_fix_struck(Target, Out00, Out0),
     clause_line(erased(Target, By, Now, Why), [], L1),
     crud_disclosure_line(Target, By, Now, Opts, DLs),
     write_kb_text(KbFile, Out0),
@@ -4463,6 +4469,47 @@ cmd_erase(KB, Args, Code) :-
     length(LTs, N),
     format(user_error, "NOTE: erased ~w: ~w line(s) left kb.pl (git history keeps the text). Run orbit-kb lint next.~n", [X, N]),
     Code = 0.
+
+% crud_erase_refs(+KB, +Target, +LTs): an id that another record still names is not erased: the
+% record that names it would stand with no target (lint E4). Strike it, or erase that record first.
+crud_erase_refs(KB, Target, LTs) :-
+    atom(Target), !,
+    kb_items(KB, Items),
+    findall(Txt, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), compound(T),
+                   \+ memberchk(L-_, LTs),
+                   functor(T, N, _), \+ memberchk(N, [struck, struck_disclosure, erased, replaced, supersedes]),
+                   T =.. [_, _|As], memberchk(Target, As), term_text(T, Txt) ), Rs0),
+    sort(Rs0, Rs),
+    (   Rs == [] -> true
+    ;   atomic_list_concat(Rs, '; ', RJ),
+        fmt(M, "~w is named by other records: ~w. Erasing it would leave them with no target.", [Target, RJ]),
+        reject([M, "Fix: erase or strike those records first, or strike this one instead of erasing it."] >> fix_lines)
+    ).
+crud_erase_refs(_, _, _).
+
+% crud_fix_struck(+Target, +Text0, -Text): the strike of an attachment is its address, a position. When
+% an erase removes a fact of the same kind on the same item, each strike behind it moves up by one,
+% and a strike of the erased fact itself, or of an item that is erased, leaves with it.
+crud_fix_struck(Target, Text0, Text) :-
+    split_string(Text0, "\n", "", Lines0),
+    foldl(crud_fix_struck_line(Target), Lines0, [], Ls1),
+    reverse(Ls1, Ls),
+    atomic_list_concat(Ls, '\n', Text).
+
+crud_fix_struck_line(Target, LS, Acc0, Acc) :-
+    (   sub_string(LS, 0, _, _, "struck("),
+        catch(term_string(T, LS, [module(orbit_ops)]), _, fail),
+        T = struck(at(K, I, M), By, At, Why)
+    ->  (   Target = at(K, I, N)
+        ->  (   M == N -> Acc = Acc0
+            ;   M > N -> M1 is M - 1, clause_line(struck(at(K, I, M1), By, At, Why), [], L1), Acc = [L1|Acc0]
+            ;   Acc = [LS|Acc0]
+            )
+        ;   atom(Target), Target == I -> Acc = Acc0
+        ;   Acc = [LS|Acc0]
+        )
+    ;   Acc = [LS|Acc0]
+    ).
 
 % crud_report_section(+KB) (kb-crud c2, c3, c4): the records that no longer count, as the report shows them:
 % struck, erased and the changes of a record of the human. Nothing is printed for a KB with none.
@@ -4477,6 +4524,9 @@ crud_report_section(KB) :-
 crud_report_fact(struck(X, By, At, Why), L) :-
     crud_target_text(X, XT), one_line(Why, W),
     fmt(L, "~w struck by ~w at ~w: ~w", [XT, By, At, W]).
+crud_report_fact(replaced(X, By, At, Why), L) :-
+    crud_target_text(X, XT), one_line(Why, W),
+    fmt(L, "~w replaced by ~w at ~w: ~w", [XT, By, At, W]).
 crud_report_fact(erased(X, By, At, Why), L) :-
     crud_target_text(X, XT), one_line(Why, W),
     fmt(L, "~w erased by ~w at ~w: ~w (its text is only in git)", [XT, By, At, W]).
@@ -8485,6 +8535,7 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
     ),
     (   View == everything, K.kind \== project -> desk_kbreq_form(HD, K, NrF), desk_layer(A, "newreq", "New requirement for this KB", "", false, NrF, NrLay) ; NrLay = "" ),
     (   View == everything, K.kind \== project -> desk_rec_forms(HD, K, Eng, RecF), desk_layer(A, "records", "Change records of this KB", "", false, RecF, RecLay) ; RecLay = "" ),
+    (   K.kind \== project -> desk_rec_divergence(K, DvgH) ; DvgH = "" ),
     (   K.kind == project
     ->  dk_all(Eng, [R], repo(R, _), PRs0), sort(PRs0, PRs), length(PRs, NR),
         maplist([R, E]>>esc(R, E), PRs, PRsE), dk_join(PRsE, ", ", PRsJ),
@@ -8500,7 +8551,7 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
     ( Open == true -> Op = " open" ; Op = "" ),
     dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div><div class=\"chips\">~w</div></div>~w</summary><div class=\"body\">",
          [A, Op, LH, KindT, HS, DH, DH, HowT, ChipsH, BH], H0),
-    dk_cat([H0, LinkH, OldH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, RecLay, "</div></details>"], Html).
+    dk_cat([H0, LinkH, OldH, DvgH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, RecLay, "</div></details>"], Html).
 
 % desk_open_first_of(+Lists, -Lists1, +QCs): the first card of the first list that holds one opens (c22),
 % unless the open questions come first (then desk_qgroups opens the first of those).
@@ -9053,31 +9104,41 @@ desk_plan_kbreq(HD, K, Intent, Text, P) :-
 % ---- change records (kb-crud c5): New, Replace, Strike and Erase for a spec KB. Each form goes through the
 % review, and the send runs the command with --by human: the record is that of orbit-kb add, replace,
 % strike and erase. The record is an id (c1) or an address KIND(ITEM)#N of an attachment.
-desk_rec_forms(HD, K, Eng, Html) :-
+desk_rec_forms(HD, K, _Eng, Html) :-
     serve_conf(token, Tok), dk_f("rec:~w", [K.dir], Item),
-    findall(I, ( dk_all(Eng, [X], ( claim(X, _, _) ; check(X, _) ; question(X, _, _) ; finding(X, _, _) ; premise(X, _, _) ), Xs), member(I, Xs) ), Is0),
-    sort(Is0, Is), maplist([I, O]>>( esc(I, IH), dk_f("<option value=\"~w\">", [IH], O) ), Is, Os), dk_cat(Os, OsH),
-    dk_f("<datalist id=\"recs-~w\">~w</datalist>", [HD.name, OsH], DL),
-    esc(HD.name, HN),
     findall(F, ( member(Int-Lb-Words, [ create-"New"-"Facts, one per line, in the form that orbit-kb add takes (for example: question(q9, g1, 'Text')).",
                                        replace-"Replace"-"The record, and the new fact (an item with an id of its own, or the new attachment). The old one no longer counts.",
                                        strike-"Strike"-"The record that no longer counts. It stays in kb.pl and in the report, struck, with your reason.",
                                        erase-"Erase"-"A record added by mistake. Its line leaves kb.pl; one line says who erased what and why, without the text."]),
                  dk_f("~w|~w|~w", [HD.name, Item, Int], Key),
                  desk_hidden([token-Tok, hub-HD.path, item-Item, key-Key, intent-Int], HH),
-                 ( Int == create -> RecF = "" ; dk_f("<label>Record <input name=\"rec\" list=\"recs-~w\" placeholder=\"k3, or note(g1)#2\" aria-label=\"The record to ~w\" autocomplete=\"off\"></label>", [HN, Lb], RecF) ),
+                 ( Int == create -> RecF = "" ; dk_f("<label>Record <input name=\"rec\" placeholder=\"k3, or note(g1)#2\" aria-label=\"The record to ~w\" autocomplete=\"off\"></label>", [Lb], RecF) ),
                  ( memberchk(Int, [create, replace]) -> dk_f("<textarea name=\"text\" aria-label=\"The ~w fact\" placeholder=\"~w\"></textarea>", [Lb, Words], TxF) ; TxF = "" ),
                  ( memberchk(Int, [strike, erase, replace]) -> WhyF = "<label>Why <input name=\"why\" aria-label=\"The reason\" placeholder=\"One plain sentence\" autocomplete=\"off\"></label>" ; WhyF = "" ),
                  esc(Words, WH),
                  dk_f("<form class=\"respond recform\" method=\"post\" action=\"/review\" data-review><h4>~w</h4><p class=\"small quiet\">~w</p>~w~w~w~w<div class=\"foot\"><button class=\"btn go\" type=\"submit\">Review and send</button><span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></div></form>", [Lb, WH, HH, RecF, TxF, WhyF], F) ),
             Fs),
-    dk_all(Eng, [X, By, At, D], struck_disclosure(X, By, At, D), Dvs),
+    dk_cat(Fs, Html).
+
+% desk_rec_divergence(+K, -Html) (kb-crud c4): an agent changed a record of the human. The block stands in the sheet
+% itself (not in a closed layer, and in each view): the address, who, when, the disclosure and what the record said.
+desk_rec_divergence(K, Html) :-
+    lib_dir(Lib), load_kb(K.dir, Lib, KB), kb_items(KB, Items),
+    findall([X, By, At, D], ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = struck_disclosure(X, By, At, D) ), Dvs),
     findall(L, ( member([X, By, At, D], Dvs), crud_target_text(X, XT), esc(XT, XH), esc(By, BH), esc(D, DH),
-                 dk_f("<li><b>A record of yours was changed:</b> ~w, by ~w at ~w. Disclosure: ~w</li>", [XH, BH, At, DH], L) ), Ls),
-    (   Ls == [] -> DvH = ""
-    ;   dk_cat(Ls, LsH), dk_f("<div class=\"divergence\"><p class=\"small\">An agent changed a record that you made. This is a divergence for you to judge.</p><ul>~w</ul></div>", [LsH], DvH)
-    ),
-    dk_cat([DvH, DL|Fs], Html).
+                 crud_old_text(KB, X, Items, OT), esc(OT, OH),
+                 dk_f("<li><b>A record of yours was changed:</b> ~w, by ~w at ~w. The record said: <code>~w</code>. Disclosure: ~w</li>", [XH, BH, At, OH, DH], L) ), Ls),
+    (   Ls == [] -> Html = ""
+    ;   dk_cat(Ls, LsH), dk_f("<div class=\"divergence\"><p class=\"small\">An agent changed a record that you made. This is a divergence for you to judge.</p><ul>~w</ul></div>", [LsH], Html)
+    ).
+
+% crud_old_text(+KB, +X, +Items, -Text): what the changed record said, while kb.pl still has it (a struck or replaced one).
+crud_old_text(_, X, Items, Text) :-
+    (   X = at(K, I, N), crud_address_line(Items, K, I, N, L), member(it(kb, _, L, T, _, _), Items) -> term_text(T, Text)
+    ;   atom(X), member(it(kb, _, _, T, _, _), Items), nonvar(T), compound(T), arg(1, T, A), A == X,
+        functor(T, Nm, _), \+ memberchk(Nm, [struck, struck_disclosure, erased, replaced, supersedes]) -> term_text(T, Text)
+    ;   Text = "its text is only in git (the record was erased)"
+    ).
 
 desk_plan_rec(HD, K, Intent, Form, P) :-
     (   memberchk(Intent, [create, replace, strike, erase]) -> true
@@ -9109,7 +9170,7 @@ desk_plan_rec(HD, K, Intent, Form, P) :-
     dk_f("the KB ~w", [K.label], About),
     ( Rec == "" -> RIds = [] ; RIds = [Rec] ), desk_fix_item("kb-records", RIds, J),
     desk_rec_words(Intent, Rec, Text, Why, KL, Sum),
-    dk_f("Ty changed the records of the KB ~w on the Desk: ~w\n\nThe Desk ran: orbit-kb ~w (with --by human).", [K.label, Sum, Cmd], LT),
+    dk_f("Ty asked on the Desk to change the records of the KB ~w: ~w\n\nThe Desk then runs: orbit-kb ~w (with --by human). If the Desk could not write it, the KB did not change: read the KB before you rely on this letter.", [K.label, Sum, Cmd], LT),
     desk_lt(To, notice, About, J, LT, L1),
     dk_f("~w", [KL], R1),
     P = plan{title:"Change records", sub:About, letters:[L1], records:[R1], effects:[kb_crud(K.dir, Args)]}.

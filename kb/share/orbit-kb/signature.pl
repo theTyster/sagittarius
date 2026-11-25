@@ -328,6 +328,7 @@ signature(record_up/2).
 signature(refuted/1).
 signature(relation_by/3).
 signature(relation_ratified/1).
+signature(replaced/4).
 signature(repo/2).
 signature(request/2).
 signature(request_accepted/3).

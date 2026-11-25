@@ -195,6 +195,9 @@ decl(fact, struck_disclosure(term, by, time, text),
 decl(fact, erased(term, by, time, text),
      'A record that was added by mistake left kb.pl: its id or address, who erased it, when, and why. Its text is only in git.',
      'record @(1) was erased by @(2) at @(3): @(4)').
+decl(fact, replaced(term, by, time, text),
+     'The item (by its id) was replaced by another item that supersedes it: who replaced it, when, and why. orbit-kb replace writes it beside supersedes/2, so the reason is a record and not only a message.',
+     'record @(1) was replaced by @(2) at @(3): @(4)').
 % 0.3.0 (K-F, D40): the facts and the attestation of a model are core (they were facts of
 % the discovery module), so a KB that uses build records a model of a claim. The rules that
 % read them (model_trusted, has_falsifier, the readiness of discovery) stay in the discovery

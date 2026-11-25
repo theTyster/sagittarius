@@ -2221,6 +2221,15 @@ t_QS78() {  # kb-crud c5: on the Desk Ty can create a record in a KB, and replac
     grep -q "A better example" "$T/h/specs/exp/kb.pl" && grep -q "^struck(at(example, c1, 1), human," "$T/h/specs/exp/kb.pl" || note "the replace did not add the new example and strike the old one"
     wr process --dir "$kb" add "answer(qb, 'A', human)" --by human >/dev/null 2>&1; wr process --dir "$kb" replace "answer(qb)#1" "answer(qb, 'B', agent)" --disclose "Ty said B in the chat" >/dev/null 2>&1; wr process --dir "$kb" release >/dev/null 2>&1
     page_ok || return; chk raw "$T/page.html" 'A record of yours was changed' 'Ty said B in the chat'
+    # H-0213: the block names what the record said, stands in the sheet (before its closed layers), in the default view; no id twice
+    chk raw "$T/page.html" 'The record said' 'A'
+    python3 -I - "$T/page.html" <<'PYEOF' || note "the divergence block is not in the sheet before its layers, or an id repeats on the page"
+import re, sys
+h = open(sys.argv[1]).read()
+a = h.find('A record of yours was changed'); b = h.find('layer-', a if a >= 0 else 0)
+ids = re.findall(r' id="([^"]+)"', h)
+sys.exit(0 if a >= 0 and (b < 0 or a < b) and len(ids) == len(set(ids)) else 1)
+PYEOF
 }
 
 run_one() {  # run_one ID
