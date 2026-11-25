@@ -5461,8 +5461,13 @@ serve_act(send, Form) :-
             ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]), Sep = "&" ; Back = "/", Sep = "?" ),
             (   serve_field(Form, view, VW), memberchk(VW, ["waits", "questions", "answered", "everything"])
             ->  % r10 c18: the view stays, with no anchor (the card may have left the view); a line says what was done
-                desk_done_words(Form, Anchor, Said), uri_encoded(query_value, Said, SaidE), uri_encoded(query_value, Anchor, AnE),
-                format("Status: 303~nLocation: ~w~wview=~w&did=~w&said=~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Sep, VW, AnE, SaidE, FH])
+                desk_done_words(Form, Anchor, Said), uri_encoded(query_value, Said, SaidE),
+                (   serve_field(Form, intent, "answer"), serve_field(Form, item, Itm), string_concat("ask:", _, Itm), Anchor \== ''
+                ->  % an ask that was answered stands in Answered, as a row with the id of its card
+                    uri_encoded(query_value, Anchor, AnE), format(string(AnsQ), "&did=~w&ans=1", [AnE])
+                ;   AnsQ = ""
+                ),
+                format("Status: 303~nLocation: ~w~wview=~w~w&said=~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Sep, VW, AnsQ, SaidE, FH])
             ;   format("Status: 303~nLocation: ~w#~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Sent. <a href=\"/\">Back to the Desk</a></p>~n", [Back, Anchor, FH])
             )
         ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
@@ -7843,6 +7848,12 @@ desk_view_href(Tab, View, Href) :-
     ( View == waits -> Q = Q0 ; dk_f("view=~w", [View], V), append(Q0, [V], Q) ),
     ( Q == [] -> Href = "/" ; dk_join(Q, "&amp;", QJ), dk_f("/?~w", [QJ], Href) ).
 
+% desk_view_href_x(+Tab, +View, -Href): the link of the row of views: every view has its view field, also Waits on you
+% (r10: the plain address returns to the last view, so the link to Waits on you must say which view it is).
+desk_view_href_x(Tab, View, Href) :-
+    ( Tab == "" -> Q0 = [] ; uri_encoded(query_value, Tab, TE), dk_f("mh=~w", [TE], M), Q0 = [M] ),
+    dk_f("view=~w", [View], V), append(Q0, [V], Q), dk_join(Q, "&amp;", QJ), dk_f("/?~w", [QJ], Href).
+
 % desk_rows(-N): how many rows a long group shows before its step "N more ...: show" (DESK_ROWS, default 6).
 desk_rows(N) :- ( getenv('DESK_ROWS', S), atom_number(S, N0), integer(N0), N0 >= 1 -> N = N0 ; N = 6 ).
 
@@ -7942,7 +7953,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     length(SKBCs, NSK), length(PKBCs, NPK), length(Cards, NC), length(ORows, NO),
     NEv is NC + NSK + NPK + NP + NAns + NO, NQV is NQ0 + NG,
     findall(V-N, member(V-N, [waits-NW, questions-NQV, answered-NAns, everything-NEv]), VNs),
-    findall(L, ( member(V-N, VNs), desk_view_name(V, VN), desk_view_href(Tab, V, Hr),
+    findall(L, ( member(V-N, VNs), desk_view_name(V, VN), desk_view_href_x(Tab, V, Hr),
                  ( V == View -> Cur = " aria-current=\"page\" class=\"on\"" ; Cur = "" ), ( V == waits, N > 0 -> Hot = " hot" ; Hot = "" ),
                  dk_f("<a href=\"~w\"~w><span class=\"vname\">~w</span><b class=\"num~w\">~w</b></a>", [Hr, Cur, VN, Hot, N], L) ), VLs),
     dk_cat(VLs, VLH), dk_f("<nav class=\"views\" aria-label=\"Views\">~w</nav>", [VLH], ViewsH),
@@ -7962,7 +7973,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
     dk_cat(Es, ErrH),
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
-    esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS),
+    esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS), desk_early_js(EarlyJs),
     desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
     format(string(Page),
 "<!DOCTYPE html>
@@ -7976,6 +7987,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <style>~w</style>
 </head>
 <body data-token=\"~w\" data-tab=\"~w\" data-view=\"~w\">
+<script>~w</script>
 <header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
@@ -7994,7 +8006,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, ViewS, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
+", [Css, TokH, TabAH, ViewS, EarlyJs, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
 
 % desk_kbs_count(+KBCs, -N): the cards of these KBs that wait on Ty: KB actions and open questions (an ask
 % for Ty is counted in the Ledger, where its row is, so that the numbers add up to the count of the top band).
@@ -8081,7 +8093,8 @@ desk_answered_body(As, Body) :-
     (   As == [] -> Body = "<p class=\"empty\">Nothing was answered in the last 7 days.</p>"
     ;   findall(L, ( member(HD-C, As), esc(C.id, IH), esc(C.title, TH), dk_str(C.get(note, ""), N0), esc(N0, NH),
                      dk_str(C.get(by_session, ""), BS), esc(BS, BH), dk_day(C.closed_at, CD), atom_string(HD.name, _),
-                     dk_f("<li><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [IH, TH, CD, BH, NH], L) ), Ls),
+                     format(string(AskIt), "ask:~w", [C.id]), desk_anchor_of(HD, AskIt, AnA), atom_string(AnA, AnAS), esc(AnAS, AnH),
+                     dk_f("<li id=\"~w\"><span class=\"ref\">~w</span>~w <span class=\"quiet\">closed ~w by ~w</span><br><span class=\"small\">~w</span></li>", [AnH, IH, TH, CD, BH, NH], L) ), Ls),
         dk_cat(Ls, LsH), dk_f("<p class=\"small quiet\">In the last 7 days, here or in a session.</p><div class=\"sheet\"><div class=\"head\"><ul class=\"answered\">~w</ul></div></div>", [LsH], Body)
     ).
 
@@ -9194,6 +9207,10 @@ desk_letter_head(About, Head) :- dk_f("Letter from Ty (the Desk), about ~w:", [A
 
 % ---- the send
 
+% desk_early_js(-Js): the first script of the page, before anything paints (r10 c19, c20): the plain address of a
+% browser that kept a view of this server goes to that view; a refresh of a tab of an older server start is a cold
+% load (Waits on you). The same rule is in desk.js (a fallback); the boot id is a hash of the token of this server.
+desk_early_js("(function(){try{var d=document.body,t=d.getAttribute('data-token')||'',h=5381;for(var i=0;i<t.length;i++)h=((h*33)^t.charCodeAt(i))>>>0;var b=h.toString(36),q=new URLSearchParams(location.search),k='desk-last:'+(d.getAttribute('data-tab')||''),o=JSON.parse(localStorage.getItem(k)||'null'),n=(performance.getEntriesByType('navigation')[0]||{}).type,v=d.getAttribute('data-view')||'';if(o&&/^(waits|questions|answered|everything)$/.test(o.view||'')){if(!q.has('view')&&!location.hash&&!q.has('did')){if(o.boot===b&&o.view!==v){q.set('view',o.view);location.replace(location.pathname+'?'+q.toString())}}else if(q.has('view')&&n==='reload'&&o.boot!==b&&q.get('view')!=='waits'){q.set('view','waits');location.replace(location.pathname+'?'+q.toString())}}}catch(e){}})();").
 % desk_done_words(+Form, +Anchor, -Text) (r10, c18): one line that says what was done: "ask A-0001: answered".
 % desk_item_name(+Item, -Name): the short name of the item of a form, for the line of what was done.
 desk_item_name(It, Name) :-
@@ -9207,7 +9224,7 @@ desk_item_name(It, Name) :-
     ),
     !.
 
-desk_done_words(Form, Anchor, Text) :-
+desk_done_words(Form, _Anchor, Text) :-
     ( serve_field(Form, intent, I0) -> true ; I0 = "answer" ),
     (   memberchk(I0-W, ["answer"-"answered", "diverge"-"marked: that is not what you meant", "note"-"noted", "close"-"closed",
                          "park"-"parked", "requirement"-"requirement sent", "create"-"record added", "replace"-"record replaced",
@@ -9215,10 +9232,9 @@ desk_done_words(Form, Anchor, Text) :-
     ;   W = "sent"
     ),
     (   serve_field(Form, item, It), desk_item_name(It, Name0) -> Name = Name0
-    ;   sub_string(Anchor, B, 1, A, "-"), B > 0, A > 0 -> sub_string(Anchor, 0, B, _, Pre), sub_string(Anchor, _, A, 0, Post), format(string(Name), "~w ~w", [Pre, Post])
-    ;   Name = Anchor
+    ;   Name = ""
     ),
-    format(string(Text), "~w: ~w", [Name, W]).
+    (   Name == "" -> Text = W ; format(string(Text), "~w: ~w", [Name, W]) ).
 
 desk_send_form(Form, R) :-
     catch(( desk_plan(Form, Plan), desk_execute(Form, Plan, R) ),

@@ -679,7 +679,7 @@ async function r10() {
   await pg.go(base + '/?mh=alpha');
   const s0 = await pg.ev(state);
   check('c20: the first page of a browser with no kept place is Waits on you', s0.view === 'waits', JSON.stringify(s0));
-  const pre = await pg.ev(`const f = [...document.querySelectorAll('form[data-review]')].filter(f => !f.closest('dialog') && f.querySelector('input[name=choice]'))[0];
+  const pre = await pg.ev(`const f = [...document.querySelectorAll('form[data-review]')].filter(f => !f.closest('dialog') && (f.querySelector('input[name=choice]') || f.querySelector('textarea[name=text]')) && /-ask-A-/.test((f.closest('[id^="item-"]') || {id: ''}).id))[0];
     if (!f) return {found: false};
     for (let e = f; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
     const c = f.querySelector('input[name=choice]'); if (c) c.checked = true;
@@ -692,20 +692,40 @@ async function r10() {
   if (!(pre.found && pre.reviewOpen)) { pg.close(); return; }
   await pg.ev(`document.querySelector('#review button.go').click(); return 1;`);
   await pg.afterNav();
+  const folded = await pg.ev(`for (let i = 0; i < 100; i++) { const n = document.querySelector('.donenote'); if (n && /height/.test(n.style.transition || '')) return true; await new Promise(r => setTimeout(r, 15)); } return false;`);
+  check('c21: the line folds in with a height transition (the cards below move up)', folded, String(folded));
   await new Promise(r => setTimeout(r, 700));
   const a = await pg.ev(state + '');
   const note = await pg.ev(`const n = document.querySelector('.donenote'); if (!n) return null; const r = n.getBoundingClientRect(); return {text: n.textContent, href: (n.querySelector('a') || {}).href || '', top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight, dy: n.getAttribute('data-y')};`);
   const st = await pg.ev(state);
   check('c18: after the answer the view is still Waits on you', st.view === 'waits', JSON.stringify(st));
-  check('c18: the scroll place is within 120 px of where the card was', Math.abs(st.y - pre.y) <= 120, 'before ' + pre.y + ' after ' + st.y);
-  check('c18: a line says what was done, with a link to the view Answered', !!note && /answered/.test(note.text) && /view=answered/.test(note.href), JSON.stringify(note));
+  const maxY = await pg.ev(`return Math.max(0, document.documentElement.scrollHeight - innerHeight);`);
+  check('c18: the scroll place is within 120 px of where the card was (or the end of a shorter page)', Math.abs(st.y - Math.min(pre.y, maxY)) <= 120, 'before ' + pre.y + ' after ' + st.y + ' max ' + maxY);
+  check('c18: a line says what was done, with a link to the view Answered, only for an ask that was answered', !!note && /^ask A-\d+: answered/.test(note.text) && /view=answered#item-/.test(note.href), JSON.stringify(note));
   check('c18: the line is on the screen, where the card was, and names the item', !!note && note.top >= 0 && note.top < note.vh && /^(ask|question|action|ledger item|hypothesis|goal judgment|records) /.test(note.text), JSON.stringify(note) + ' y=' + st.y + ' before=' + pre.y);
   check('c18: the address does not keep the line (a reload shows no second one)', !/did=|said=/.test(st.url), st.url);
+  await pg.ev(`document.querySelector('.donenote a').click(); return 1;`); await pg.afterNav(); await new Promise(r => setTimeout(r, 500));
+  const lk = await pg.ev(`const h = decodeURIComponent(location.hash.slice(1)); const el = h ? document.getElementById(h) : null; const r = el ? el.getBoundingClientRect() : null; return {view: document.body.getAttribute('data-view'), found: !!el, top: r ? Math.round(r.top) : null, vh: innerHeight, url: location.search + location.hash};`);
+  check('c18: the link of the line ends in the view Answered with the answered item on the screen', lk.view === 'answered' && lk.found && lk.top >= 0 && lk.top < lk.vh, JSON.stringify(lk));
+  // a link of the row of views to Waits on you opens Waits on you, though the browser kept another view
+  await pg.go(base + '/?mh=alpha&view=questions');
+  await pg.ev(`const a = [...document.querySelectorAll('nav.views a')].find(a => /Waits on you/.test(a.textContent)); a.click(); return 1;`); await pg.afterNav();
+  const wl = await pg.ev(state);
+  check('c19: the link Waits on you of the row of views opens Waits on you', wl.view === 'waits', JSON.stringify(wl));
   // c19: work in Questions, then the plain address
   await pg.go(base + '/?mh=alpha&view=questions');
   await pg.go(base + '/?mh=alpha');
   const d = await pg.ev(state);
   check('c19: the plain address after work in the view Questions shows Questions', d.view === 'questions', JSON.stringify(d));
+  // c19: the kept view is kept for each tab (each mindhole), and a link with an anchor is not overridden by it
+  await pg.go(base + '/?mh=alpha&view=questions');
+  await pg.go(base + '/?mh=beta');
+  const tb = await pg.ev(state);
+  check('c19: the kept view of one tab does not open another tab (mh=beta is Waits on you)', tb.view === 'waits', JSON.stringify(tb));
+  await pg.go(base + '/?mh=alpha&view=questions');
+  await pg.go(base + '/?mh=alpha#item-alpha-ask-A-0002');
+  const an = await pg.ev(state);
+  check('c19: a link with an anchor is not sent to the kept view (the anchor stays)', /#item-alpha-ask-A-0002$/.test(an.url) && an.view !== 'questions', JSON.stringify(an));
   // c20: a kept place from another server start is a cold load
   await pg.ev(`const k = Object.keys(localStorage).filter(k => k.indexOf('desk-last:') === 0); for (const x of k) localStorage.setItem(x, JSON.stringify({view: 'questions', boot: 'another-server-start'})); return k.length;`);
   await pg.go(base + '/?mh=alpha');
