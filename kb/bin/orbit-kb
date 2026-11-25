@@ -7624,6 +7624,7 @@ desk_by_until(O, A, B) :-
     compare(O0, UA-DA, UB-DB),
     ( O0 == (=) -> compare(O1, A.html, B.html), ( O1 == (=) -> O = (<) ; O = O1 ) ; O = O0 ).
 
+desk_anchor_of(_, "new", '') :- !.
 desk_anchor_of(HD, Item, A) :-
     dk_f("~w ~w", [HD.name, Item], S), string_codes(S, Cs),
     maplist([C, D]>>( code_type(C, alnum) -> D = C ; D = 0'- ), Cs, Ds), atom_codes(A0, Ds), atom_concat('item-', A0, A).
@@ -7878,6 +7879,7 @@ desk_page_(Msg0, Tab0, Page) :-
     dk_cat(Es, ErrH),
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
     esc(Token, TokH), esc(Tab, TabAH),
+    desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
     format(string(Page),
 "<!DOCTYPE html>
 <html lang=\"en\">
@@ -7890,7 +7892,7 @@ desk_page_(Msg0, Tab0, Page) :-
 <style>~w</style>
 </head>
 <body data-token=\"~w\" data-tab=\"~w\">
-<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav><div class=\"folds\"><button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
+<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Lanes\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
 <div class=\"layout\">
@@ -7908,10 +7910,32 @@ desk_page_(Msg0, Tab0, Page) :-
 </main>
 </div>
 <dialog id=\"review\" aria-label=\"Review before sending\"><div class=\"dlgbody\"></div></dialog>
+~w
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, SumH, LanesH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, Js]).
+", [Css, TokH, TabAH, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ActH, LedH, QsH, GsH, PrH, OrH, AnH, KbH, NrDlgH, Js]).
+
+% desk_newreq_html(+HDs0, +HDs, +Token, -BtnH, -DlgH) (c5, release 0.9.1): the control New requirement of
+% the top band, and the form that it opens. The form has one text field and, with more than one
+% mindhole on the Desk, the choice of the mindhole: on a tab of one mindhole that one is the
+% default, on the tab All Ty chooses. It posts to the review like every form of the Desk.
+desk_newreq_html(HDs0, HDs, Token, BtnH, DlgH) :-
+    (   HDs0 == [] -> BtnH = "", DlgH = ""
+    ;   BtnH = "<button type=\"button\" class=\"btn small newreq\" data-newreq title=\"A new requirement or idea, for the review session\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"><path d=\"M8 2v12M2 8h12\"/></svg><span>New requirement</span></button>",
+        esc(Token, TokH), Key = "new-requirement", desk_draft_of(Key, Dr),
+        ( get_dict(text, Dr, DT0), string(DT0) -> DT = DT0 ; DT = "" ), esc(DT, DTH),
+        (   HDs0 = [HD0]
+        ->  esc(HD0.path, PH), dk_f("<input type=\"hidden\" name=\"hub\" value=\"~w\">", [PH], HubH)
+        ;   findall(O, ( member(HD, HDs0), esc(HD.path, PH), esc(HD.name, NH),
+                         ( HDs = [HDs1], HDs1.path == HD.path -> Sel = " selected" ; Sel = "" ),
+                         dk_f("<option value=\"~w\"~w>~w</option>", [PH, Sel, NH], O) ), Os),
+            ( HDs = [_] -> Ph = "" ; Ph = "<option value=\"\" selected>Choose a mindhole</option>" ),
+            dk_cat(Os, OsH),
+            dk_f("<label>For which mindhole <select name=\"hub\" aria-label=\"The mindhole\">~w~w</select></label>", [Ph, OsH], HubH)
+        ),
+        dk_f("<dialog id=\"newreq\" aria-label=\"New requirement\"><form class=\"nrform\" method=\"post\" action=\"/review\" data-review data-judge=\"new\" data-draft-key=\"~w\"><input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"item\" value=\"new\"><input type=\"hidden\" name=\"intent\" value=\"requirement\"><input type=\"hidden\" name=\"key\" value=\"~w\"><h2>New requirement</h2><p>A new idea for the review session. It goes to its intake as a new thread, with no item behind it. You read it in the review before anything is sent.</p>~w<textarea name=\"text\" aria-label=\"The new requirement\" placeholder=\"Your words. Saved as you type; nothing is sent before you review it.\">~w</textarea><div class=\"foot\"><button class=\"btn go\" type=\"submit\">Review and send</button><button class=\"btn\" type=\"button\" data-close>Close</button><span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span><span class=\"draftstate\"></span></div></form></dialog>", [Key, TokH, Key, HubH, DTH], DlgH)
+    ).
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
@@ -8324,7 +8348,8 @@ desk_plan(Form, P) :-
         throw(desk_sent(HD, Sent, K0, A0))
     ;   true
     ),
-    (   string_concat("ask:", Id, It), memberchk(Intent, [close, park, note]) -> desk_plan_ask_led(HD, Id, Intent, Text, Until, P0)
+    (   It == "new" -> desk_plan_new(HD, Intent, Text, P0)
+    ;   string_concat("ask:", Id, It), memberchk(Intent, [close, park, note]) -> desk_plan_ask_led(HD, Id, Intent, Text, Until, P0)
     ;   string_concat("ask:", Id, It) -> desk_plan_ask(HD, Id, Intent, Text, P0)
     ;   string_concat("led:", Id, It) -> desk_plan_led(HD, Id, Intent, Text, Until, P0)
     ;   string_concat("q:", R, It), split_string(R, "#", "", [DS, QS]) -> desk_plan_dir(HDs, DS, K, HD), atom_string(Q, QS), desk_plan_q(HD, K, Q, Intent, Choice, Text, P0)
@@ -8478,6 +8503,21 @@ desk_plan_requirement(HD, From, About, Item, Text, P) :-
     ( To == none -> R1 = "The ledger: a new intake thread with your words. No review session is live, so it has no owner and shows under Orphaned." ; R1 = "The ledger: a new intake thread with your words, owned by review." ),
     desk_lt(To, requirement, About, Item, LT, L1),
     P = plan{title:"A new requirement", sub:About, letters:[L1], records:[R1], effects:[intake(HD.path, Text, From)]}.
+
+% ---- a new requirement with no item behind it (c5, release 0.9.1): the control New requirement of the
+% top band. The plan is that of desk_plan_requirement/6 without a card: the same intake thread (what
+% desk_intake makes), with no kb ref and no link. The letter is a fix-type letter (desk.py takes no
+% other item with no ledger item or KB), and it keeps the kind that desk.py allows for it.
+desk_plan_new(HD, Intent, Text, P) :-
+    (   Intent == requirement -> true ; throw(desk_refused(400, "The form of a new requirement sends a requirement only. Reload the page.")) ),
+    desk_need_text(Text, "the new requirement"),
+    ( desk_live(HD, review) -> To = review ; To = none ),
+    About = "a new requirement that Ty typed on the Desk",
+    dk_f("Ty adds a new requirement, typed on the Desk with no item behind it:\n\n~w\n\nThe Desk opened an intake thread for it, owned by review. Judge it: a regression or a gap, and route it.", [Text], LT),
+    ( To == none -> R1 = "The ledger: a new intake thread with your words. No review session is live, so it has no owner and shows under Orphaned." ; R1 = "The ledger: a new intake thread with your words, owned by review." ),
+    desk_fix_item("new-requirement", [], Item),
+    desk_lt(To, fix, About, Item, LT, L1),
+    P = plan{title:"A new requirement", sub:"Typed on the Desk, with no item behind it", letters:[L1], records:[R1], effects:[intake(HD.path, Text, none)]}.
 
 % ---- a question of a KB
 desk_plan_q(HD, K, Q, Intent, Choice, Text, P) :-

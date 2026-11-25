@@ -223,3 +223,16 @@ b.unres{color:var(--paper)}
 form.judge{margin:10px 0;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
 form.judge h4{margin:0;flex-basis:100%}
 form.judge textarea{flex-basis:100%;min-height:54px}
+/* c3 (0.9.1): a pair of fold buttons in the summary of a lane or a KB sheet */
+.foldpair{display:inline-flex;gap:6px;margin-left:auto;flex:none;align-self:center}
+.foldpair .btn{padding:3px 10px;font-size:13px}
+.lane>summary:has(.foldpair)::after{margin-left:6px}
+/* c5 (0.9.1): New requirement, in the top band */
+header.top .folds .newreq{display:inline-flex;align-items:center;gap:6px;color:var(--lamp);border-color:color-mix(in srgb,var(--lamp) 50%,transparent)}
+header.top .folds .newreq svg{width:15px;height:15px;flex:none}
+#newreq .nrform{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+#newreq .nrform h2{margin:0;font:600 20px/1.2 var(--letter)}
+#newreq .nrform p{margin:0;color:var(--graphite);font-size:14px}
+#newreq .nrform select{background:var(--ink);color:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:7px 10px;font:inherit}
+#newreq .nrform textarea{min-height:140px}
+#newreq .nrform .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
