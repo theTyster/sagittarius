@@ -47,6 +47,11 @@ def ck(name, ok, detail=""):
         print("FAIL %s %s" % (name, str(detail)[-400:]))
 
 
+def counts(d, goal):
+    """The engine still finds this fact: query exits 0. A struck or superseded record is not found."""
+    return run(d, "query", goal)[0] == 0
+
+
 def opens(d):
     return run(d, "show", "open")[1]
 
@@ -66,8 +71,10 @@ def t_supersede_every_kind():
             ck("add " + new, code == 0, out)
         code, out = run(d, "add", "supersedes(%s, %s)" % (new, old))
         ck("supersedes %s -> %s accepted" % (new, old), code == 0, out)
-    o = opens(d)
-    ck("superseded k1, q1 are not in show open", not re.search(r"\b(k1|q1)\b", o), o)
+    for goal in ["check(k1, _)", "question(q1, _, _)", "finding(f1, _, _)", "premise(p1, _, _)", "signal(s1, _, _, _)"]:
+        ck("a superseded record is not found by the engine: " + goal, not counts(d, goal))
+    for goal in ["check(k3, _)", "question(q3, _, _)", "finding(f2, _, _)", "premise(p2, _, _)", "signal(s2, _, _, _)"]:
+        ck("its successor is: " + goal, counts(d, goal))
     code, out = run(d, "add", "supersedes(k1, q1)")
     ck("supersedes of two kinds is refused", code != 0 and "E4" in out, out)
     ck("lint has no error", lint_clean(d)[0], lint_clean(d)[1])
@@ -77,9 +84,11 @@ def t_supersede_every_kind():
 
 def t_strike():
     d = fixture()
+    ck("control: q1 counts before the strike", counts(d, "question(q1, _, _)") and counts(d, "option(q1, _, _)") and counts(d, "finding(f1, _, _)"))
     code, out = run(d, "strike", "q1", "--why", "no longer asked")
     ck("strike q1 exits 0", code == 0, out)
-    ck("q1 is not in show open", not re.search(r"\bq1\b", opens(d)), opens(d))
+    ck("q1 and its options no longer count", not counts(d, "question(q1, _, _)") and not counts(d, "option(q1, _, _)"))
+    ck("the other question still counts", counts(d, "question(q2, _, _)"))
     ck("question(q1 stays in kb.pl", "question(q1," in text(d))
     ck("the report names it struck, with who and why", re.search(r"q1 struck by agent at \S+: no longer asked", run(d, "report")[1]))
     ck("lint has no error", lint_clean(d)[0], lint_clean(d)[1])
@@ -96,7 +105,8 @@ def t_strike():
     ck("a bad address is refused", code != 0, out)
     d2 = fixture()
     code, out = run(d2, "strike", "k1", "--why", "obsolete")
-    ck("a struck check is not in show open", code == 0 and not re.search(r"\bk1\b", opens(d2)), opens(d2))
+    ck("a struck check no longer counts", code == 0 and not counts(d2, "check(k1, _)") and counts(d2, "check(k2, _)"))
+    ck("an example struck by address no longer counts, the other does", not counts(d, "example(c1, 'second case')") and counts(d, "example(c1, 'case')"))
 
 
 def t_erase():
@@ -147,7 +157,7 @@ def t_replace_item():
     ck("replace k1 by k3 exits 0", code == 0, out)
     t = text(d)
     ck("k3 is added and supersedes(k3, k1)", "check(k3, c1)" in t and "supersedes(k3, k1)" in t, t[-300:])
-    ck("k1 is not in show open", not re.search(r"\bk1\b", opens(d)), opens(d))
+    ck("k1 no longer counts, k3 does", not counts(d, "check(k1, _)") and counts(d, "check(k3, _)"))
     code, out = run(d, "replace", "k2", "question(q9, g1, 'x')")
     ck("a replacement of another kind is refused, and nothing is written", code != 0 and "question(q9" not in text(d), out)
     code, out = run(d, "replace", "example(c1)#1", "example(c1, 'better case')")

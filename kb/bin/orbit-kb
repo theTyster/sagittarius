@@ -3597,7 +3597,8 @@ body_lits_deep(G, [G]).
 % eng(Module, LoadErrs)
 %   LoadErrs: list of le(File, Line, Message)
 
-build_engine(Items0, Ds, eng(M, LoadErrs)) :-
+build_engine(Items00, Ds, eng(M, LoadErrs)) :-
+    struck_filter(Items00, Items0),                % kb-crud: a struck or superseded record is not in the model
     answer_items(Items0, Ds, Items),
     gensym(orbit_eng_, M),
     set_module(M:base(system)),
@@ -11913,8 +11914,7 @@ vote_section(Eng) :-
     ).
 
 kb_engine(KB, Eng) :-
-    kb_items(KB, Items0),
-    struck_filter(Items0, Items),
+    kb_items(KB, Items),
     items_decls(Items, Ds),
     build_engine(Items, Ds, Eng).
 
