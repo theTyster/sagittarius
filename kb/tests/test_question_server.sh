@@ -51,6 +51,7 @@
 #   c13 each item leads to its KB, hypothesis, premises, claims, checks; due date; no command  : QS45
 #   c14 q7 who holds what; question -> KB -> project KB; Orphaned with fixes Ty sends          : QS46
 #   c15 project KB items for Ty (a proposed fact, Ratify)                                     : QS47
+#   c15 Ratify of a proposed relation (excludes): the review, the human add, the warning      : QS77
 #   c16 one Desk for every mindhole that joined, in one step; the service unit                : QS48
 #   c18 q8 each check in words (fact, else script docstring), how it runs, its last run       : QS49
 #   c19 the owner session as one badge in the heading                                         : QS50
@@ -2170,6 +2171,33 @@ EOF
     chk raw "$T/page.html" 'May the night pane show grey only'
 }
 
+t_QS77() {  # Desk c15 (H-0166): Ty can ratify a proposed relation of a project KB, not only a proposed decision
+    desk_hub "$T/h"
+    wr process --dir "$T/h/project-kb" add "decision(d1, 'Every export has a header row')" "decided_by(d1, me, '2026-11-01T00:00:00Z')" \
+        "decision(d2, 'Exports have no header')" "decided_by(d2, me, '2026-11-01T00:00:00Z')" \
+        "decision(d3, 'Every export is UTF-8')" "decided_by(d3, agent, '2026-11-01T00:00:00Z')"; rc_is 0 "two current decisions and one proposed" || return
+    wr process --dir "$T/h/project-kb" add "excludes(d1, d2)" --by agent; rc_is 0 "propose the relation" || return
+    q "$T/h/project-kb" 'proposed(excludes(d1, d2))'; [ "$rc" = 0 ] || { note "setup: the relation is not proposed"; return; }
+    wr process --dir "$T/h/project-kb" release
+    srvd --hub "$T/h" || return; page_ok || return
+    chk raw "$T/page.html" 'excludes(d1,d2)'
+    local tok; tok=$(pg dtoken "$T/page.html")
+    review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d3"; code_is 200 "the review of Ratify of a decision (control)"
+    rj "any('ratified_by(d3' in r for r in d['records'])"
+    review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#excludes(d1,d2)"; code_is 200 "the review of Ratify of a relation" || return
+    rj "any('excludes(d1, d2)' in r and 'human' in r for r in d['records']) and not any('ratified_by(excludes' in r for r in d['records'])"
+    rj "any('contradiction' in r and 'd1' in r and 'd2' in r for r in d['records'])"
+    review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#excludes(d1,"; code_is 400 "a form id that is no ground term is refused"
+    review "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#excludes(d1,X)"; code_is 400 "a form id with a variable is refused"
+    post /send "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#excludes(d1,d2)" "letter_0=Ty ratified excludes(d1, d2)." to_0=process; code_is 303 "ratify the relation"
+    has_goal "$T/h/project-kb" 'relation_by(excludes(d1, d2), human, _)'
+    q "$T/h/project-kb" 'proposed(excludes(d1, d2))'; [ "$rc" = 0 ] && note "the relation is still proposed after Ratify"
+    q "$T/h/project-kb" 'ratified_by(excludes(d1, d2), _, _)'; [ "$rc" = 0 ] && note "the Desk wrote ratified_by for a relation"
+    post /send "token=$tok" "hub=$T/h" "item=proj:proposed:$T/h/project-kb#d3" "letter_0=Ty ratified d3." to_0=process; code_is 303 "ratify the decision"
+    has_goal "$T/h/project-kb" 'ratified_by(d3, _, _)'
+    page_ok || return; chk raw "$T/page.html" '!excludes(d1,d2)'
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2183,6 +2211,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 76); do run_one QS$n; done
+for n in $(seq 1 77); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
