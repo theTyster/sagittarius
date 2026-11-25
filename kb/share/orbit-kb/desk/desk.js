@@ -20,6 +20,8 @@
   var lastKey = 'desk-last:' + (document.body.getAttribute('data-tab') || '');
   function lastRead() { try { var o = JSON.parse(localStorage.getItem(lastKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
   var thisView = document.body.getAttribute('data-view') || '';
+  var deskDone = null;
+  function runDone() { var f = deskDone; deskDone = null; if (f) f(); }
   var qs = new URLSearchParams(location.search);
   if (!qs.has('view') && !location.hash && !qs.has('did')) {
     var lv = lastRead();
@@ -35,19 +37,42 @@
     if (!f || !f.getAttribute || !/\/(send|review)$/.test(f.getAttribute('action') || '') || f.querySelector('input[name=view]')) return;
     var i = document.createElement('input'); i.type = 'hidden'; i.name = 'view'; i.value = thisView; f.appendChild(i);
   }, true);
-  // the line of what was done: where the card was, folding from the height of a card to one line (c21)
-  if (qs.has('did') && qs.has('said')) {
+  // the line of what was done: where the card was (before the item that now stands there), folding from the
+  // height of a card to one line (c21). It is made after the page took its place again.
+  if (qs.has('did') && qs.has('said')) (function () {
     var did = qs.get('did'), said = qs.get('said');
-    var main = document.querySelector('main') || document.body;
-    var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
-    line.appendChild(document.createTextNode(said + '. '));
-    var link = document.createElement('a'); link.href = '?' + (function () { var q = new URLSearchParams(location.search); q.delete('did'); q.delete('said'); q.set('view', 'answered'); return q.toString(); })() + '#' + encodeURIComponent(did);
-    link.textContent = 'See it in Answered'; line.appendChild(link);
-    main.insertBefore(line, main.firstChild);
-    var natural = line.offsetHeight;
-    line.style.height = '140px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
-    requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = natural + 'px'; }); });
-    setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
+    var lq = new URLSearchParams(location.search); lq.delete('did'); lq.delete('said'); lq.set('view', 'answered');
+    function put() {
+      var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
+      line.appendChild(document.createTextNode(said + '. '));
+      var link = document.createElement('a'); link.href = '?' + lq.toString() + '#' + encodeURIComponent(did);
+      link.textContent = 'See it in Answered'; line.appendChild(link);
+      // the first block on the screen: it stands where the answered card was. A card of the page, else the block under the top band.
+      var card = null, cs = document.querySelectorAll('[id^="item-"]');
+      for (var i = 0; i < cs.length && !card; i++) {
+        if (cs[i].closest('dialog') || cs[i].closest('aside')) continue;
+        var cr = cs[i].getBoundingClientRect();
+        if (cr.height > 0 && cr.top >= 0 && cr.top < innerHeight) card = cs[i];
+      }
+      var mainEl = document.querySelector('main') || document.body;
+      if (!card) {
+        var at = document.elementFromPoint(Math.round(innerWidth / 2), Math.min(120, Math.round(innerHeight / 3)));
+        var c = at && mainEl.contains(at) && at !== mainEl ? at : null;
+        while (c && c.parentElement && c.parentElement !== mainEl && c.parentElement.getBoundingClientRect().top >= 0) c = c.parentElement;
+        while (c && c.getBoundingClientRect().top < 0 && c.nextElementSibling) c = c.nextElementSibling;
+        if (c && c.parentNode && c !== mainEl) card = c;
+      }
+      line.setAttribute('data-y', String(Math.round(scrollY)));
+      var main = mainEl;
+      if (card && card.parentNode) card.parentNode.insertBefore(line, card); else main.insertBefore(line, main.firstChild);
+      var natural = line.offsetHeight;
+      line.style.height = '140px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
+      requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = natural + 'px'; }); });
+      setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
+    }
+    deskDone = put;   // run when the page took its place again (below)
+  })();
+  if (qs.has('did') && qs.has('said')) {
     var q2 = new URLSearchParams(location.search); q2.delete('did'); q2.delete('said');
     try { history.replaceState(null, '', location.pathname + (q2.toString() ? '?' + q2.toString() : '')); } catch (e) { /* the address keeps did */ }
   }
@@ -203,9 +228,9 @@
   toPlace();
   window.addEventListener('load', function () {
     toPlace();
-    setTimeout(function () { restoring = false; if (!location.hash) { var y = Math.round(window.scrollY); if (wantY && Math.abs(y - wantY) > 4) wantY = y; } stSave(); }, 350);
+    setTimeout(function () { restoring = false; if (!location.hash) { var y = Math.round(window.scrollY); if (wantY && Math.abs(y - wantY) > 4) wantY = y; } stSave(); runDone(); }, 350);
   });
-  if (document.readyState === 'complete') setTimeout(function () { restoring = false; stSave(); }, 350);
+  if (document.readyState === 'complete') setTimeout(function () { restoring = false; stSave(); runDone(); }, 350);
   if (location.hash) { if (!reveal(hashId())) toEverything(hashId()); else window.addEventListener('load', function () { reveal(hashId()); }); }
   document.querySelectorAll('[data-folds]').forEach(function (b) {
     b.addEventListener('click', function () {

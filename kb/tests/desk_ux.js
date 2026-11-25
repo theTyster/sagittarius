@@ -694,11 +694,12 @@ async function r10() {
   await pg.afterNav();
   await new Promise(r => setTimeout(r, 700));
   const a = await pg.ev(state + '');
-  const note = await pg.ev(`const n = document.querySelector('.donenote'); return n ? {text: n.textContent, href: (n.querySelector('a') || {}).href || ''} : null;`);
+  const note = await pg.ev(`const n = document.querySelector('.donenote'); if (!n) return null; const r = n.getBoundingClientRect(); return {text: n.textContent, href: (n.querySelector('a') || {}).href || '', top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight, dy: n.getAttribute('data-y')};`);
   const st = await pg.ev(state);
   check('c18: after the answer the view is still Waits on you', st.view === 'waits', JSON.stringify(st));
   check('c18: the scroll place is within 120 px of where the card was', Math.abs(st.y - pre.y) <= 120, 'before ' + pre.y + ' after ' + st.y);
   check('c18: a line says what was done, with a link to the view Answered', !!note && /answered/.test(note.text) && /view=answered/.test(note.href), JSON.stringify(note));
+  check('c18: the line is on the screen, where the card was, and names the item', !!note && note.top >= 0 && note.top < note.vh && /^(ask|question|action|ledger item|hypothesis|goal judgment|records) /.test(note.text), JSON.stringify(note) + ' y=' + st.y + ' before=' + pre.y);
   check('c18: the address does not keep the line (a reload shows no second one)', !/did=|said=/.test(st.url), st.url);
   // c19: work in Questions, then the plain address
   await pg.go(base + '/?mh=alpha&view=questions');

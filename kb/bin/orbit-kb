@@ -9195,6 +9195,18 @@ desk_letter_head(About, Head) :- dk_f("Letter from Ty (the Desk), about ~w:", [A
 % ---- the send
 
 % desk_done_words(+Form, +Anchor, -Text) (r10, c18): one line that says what was done: "ask A-0001: answered".
+% desk_item_name(+Item, -Name): the short name of the item of a form, for the line of what was done.
+desk_item_name(It, Name) :-
+    (   string_concat("ask:", Id, It) -> format(string(Name), "ask ~w", [Id])
+    ;   string_concat("led:", Id, It) -> format(string(Name), "ledger item ~w", [Id])
+    ;   string_concat("q:", R, It), sub_string(R, B, 1, _, "#"), B1 is B + 1, sub_string(R, B1, _, 0, Q) -> format(string(Name), "question ~w", [Q])
+    ;   string_concat("act:", R, It), sub_string(R, B, 1, _, "#"), B1 is B + 1, sub_string(R, B1, _, 0, Q) -> format(string(Name), "action ~w", [Q])
+    ;   string_concat("adopt:", R, It), sub_string(R, B, 1, _, "#"), B1 is B + 1, sub_string(R, B1, _, 0, Q) -> format(string(Name), "hypothesis ~w", [Q])
+    ;   string_concat("judge:", _, It) -> Name = "goal judgment"
+    ;   string_concat("rec:", _, It) -> Name = "records"
+    ),
+    !.
+
 desk_done_words(Form, Anchor, Text) :-
     ( serve_field(Form, intent, I0) -> true ; I0 = "answer" ),
     (   memberchk(I0-W, ["answer"-"answered", "diverge"-"marked: that is not what you meant", "note"-"noted", "close"-"closed",
@@ -9202,7 +9214,8 @@ desk_done_words(Form, Anchor, Text) :-
                          "strike"-"record struck", "erase"-"record erased"]) -> true
     ;   W = "sent"
     ),
-    (   sub_string(Anchor, B, 1, A, "-"), B > 0, A > 0 -> sub_string(Anchor, 0, B, _, Pre), sub_string(Anchor, _, A, 0, Post), format(string(Name), "~w ~w", [Pre, Post])
+    (   serve_field(Form, item, It), desk_item_name(It, Name0) -> Name = Name0
+    ;   sub_string(Anchor, B, 1, A, "-"), B > 0, A > 0 -> sub_string(Anchor, 0, B, _, Pre), sub_string(Anchor, _, A, 0, Post), format(string(Name), "~w ~w", [Pre, Post])
     ;   Name = Anchor
     ),
     format(string(Text), "~w: ~w", [Name, W]).
