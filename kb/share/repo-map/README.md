@@ -99,6 +99,14 @@ Sagittarius itself. It does not change the levels C1 to C3 above.
 - The groups view: one group for each module of `MODULES.json`, each part in the one module that
   covers its path (the `except` lists hold); the seven stores of `hubkit/tools/store-facts.json`
   and the other things outside the repo are drawn outside it.
+- The lines of the groups view: `install` (a module to the links that MODULES.json `installs` names,
+  and to a hub for the kit), `creates` (a module to a store that it makes) and `writes` (an acting
+  part to a store that it writes). The install lines come from MODULES.json; the others are the
+  facts `module_installs`, `module_stores` and `part_stores`, each with `sources`. `check` is red
+  when a source is gone, when a line has none, or when the committed map has a line that no source
+  has. The page also lists each line with its sources.
+- The flow view at 400 px: a second, narrow flow view (lanes numbered, with a key above the first
+  header) shows instead of the wide one below 760 px, so that the frame does not scroll sideways.
 - The flow view: lanes (the parts that act) and one row for each step in the order of time, with
   an arrow from the part that acts to the part that it writes or reads.
 - The hand-written facts are in `sagittarius.views.json`: parts, outside things, lanes, record

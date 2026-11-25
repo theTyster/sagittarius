@@ -62,7 +62,52 @@ flowchart TB
     o_s1_model["the System 1 model"]
     o_claude_code["Claude Code (runs sessions, hooks)"]
   end
+  g_sagittarius -->|installs| o_install_links
+  g_orbit_kb -->|installs| o_install_links
+  g_orbit_kb -->|installs| o_install_links
+  g_orbit_kb -->|installs| o_install_links
+  g_orbit_kb -->|installs| o_install_links
+  g_system_1 -->|installs| o_install_links
+  g_s1_glance -->|installs| o_install_links
+  g_desk_toast -->|installs| o_install_links
+  g_mindhole_kit -->|installs| mh
+  g_mindhole_kit -->|installs| mh
+  g_orbit_kb -->|creates| store_spec
+  g_orbit_kb -->|creates| store_project
+  g_mindhole_kit -->|creates| store_ledger
+  g_mindhole_kit -->|creates| store_memory
+  g_mindhole_kit -->|creates| store_weeks
+  p_orbit_tool -->|writes| store_spec
+  p_desk_page -->|writes| store_spec
+  p_kb_modules -->|writes| store_project
+  p_ledger_engine -->|writes| store_ledger
+  p_hubkit_py -->|writes| store_memory
 ```
+
+## Sources of the lines of the groups view
+
+| line | kind | from | to | what | sources (file, kind, name) |
+|---|---|---|---|---|---|
+| `install:sagittarius:~/.claude/sagittarius` | install | group:sagittarius | outside:install_links | ~/.claude/sagittarius links prompt | `MODULES.json json ~/.claude/sagittarius`<br>`install.py def main` |
+| `install:orbit-kb:~/.local/bin/orbit-kb` | install | group:orbit-kb | outside:install_links | ~/.local/bin/orbit-kb links kb/bin/orbit-kb | `MODULES.json json ~/.local/bin/orbit-kb`<br>`install.py def main` |
+| `install:orbit-kb:~/.local/bin/orbit` | install | group:orbit-kb | outside:install_links | ~/.local/bin/orbit links kb/bin/orbit | `MODULES.json json ~/.local/bin/orbit`<br>`install.py def main` |
+| `install:orbit-kb:~/.local/bin/repo-map` | install | group:orbit-kb | outside:install_links | ~/.local/bin/repo-map links kb/bin/repo-map | `MODULES.json json ~/.local/bin/repo-map`<br>`install.py def main` |
+| `install:orbit-kb:~/.local/share/orbit-kb` | install | group:orbit-kb | outside:install_links | ~/.local/share/orbit-kb links kb/share/orbit-kb | `MODULES.json json ~/.local/share/orbit-kb`<br>`install.py def main` |
+| `install:system-1:~/.claude/sagittarius-s1` | install | group:system-1 | outside:install_links | ~/.claude/sagittarius-s1 links s1 | `MODULES.json json ~/.claude/sagittarius-s1`<br>`install.py def main` |
+| `install:s1-glance:~/.claude/skills/s1-glance` | install | group:s1-glance | outside:install_links | ~/.claude/skills/s1-glance links s1/glance | `MODULES.json json ~/.claude/skills/s1-glance`<br>`install.py def main` |
+| `install:desk-toast:~/.claude/skills/desk-toast` | install | group:desk-toast | outside:install_links | ~/.claude/skills/desk-toast links hubkit/hub/.claude/scripts/desk-toast | `MODULES.json json ~/.claude/skills/desk-toast`<br>`install.py def main` |
+| `install:mindhole-kit:hub-engine` | install | group:mindhole-kit | outside:mindhole_stores | hubkit.py install copies the engine files and the owned files into a hub (kit.json engine, owned) | `hubkit/tools/hubkit.py def cmd_install`<br>`hubkit/kit.json json engine` |
+| `install:mindhole-kit:hub-orbit-kb` | install | group:mindhole-kit | outside:mindhole_stores | the kit copies kb/bin and kb/share into .claude/orbit-kb of a hub (kit.json orbit_kb) | `hubkit/kit.json json orbit_kb`<br>`hubkit/tools/hubkit.py def okb_sources` |
+| `creates:orbit-kb:spec` | creates | group:orbit-kb | store:spec | orbit-kb init makes a spec KB: a directory with kb.pl | `kb/bin/orbit-kb pred cmd_init` |
+| `creates:orbit-kb:project` | creates | group:orbit-kb | store:project | orbit-kb init --uses project makes a project KB; its pins are kept in pins/ (the project module declares pin) | `kb/bin/orbit-kb pred cmd_init`<br>`kb/share/orbit-kb/modules/project.pl decl pin` |
+| `creates:mindhole-kit:ledger` | creates | group:mindhole-kit | store:ledger | hubflow.py init makes flow/flow.db from flow/seed.json | `hubkit/hub/.claude/scripts/hubflow.py def cmd_init`<br>`hubkit/kit.json json flow/seed.json` |
+| `creates:mindhole-kit:memory` | creates | group:mindhole-kit | store:memory | install writes the memory files (CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md: kit.json owned) into a hub | `hubkit/tools/hubkit.py def cmd_install`<br>`hubkit/kit.json json HEURISTICS.md` |
+| `creates:mindhole-kit:weeks` | creates | group:mindhole-kit | store:weeks | install writes W0/WEEK.md (kit.json owned); the rotation makes each new W0 | `hubkit/kit.json json W0/WEEK.md`<br>`hubkit/hub/.claude/skills/hub-rotate/scripts/rotate.py text os.makedirs("W0"` |
+| `writes:orbit_tool:spec` | writes | part:orbit_tool | store:spec | orbit-kb add and attest append records to kb.pl; apply-pending applies the Desk's waiting answers | `kb/bin/orbit-kb kb_cmd add`<br>`kb/bin/orbit-kb kb_cmd attest`<br>`kb/bin/orbit-kb kb_cmd apply-pending` |
+| `writes:desk_page:spec` | writes | part:desk_page | store:spec | the Desk page posts an answer; orbit-kb serve queues it in answers.pending, then writes kb.pl | `kb/bin/orbit-kb route post /answer`<br>`kb/bin/orbit-kb pred apply_pending` |
+| `writes:kb_modules:project` | writes | part:kb_modules | store:project | orbit-kb pin-item writes a pin (a copy with a digest) to the project KB; the project module declares pin | `kb/bin/orbit-kb pred cmd_pin_item`<br>`kb/share/orbit-kb/modules/project.pl decl pin` |
+| `writes:ledger_engine:ledger` | writes | part:ledger_engine | store:ledger | hubflow.py is the only writer of flow/flow.db: it opens it read-write and adds items | `hubkit/hub/.claude/scripts/hubflow.py def connect_rw`<br>`hubkit/hub/.claude/scripts/hubflow.py def cmd_add` |
+| `writes:hubkit_py:memory` | writes | part:hubkit_py | store:memory | hubkit.py install and upgrade copy the memory files into a hub | `hubkit/tools/hubkit.py def cmd_install`<br>`hubkit/tools/hubkit.py def cmd_upgrade` |
 
 ## Flow view
 
@@ -176,8 +221,9 @@ sequenceDiagram
 
 ## What this map does not draw
 
-- The install link of each module is one box (install links in ~); no line joins a module to its links (MODULES.json installs names them).
-- No line joins a store to the lane or part that holds it; the lanes name their store in the flow view.
+- The lanes of the flow view have no line to their store; the lanes name it in the flow view.
+- A line to a store is drawn only for the modules and parts listed as creating or writing it (module_stores, part_stores in the facts file): a part that only reads a store has none, and a store that no listed part writes (tracker) has none.
+- The Desk letters (desk.py) and the Desk state are not a store: they have no line to one.
 - orbit report: whether it reads judgments and adoptions was not confirmed (cmd_report names adoption once, judgment never); the s25 arrow does not carry them.
 - Questions and answers of a ticket that waits in a ledger ask are drawn once (the Desk closes the ask); the ask itself is not traced.
 

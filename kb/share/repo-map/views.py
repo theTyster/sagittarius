@@ -8,7 +8,10 @@
 
 The groups view takes its groups from MODULES.json (modules.py), its stores from
 hubkit/tools/store-facts.json, and its parts and outside things from the facts file
-(kb/share/repo-map/sagittarius.views.json). The flow view takes its lanes, record kinds and arrows
+(kb/share/repo-map/sagittarius.views.json). Its lines are of three kinds: install (a module to
+what it links into ~: derived from the `installs` of MODULES.json, and hand-written ones in the
+facts file), creates (a module to a store that it makes) and writes (an acting part to a store that
+it writes). Each line names its sources (file, kind of name, name), which `check` finds. The flow view takes its lanes, record kinds and arrows
 from the facts file. Each box and arrow names a source by a name that `check` finds in its file.
 `check` also goes red when a module, a store, or a declared record kind (decl(fact, ...) or
 attest_type of core.pl and the modules build and discovery) is not in the map and not left out with
@@ -184,9 +187,48 @@ def model(root, facts):
     store_boxes = [{"id": "store:" + s, "label": "store " + s,
                     "source": {"file": STORE_FACTS, "kind": "json", "name": s}} for s in stores]
     outside = [dict(o) for o in facts.get("outside", [])]
-    return {"groups": groups, "stores": store_boxes, "outside": outside,
+    lines, lerrs = group_lines(mods, facts, gi, [s["id"] for s in store_boxes], [o["id"] for o in outside])
+    errors += lerrs
+    return {"groups": groups, "stores": store_boxes, "outside": outside, "lines": lines,
             "lanes": facts.get("lanes", []), "kinds": facts.get("kinds", []),
             "steps": facts.get("steps", []), "not_drawn": facts.get("not_drawn", [])}, errors
+
+
+def group_lines(mods, facts, gi, store_ids, outside_ids):
+    """The lines of the groups view: [{id, kind, from, to, what, sources}] and the errors."""
+    lines, errs = [], []
+    part_ids = {p["id"] for g in gi.values() for p in g["parts"]}
+    for mo in mods:                                  # install: one line for each link of MODULES.json
+        for link, rel in mo.get("installs", {}).items():
+            lines.append({"id": "install:%s:%s" % (mo["name"], link), "kind": "install",
+                          "from": "group:" + mo["name"], "to": "outside:install_links",
+                          "what": "%s links %s" % (link, rel),
+                          "sources": [{"file": "MODULES.json", "kind": "json", "name": link},
+                                      {"file": "install.py", "kind": "def", "name": "main"}]})
+    for key, kind in (("module_installs", "install"), ("module_stores", "creates"), ("part_stores", "writes")):
+        for l in facts.get(key, []):
+            if key == "part_stores":
+                frm, to = "part:" + l.get("part", "?"), "store:" + l.get("store", "?")
+                if l.get("part") not in part_ids:
+                    errs.append("line %s: %s is not a part" % (l.get("id"), l.get("part")))
+            elif key == "module_stores":
+                frm, to = "group:" + l.get("module", "?"), "store:" + l.get("store", "?")
+            else:
+                frm, to = "group:" + l.get("module", "?"), l.get("to", "?")
+            if key != "part_stores" and l.get("module") not in gi:
+                errs.append("line %s: %s is not a module" % (l.get("id"), l.get("module")))
+            if to.startswith("store:") and to not in store_ids:
+                errs.append("line %s: %s is not a store" % (l.get("id"), to))
+            if to.startswith("outside:") and to[len("outside:"):] not in outside_ids + ["mindhole_stores"]:
+                errs.append("line %s: %s is not a box" % (l.get("id"), to))
+            lines.append({"id": l.get("id", "?"), "kind": kind, "from": frm, "to": to,
+                          "what": l.get("what", ""), "sources": l.get("sources", [])})
+    seen = set()
+    for l in lines:
+        if l["id"] in seen:
+            errs.append("line %s is listed twice" % l["id"])
+        seen.add(l["id"])
+    return lines, errs
 
 
 def boxes(m):
@@ -211,6 +253,7 @@ def map_data(m):
         "groups": [{"id": g["id"], "parts": [p["id"] for p in g["parts"]]} for g in m["groups"]],
         "stores": [s["id"][len("store:"):] for s in m["stores"]],
         "outside": [o["id"] for o in m["outside"]],
+        "lines": [{"id": l["id"], "kind": l["kind"], "from": l["from"], "to": l["to"]} for l in m["lines"]],
         "lanes": [l["id"] for l in m["lanes"]],
         "kinds": [k["id"] for k in m["kinds"]],
         "steps": [{"id": s["id"], "kinds": s["kinds"], "verb": s["verb"], "from": s["from"],
@@ -238,6 +281,7 @@ def svg_groups(m):
     ph, pgap, head = 24, 6, 30
     W = margin * 2 + cols * gw + (cols - 1) * gap
     out, rects = [], []
+    geo = {}      # box id -> (x, y, w, h); a group also has "anchor:" + id, the point where its lines start
     y = margin
     out.append('<text x="%d" y="%d" class="h">Sagittarius: one repo, the modules of MODULES.json</text>'
                % (margin, y + 14))
@@ -250,11 +294,14 @@ def svg_groups(m):
         for ci, g in enumerate(row):
             gx = margin + PAD + ci * (gw + gap) - PAD if False else margin + ci * (gw + gap)
             gid = "group:" + g["id"]
+            geo[gid] = (gx, y, gw, rh)
+            geo["anchor:" + gid] = (gx + gw - 14, y + 14)
             out.append('<g data-box="%s"><rect class="grp" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
                        % (esc(gid), gx, y, gw, rh, gx + PAD, y + 19, esc(g["label"] + " (module)")))
             py = y + head
             for p in g["parts"]:
+                geo["part:" + p["id"]] = (gx + PAD, py, bw, ph)
                 out.append('<g data-box="%s" data-in="%s"><rect class="part" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                            '<text class="lb" x="%d" y="%d">%s</text></g>'
                            % (esc("part:" + p["id"]), esc(gid), gx + PAD, py, bw, ph, gx + 2 * PAD,
@@ -270,6 +317,7 @@ def svg_groups(m):
     sc = cols
     srows = [m["stores"][i:i + sc] for i in range(0, len(m["stores"]), sc)]
     mh = head + len(srows) * (ph + pgap) + PAD
+    geo["outside:mindhole_stores"] = (margin, y, W - 2 * margin, mh)
     out.append('<g data-box="outside:mindhole_stores"><rect class="grp out" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                '<text class="lb" x="%d" y="%d">%s</text></g>'
                % (margin, y, W - 2 * margin, mh, margin + PAD, y + 19,
@@ -278,6 +326,7 @@ def svg_groups(m):
     for row in srows:
         for ci, s in enumerate(row):
             sx = margin + PAD + ci * (gw + gap)
+            geo[s["id"]] = (sx, py, bw, ph)
             out.append('<g data-box="%s" data-in="outside:mindhole_stores"><rect class="part store" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
                        % (esc(s["id"]), sx, py, bw, ph, sx + PAD, py + 16, esc(s["label"])))
@@ -287,12 +336,59 @@ def svg_groups(m):
     for row in orows:
         for ci, o in enumerate(row):
             ox = margin + ci * (gw + gap)
+            geo["outside:" + o["id"]] = (ox, y, gw, ph)
             out.append('<g data-box="%s"><rect class="ext" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
                        % (esc("outside:" + o["id"]), ox, y, gw, ph, ox + PAD, y + 16, esc(o["label"])))
         y += ph + pgap
+    y += 4
+    out.append('<text x="%d" y="%d" class="h">Lines</text>' % (margin, y + 14))
+    lx = margin + 50
+    for kind, word in (("install", "installs (a link in ~)"), ("creates", "creates (a store)"), ("writes", "writes (a store)")):
+        out.append('<line class="gl %s" x1="%d" y1="%d" x2="%d" y2="%d"/>' % (kind, lx, y + 10, lx + 30, y + 10))
+        out.append('<text class="lb" x="%d" y="%d">%s</text>' % (lx + 38, y + 14, esc(word)))
+        lx += 38 + tw(word) + 24
+    y += 30
+    out += group_line_svg(m, geo)
     H = y + margin
     return W, H, "\n".join(out)
+
+
+def clip(rect, p):
+    """Where the segment from the centre of RECT to the point P leaves RECT."""
+    x, y, w, h = rect
+    cx, cy = x + w / 2.0, y + h / 2.0
+    dx, dy = p[0] - cx, p[1] - cy
+    if dx == 0 and dy == 0:
+        return cx, cy
+    s = min((w / 2.0) / abs(dx) if dx else 1e9, (h / 2.0) / abs(dy) if dy else 1e9)
+    return cx + dx * s, cy + dy * s
+
+
+def group_line_svg(m, geo):
+    """One path for each (kind, from, to); it carries the ids of the lines that it draws."""
+    pairs = {}
+    for l in m["lines"]:
+        pairs.setdefault((l["kind"], l["from"], l["to"]), []).append(l["id"])
+    out = []
+    for (kind, frm, to), ids in pairs.items():
+        if frm not in geo or to not in geo:
+            continue
+        tc = (geo[to][0] + geo[to][2] / 2.0, geo[to][1] + geo[to][3] / 2.0)
+        if "anchor:" + frm in geo:
+            a = geo["anchor:" + frm]
+        else:
+            a = clip(geo[frm], tc)
+        b = clip(geo[to], a)
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        n = (dx * dx + dy * dy) ** 0.5 or 1.0
+        ux, uy = dx / n, dy / n
+        out.append('<g data-line="%s"><line class="gl %s" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
+                   '<path class="gh %s" d="M%.1f %.1f L%.1f %.1f L%.1f %.1f Z"/><circle class="dot" cx="%.1f" cy="%.1f" r="2.5"/></g>'
+                   % (esc(" ".join(ids)), kind, a[0], a[1], b[0] - ux * 6, b[1] - uy * 6, kind,
+                      b[0], b[1], b[0] - ux * 9 - uy * 4, b[1] - uy * 9 + ux * 4,
+                      b[0] - ux * 9 + uy * 4, b[1] - uy * 9 - ux * 4, a[0], a[1]))
+    return out
 
 
 VERB_CLASS = {"write": "w", "read": "r", "derive": "d", "carry": "c"}
@@ -302,9 +398,15 @@ def step_text(s):
     return "%s %s: %s" % (s["id"], "/".join(s["kinds"]), s["label"])
 
 
-def svg_flow(m):
+COMPACT_W = 346   # the width of the narrow flow view: it fits a frame of a 400 px window (less the scrollbar)
+COMPACT_WRAP = 36
+
+
+def svg_flow(m, compact=False):
     """Lanes side by side; one row for each step, top to bottom: the label on top, the arrow under
-    it. The row of lane headers comes again every HEAD_EVERY steps."""
+    it. The row of lane headers comes again every HEAD_EVERY steps. COMPACT: the narrow view for a
+    window of 400 px: lanes of 37 px with a number, a key of the numbers above the first header, and
+    a width of COMPACT_W px, so that no frame scrolls sideways."""
     lanes = m["lanes"]
     li = {l["id"]: i for i, l in enumerate(lanes)}
 
@@ -322,20 +424,40 @@ def svg_flow(m):
     lw = max(max(tw(a), tw(b), tw(c, CH_SMALL)) for (a, b), c in zip(heads, mods)) + 2 * PAD
     lgap = 6
     margin = 20
+    wrap = WRAP
+    if compact:
+        margin, lgap, wrap = 10, 4, COMPACT_WRAP
+        lw = (COMPACT_W - 2 * margin - (len(lanes) - 1) * lgap) // len(lanes)
     x0 = margin
-    W = x0 + len(lanes) * (lw + lgap) + margin
-    texts = [textwrap.wrap(step_text(s), WRAP, break_long_words=True) for s in m["steps"]]
+    W = COMPACT_W if compact else x0 + len(lanes) * (lw + lgap) + margin
+    texts = [textwrap.wrap(step_text(s), wrap, break_long_words=True) for s in m["steps"]]
     notes = [s.get("store_map", "") for s in m["steps"]]
     out, lifes = [], []
     y = margin
     out.append('<text x="%d" y="%d" class="h">The flow of the records over time</text>' % (margin, y + 14))
     y += 22
-    out.append('<text x="%d" y="%d" class="sm">One row for each step, top to bottom: what happens, then the arrow.</text>'
-               % (margin, y + 12))
-    y += 22
-    hh = 62
+    for part in textwrap.wrap("One row for each step, top to bottom: what happens, then the arrow.",
+                              int((W - 2 * margin) / CH_SMALL) if compact else 200):
+        out.append('<text x="%d" y="%d" class="sm">%s</text>' % (margin, y + 12, esc(part)))
+        y += 16
+    y += 6
+    if compact:
+        for i, l in enumerate(lanes):
+            for j, part in enumerate(textwrap.wrap("%d %s (%s)" % (i + 1, l["label"], l.get("module", "")),
+                                                   int((W - 2 * margin) / CH) - 2)):
+                out.append('<text class="lb" x="%d" y="%d">%s</text>' % (margin + (0 if j == 0 else 14), y + 12, esc(part)))
+                y += LINE
+        y += 6
+    hh = 30 if compact else 62
 
     def header(y):
+        if compact:
+            for i, l in enumerate(lanes):
+                x = x0 + i * (lw + lgap)
+                out.append('<g data-box="lane:%s"><rect class="lane" x="%d" y="%d" width="%d" height="%d" rx="4"/>'
+                           '<text class="lb" x="%d" y="%d">%d</text></g>'
+                           % (esc(l["id"]), x, y, lw, hh, x + lw // 2 - 4, y + 19, i + 1))
+            return y + hh + 8
         for i, l in enumerate(lanes):
             x = x0 + i * (lw + lgap)
             a, b = heads[i]
@@ -389,7 +511,7 @@ def svg_flow(m):
         lx += 38 + tw(word) + 24
     y += 24
     for line in LEGEND_LINES:
-        for part in textwrap.wrap(line, int((W - 2 * margin) / CH)):
+        for part in textwrap.wrap(line, int((W - 2 * margin) / CH) - (1 if compact else 0)):
             out.append('<text class="lb" x="%d" y="%d">%s</text>' % (margin, y + 10, esc(part)))
             y += LINE
     H = y + 20
@@ -436,6 +558,11 @@ svg .h { font-size: 13px; font-weight: 700; }
 .hd.w { fill: var(--w); } .hd.r { fill: var(--r); } .hd.d { fill: var(--d); } .hd.c { fill: var(--c); }
 table { border-collapse: collapse; font-size: 12px; } td, th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 .tw { overflow-x: auto; max-width: 100%; }
+.gl { stroke-width: 1.4; fill: none; opacity: .8; } .gl.install { stroke: var(--c); stroke-dasharray: 9 3 2 3; }
+.gl.creates { stroke: var(--d); stroke-dasharray: 2 3; } .gl.writes { stroke: var(--w); }
+.gh { opacity: .8; } .gh.install { fill: var(--c); } .gh.creates { fill: var(--d); } .gh.writes { fill: var(--w); }
+.flow-narrow { display: none; } .flow-narrow svg { max-width: 100%; height: auto; }
+@media (max-width: 760px) { .flow-wide { display: none; } .flow-narrow { display: block; } }
 code { font-size: 12px; }
 """
 
@@ -443,6 +570,7 @@ code { font-size: 12px; }
 def render_html(m):
     gW, gH, gs = svg_groups(m)
     fW, fH, fs = svg_flow(m)
+    nW, nH, ns = svg_flow(m, compact=True)
     data = json.dumps(map_data(m), sort_keys=True, separators=(",", ":")).replace("</", "<\\/")
     rows = []
     for s in m["steps"]:
@@ -450,6 +578,11 @@ def render_html(m):
             esc(s["id"]), esc("/".join(s["kinds"])), esc(s["verb"]), esc(s["from"]), esc(s["to"]),
             esc(s["label"] + ((" (" + s["store_map"] + ")") if s.get("store_map") else "")),
             "<br>".join("<code>%s</code>" % esc(src_text(x)) for x in s.get("sources", []))))
+    lrows = []
+    for l in m["lines"]:
+        lrows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            esc(l["id"]), esc(l["kind"]), esc(l["from"]), esc(l["to"]), esc(l["what"]),
+            "<br>".join("<code>%s</code>" % esc(src_text(x)) for x in l["sources"])))
     brows = []
     for bid, src in boxes(m):
         brows.append("<tr><td><code>%s</code></td><td><code>%s</code></td></tr>" % (esc(bid), esc(src_text(src))))
@@ -468,15 +601,21 @@ def render_html(m):
         '<section id="v-flow">\n<h2>Flow view</h2>\n<p>One row for each step, in the order of time. An arrow goes from the '
         'part that acts to the part it writes or reads. A red mark names a step where the store map '
         '(store-facts.json) names another owner than the code writes to.</p>\n'
-        '<div class="frame"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
-        'viewBox="0 0 %d %d" role="img" aria-label="Flow view">\n%s\n</svg></div>\n</section>\n'
+        '<div class="frame flow-wide"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+        'viewBox="0 0 %d %d" role="img" aria-label="Flow view">\n%s\n</svg></div>\n'
+        '<div class="frame flow-narrow"><svg id="flow-narrow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+        'viewBox="0 0 %d %d" role="img" aria-label="Flow view, narrow">\n%s\n</svg></div>\n</section>\n'
         '<section id="v-sources">\n<h2>What this map does not draw</h2>\n<ul>%s</ul>\n'
+        '<h2>Sources of the lines of the groups view</h2>\n<div class="tw"><table><tr><th>line</th><th>kind</th><th>from</th>'
+        '<th>to</th><th>what</th><th>sources (file, kind, name)</th></tr>\n%s\n</table></div>\n'
         '<h2>Sources of the arrows</h2>\n<div class="tw"><table><tr><th>step</th><th>kinds</th><th>verb</th>'
         '<th>from, to</th><th>what</th><th>sources (file, kind, name)</th></tr>\n%s\n</table></div>\n'
         '<h2>Sources of the boxes</h2>\n<div class="tw"><table><tr><th>box</th><th>source</th></tr>\n%s\n</table></div>\n</section>\n'
         '<script type="application/json" id="repo-map-data">%s</script>\n'
         '</main>\n</body>\n</html>\n'
-    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, "".join("<li>%s</li>" % esc(x) for x in m["not_drawn"]), "\n".join(rows), "\n".join(brows), data)
+    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, nW, nH, nW, nH, ns,
+                                "".join("<li>%s</li>" % esc(x) for x in m["not_drawn"]), "\n".join(lrows), "\n".join(rows),
+                                "\n".join(brows), data)
 
 
 # ---------------------------------------------------------------- render: Markdown with Mermaid
@@ -487,6 +626,14 @@ def mid(s):
 
 def mlabel(s):
     return s.replace('"', "'").replace("#", "").replace(";", ",")
+
+
+def md_node(bid):
+    """The Mermaid node (or subgraph) id of a box id."""
+    kind, _, name = bid.partition(":")
+    if bid == "outside:mindhole_stores":
+        return "mh"
+    return {"group": "g_", "part": "p_", "outside": "o_"}.get(kind, "") + mid(bid if kind == "store" else name)
 
 
 def render_md(m):
@@ -511,7 +658,16 @@ def render_md(m):
     for o in m["outside"]:
         L.append('    o_%s["%s"]' % (mid(o["id"]), mlabel(o["label"])))
     L.append("  end")
-    L += ["```", "", "## Flow view", "", "```mermaid", "sequenceDiagram"]
+    for l in m["lines"]:
+        L.append("  %s -->|%s| %s" % (md_node(l["from"]), {"install": "installs", "creates": "creates", "writes": "writes"}[l["kind"]],
+                                      md_node(l["to"])))
+    L += ["```", "", "## Sources of the lines of the groups view", "",
+          "| line | kind | from | to | what | sources (file, kind, name) |", "|---|---|---|---|---|---|"]
+    for l in m["lines"]:
+        L.append("| `%s` | %s | %s | %s | %s | %s |" % (
+            l["id"].replace("|", "/"), l["kind"], l["from"], l["to"], l["what"].replace("|", "/"),
+            "<br>".join("`%s`" % src_text(x).replace("|", "/") for x in l["sources"])))
+    L += ["", "## Flow view", "", "```mermaid", "sequenceDiagram"]
     for l in m["lanes"]:
         L.append("  participant %s as %s (%s)" % (mid(l["id"]), mlabel(l["label"]), mlabel(l.get("module", ""))))
     arrow = {"write": "->>", "read": "-->>", "derive": "-->>", "carry": "-)"}
@@ -563,6 +719,13 @@ def check(root, facts_path, out_dir):
             errs.append("box %s: %s" % (bid, r))
     lane_ids = {l["id"] for l in m["lanes"]}
     kind_ids = {k["id"] for k in m["kinds"]}
+    for l in m["lines"]:                        # c3 of the lines: each names sources, and each resolves
+        if not l.get("sources"):
+            errs.append("line %s: no source" % l["id"])
+        for src in l.get("sources", []):
+            r = resolve(root, files, src, cache)
+            if r:
+                errs.append("line %s: %s" % (l["id"], r))
     for s in m["steps"]:
         if not s.get("sources"):
             errs.append("arrow %s: no source" % s.get("id"))
@@ -647,12 +810,22 @@ def check(root, facts_path, out_dir):
                 for x in data.get(key, []):
                     if x not in want[key]:
                         errs.append("box %s:%s in the map has no source" % (what, x))
+            wl = {l["id"] for l in want["lines"]}
+            cl = {l["id"] for l in data.get("lines", [])}
+            for x in sorted(wl - cl):
+                errs.append("line %s is not in the map" % x)
+            for x in sorted(cl - wl):
+                errs.append("line %s in the map has no source" % x)
             ws = {s["id"] for s in want["steps"]}
             for s in data.get("steps", []):
                 if s["id"] not in ws:
                     errs.append("arrow %s in the map has no source" % s["id"])
             # a box drawn in the SVG that the data does not list
             known = {b for b, _ in boxes(m)} | {"outside:mindhole_stores"}
+            for dl in re.findall(r'data-line="([^"]+)"', text):
+                for x in html.unescape(dl).split(" "):
+                    if x not in wl:
+                        errs.append("line %s drawn in the map has no source" % x)
             for b in re.findall(r'data-box="([^"]+)"', text):
                 b = html.unescape(b)
                 if b not in known:

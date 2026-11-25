@@ -1,15 +1,22 @@
 // Injected by kb/tests/test_repo_map_flow.sh (check k6) into a scratch copy of the map page, which
 // headless Chromium loads with --dump-dom. It measures the rendered SVG and writes one JSON line
-// into <pre id="measure">. Overlap: two boxes (or two labels) that share an area and neither holds
+// into <pre id="measure">. It also lists each frame (scrollWidth, clientWidth) and each lane header
+// box of a visible view (check k10). Overlap: two boxes (or two labels) that share an area and neither holds
 // the other. A label must be 11 px or more on the screen and lie inside its box.
 (function () {
   function r(el) { var b = el.getBoundingClientRect(); return {x: b.left, y: b.top, w: b.width, h: b.height}; }
   function inter(a, b) { return a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5; }
   function holds(a, b) { return a.x <= b.x + 0.5 && a.y <= b.y + 0.5 && a.x + a.w >= b.x + b.w - 0.5 && a.y + a.h >= b.y + b.h - 0.5; }
-  var res = {innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth, problems: [], boxes: 0, labels: 0, minFont: 999};
+  var res = {innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth, problems: [], frames: [], lanes: [], boxes: 0, labels: 0, minFont: 999};
   var svgs = document.querySelectorAll('svg');
   for (var s = 0; s < svgs.length; s++) {
     var svg = svgs[s], id = svg.id || ('svg' + s);
+    var vis = svg.getBoundingClientRect().width > 0;       // a view that a media query hides is not measured
+    var fr = svg.closest('.frame');
+    if (fr) res.frames.push({id: id, visible: vis, scrollWidth: fr.scrollWidth, clientWidth: fr.clientWidth});
+    if (!vis) continue;
+    var lns = svg.querySelectorAll('g[data-box^="lane:"] rect');
+    for (var q = 0; q < lns.length; q++) { var lr = r(lns[q]); res.lanes.push({id: lns[q].parentNode.getAttribute('data-box'), svg: id, left: lr.x, right: lr.x + lr.w, top: lr.y}); }
     var bx = [], gs = svg.querySelectorAll('g[data-box]');
     for (var i = 0; i < gs.length; i++) {
       var rect = gs[i].querySelector('rect');

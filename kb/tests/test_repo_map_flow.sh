@@ -7,7 +7,8 @@
 #        TESTS='K3 K7' kb/tests/test_repo_map_flow.sh   runs only the named tests
 # Exit: 0 all pass, 1 a test failed (or a named test has no function, or a test errored).
 # Test -> check: K1 k1 (c1), K2 k2 (c2), K3 k3 (c3), K4 k4 (c4), K5 k5 (c5), K6 k6 (c6), K7 k7 (c7),
-#   K8 k8 (c8), K9 k9 (c9).
+#   K8 k8 (c8), K9 k9 (c9). K10 and K11 are of the follow-up (release 0.9.1): K10 the flow view at 400 px
+#   (no sideways scroll, all lanes on the first screen), K11 the lines of the groups view and their sources.
 # The runner (c9): each test runs in a subshell under `set -e`; a test passes only when its function
 # exists and the subshell exits 0. A test that is named and has no function is a FAIL.
 # K5 reads a COPY of a real spec KB: PHIL3_KB (default: the philosophy-3 KB of the sidequest-mindhole).
@@ -230,6 +231,150 @@ t_K6() {
     printf '%s\n' "$j" | grep -q 'label smaller than 11 px' || fail "20 boxes in one row at 400 px stay green: $j"
 }
 
+# measure_frame PAGE WIDTH TAG: like measure, but the page runs in an iframe of exactly WIDTH px (headless
+# Chromium will not make a window narrower than 500 px, and a media query answers to the iframe)
+measure_frame() {
+    local page=$1 w=$2 tag=$3
+    python3 - "$page" "$here/repo_map_measure.js" "$base/f-$tag.html" "$w" <<'EOF'
+import html, sys
+t = open(sys.argv[1]).read(); j = open(sys.argv[2]).read(); w = sys.argv[4]
+i = t.rindex("</body>"); inner = t[:i] + "<script>" + j + "</script>" + t[i:]
+wrap = ('<!doctype html><html><body style="margin:0"><iframe id="f" width="%s" height="1200" style="border:0" srcdoc="%s"></iframe>'
+        '<script>window.addEventListener("load", function () { setTimeout(function () {'
+        'var m = document.getElementById("f").contentDocument.getElementById("measure");'
+        'var pre = document.createElement("pre"); pre.id = "measure"; pre.textContent = m ? m.textContent : "";'
+        'document.body.appendChild(pre); }, 500); });</script></body></html>') % (w, html.escape(inner, quote=True))
+open(sys.argv[3], "w").write(wrap)
+EOF
+    timeout 90 "$CHROMIUM" --headless --disable-gpu --user-data-dir="$base/chrome" --window-size="600,1300" \
+        --virtual-time-budget=4000 --dump-dom "file://$base/f-$tag.html" 2>/dev/null \
+        | sed -n 's|.*<pre id="measure">\(.*\)</pre>.*|\1|p' | sed 's/&quot;/"/g; s/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g'
+}
+
+# k10: the flow view at 400 px: every lane header is inside the frame and inside the window, the frame
+# has nothing to scroll sideways, and the lane headers are on the first screen of the view (the groups
+# view is hidden in the scratch copy, as in the images of K6).
+k10_verify() {  # $1 = measurement JSON; prints one line for each problem
+    python3 - "$1" <<'EOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+bad = []
+fl = [f for f in d["frames"] if f["id"].startswith("flow") and f["visible"]]
+if len(fl) != 1: bad.append("%d visible flow views, want 1" % len(fl))
+for f in fl:
+    if f["scrollWidth"] > f["clientWidth"] + 1: bad.append("the frame of %s scrolls sideways: %d > %d" % (f["id"], f["scrollWidth"], f["clientWidth"]))
+seen, lanes = set(), []   # the first header of each lane: the headers come again every ten steps
+for l in d["lanes"]:
+    if l["svg"].startswith("flow") and l["id"] not in seen: seen.add(l["id"]); lanes.append(l)
+if len(lanes) < 8: bad.append("only %d lane headers in the visible flow view, want 8" % len(lanes))
+for l in lanes:
+    if l["right"] > d["innerWidth"] + 0.5 or l["left"] < -0.5: bad.append("%s is outside the window: %.0f to %.0f of %d" % (l["id"], l["left"], l["right"], d["innerWidth"]))
+    if l["top"] > 1200: bad.append("%s is not on the first screen: top %.0f" % (l["id"], l["top"]))
+if d["innerWidth"] != 400: bad.append("the window is %d px, not 400" % d["innerWidth"])
+if d["scrollWidth"] > d["innerWidth"]: bad.append("the page is wider than the window")
+print("\n".join(bad))
+sys.exit(1 if bad else 0)
+EOF
+}
+t_K10() {
+    [ -x "$CHROMIUM" ] || fail "no chromium at $CHROMIUM"
+    [ -f "$MAP" ] || fail "no map page $MAP"
+    sed "s|</style>|#v-groups, #v-sources { display: none; } </style>|" "$MAP" > "$base/k10.html"
+    local j; j=$(measure_frame "$base/k10.html" 400 k10)
+    [ -n "$j" ] || fail "no measurement at 400 px"
+    printf '%s\n' "$j" > "$base/k10.json"
+    run k10_verify "$base/k10.json"; [ "$rc" = 0 ] || fail "the flow view at 400 px: $out"
+    # plant: the wide flow view forced on at 400 px has its lanes outside the window
+    sed "s|</style>|.flow-wide { display: block !important; } .flow-narrow { display: none !important; } </style>|" "$base/k10.html" > "$base/k10w.html"
+    j=$(measure_frame "$base/k10w.html" 400 k10w)
+    printf '%s\n' "$j" > "$base/k10w.json"
+    run k10_verify "$base/k10w.json"; [ "$rc" = 1 ] || fail "the wide flow view at 400 px stays green"
+    has "scrolls sideways"
+}
+
+# k11: the lines of the groups view. Each module to its install links (read here from MODULES.json) and
+# to the stores it creates; each acting part to the store that it writes. Each line names its source;
+# the check goes red when a named source is gone, when a link of MODULES.json has no line, and when the
+# committed map has a line that no source has.
+k11_verify() {  # $1 = the map page, $2 = the output of views.py data
+    python3 - "$ROOT" "$1" "$2" <<'EOF'
+import json, re, sys
+root, page, datafile = sys.argv[1:4]
+mods = json.load(open(root + "/MODULES.json"))["modules"]
+want = json.load(open(datafile))
+t = open(page).read()
+m = re.search(r'id="repo-map-data">(.*?)</script>', t, re.S)
+data = json.loads(m.group(1).replace("<\\/", "</"))
+lines = data.get("lines")
+bad = []
+if not lines: print("the map has no lines"); sys.exit(1)
+have = {(l["kind"], l["from"], l["to"]) for l in lines}
+for mo in mods:
+    for link in mo.get("installs", {}):
+        ids = [l["id"] for l in lines if l["kind"] == "install" and l["from"] == "group:" + mo["name"] and link in l["id"]]
+        if not ids: bad.append("module %s: no install line for %s" % (mo["name"], link))
+for k, f, to in [("creates", "group:orbit-kb", "store:spec"), ("creates", "group:orbit-kb", "store:project"),
+                 ("creates", "group:mindhole-kit", "store:ledger"), ("creates", "group:mindhole-kit", "store:memory"),
+                 ("creates", "group:mindhole-kit", "store:weeks"),
+                 ("writes", "part:orbit_tool", "store:spec"), ("writes", "part:desk_page", "store:spec"),
+                 ("writes", "part:kb_modules", "store:project"), ("writes", "part:ledger_engine", "store:ledger"),
+                 ("writes", "part:hubkit_py", "store:memory")]:
+    if (k, f, to) not in have: bad.append("no %s line from %s to %s" % (k, f, to))
+if sorted(l["id"] for l in lines) != sorted(l["id"] for l in want["lines"]): bad.append("the page and the facts differ in their lines")
+svg = re.findall(r'data-line="([^"]+)"', t)
+for l in lines:
+    if not any(l["id"] in s for s in svg): bad.append("line %s is in the data and not drawn" % l["id"])
+for b in bad: print(b)
+sys.exit(1 if bad else 0)
+EOF
+}
+t_K11() {
+    run python3 "$V" check --root "$ROOT"; [ "$rc" = 0 ] || fail "check is red: $out"
+    run python3 "$V" data --root "$ROOT"; [ "$rc" = 0 ] || fail "data failed"
+    printf '%s\n' "$out" > "$base/k11.json"
+    run k11_verify "$MAP" "$base/k11.json"; [ "$rc" = 0 ] || fail "k11 on the map: $out"
+    # the drawn lines are in the Markdown copy too
+    grep -q -- '-->|creates|' "$ROOT/docs/map/sagittarius-map.md" || fail "no creates edge in the Markdown copy"
+    grep -q -- '-->|writes|' "$ROOT/docs/map/sagittarius-map.md" || fail "no writes edge in the Markdown copy"
+    grep -q -- '-->|installs|' "$ROOT/docs/map/sagittarius-map.md" || fail "no installs edge in the Markdown copy"
+    # the items that are drawn now are off the list of what is not drawn
+    ! grep -q "no line joins a module to its links" "$MAP" || fail "the list still says that no line joins a module to its links"
+    # plant 1: a source that is gone (a hand-written line of a module that creates a store)
+    mkfacts "$base/k11a.json" 'n = 0
+for l in d["module_stores"]:
+    for s in l["sources"]:
+        if s["name"] == "cmd_init" and s["file"] == "kb/bin/orbit-kb": s["name"] = "cmd_initialise"; n += 1
+assert n'
+    run python3 "$V" check --root "$ROOT" --facts "$base/k11a.json"; [ "$rc" = 1 ] || fail "a gone source of a module line stays green"
+    has "pred cmd_initialise is not in kb/bin/orbit-kb"
+    # plant 2: a source that is gone (a part that writes a store)
+    mkfacts "$base/k11b.json" 'n = 0
+for l in d["part_stores"]:
+    for s in l["sources"]:
+        if s["name"] == "connect_rw": s["name"] = "connect_rw_gone"; n += 1
+assert n'
+    run python3 "$V" check --root "$ROOT" --facts "$base/k11b.json"; [ "$rc" = 1 ] || fail "a gone source of a part line stays green"
+    has "def connect_rw_gone is not in hubkit/hub/.claude/scripts/hubflow.py"
+    # plant 3: a line with no source
+    mkfacts "$base/k11c.json" 'd["part_stores"][0]["sources"] = []'
+    run python3 "$V" check --root "$ROOT" --facts "$base/k11c.json"; [ "$rc" = 1 ] || fail "a line with no source stays green"
+    has "no source"
+    # plant 4: an install link that leaves MODULES.json (a copy of the checkout): its line goes, the map is stale
+    local c=$base/k11m; mkcopy "$c"
+    python3 - "$c/MODULES.json" <<'EOF'
+import json, sys
+d = json.load(open(sys.argv[1])); del d["modules"][0]["installs"]["~/.claude/sagittarius"]
+open(sys.argv[1], "w").write(json.dumps(d, indent=1))
+EOF
+    run python3 "$c/kb/share/repo-map/views.py" check --root "$c"; [ "$rc" = 1 ] || fail "an install link removed from MODULES.json stays green"
+    has "stale"
+    # plant 5: the install.py that makes the links loses its function: the install lines go red
+    c=$base/k11i; mkcopy "$c"
+    sed -i 's/^def main(/def main_gone(/' "$c/install.py"
+    run python3 "$c/kb/share/repo-map/views.py" check --root "$c"; [ "$rc" = 1 ] || fail "install.py without main stays green"
+    has "def main is not in install.py"
+}
+
 t_K7() {
     run python3 "$V" build --root "$ROOT" --out "$base/k7a"; [ "$rc" = 0 ] || fail "build a: $out"
     run python3 "$V" build --root "$ROOT" --out "$base/k7b"; [ "$rc" = 0 ] || fail "build b: $out"
@@ -272,7 +417,7 @@ if [ "${RUNNER_SELFTEST:-}" = 1 ]; then
 fi
 
 pass=0 nfail=0
-for t in ${TESTS:-K1 K2 K3 K4 K5 K6 K7 K8 K9}; do
+for t in ${TESTS:-K1 K2 K3 K4 K5 K6 K7 K8 K9 K10 K11}; do
     if ! declare -F "t_$t" >/dev/null; then nfail=$((nfail+1)); echo "FAIL $t (no function t_$t)"; continue; fi
     ( set -e; "t_$t" ); rc=$?   # not in a || list: there bash would ignore set -e
     if [ "$rc" = 0 ]; then pass=$((pass+1)); echo "PASS $t"; else nfail=$((nfail+1)); echo "FAIL $t (exit $rc)"; fi
