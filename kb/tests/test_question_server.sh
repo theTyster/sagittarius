@@ -2218,7 +2218,22 @@ t_QS81() {  # desk-version-marker c1 c2 c3 (H-0186): the page shows the version 
     grep -q 'data-desk-stale="false"' "$T/page.html" || note "c3: after the install is the running version again, the page is still stale"
     rm -f "$vf"; page_ok || return; txt=$(vm)   # no VERSION in the mindhole: the Desk cannot tell, and says so, and asks for no restart
     grep -q 'data-desk-stale="false"' "$T/page.html" || note "c2: an unknown installed version must not be stale"
-    case "$txt" in *"is unknown (no VERSION file)"*) ;; *) note "c2: an unknown installed version is not said";; esac
+    case "$txt" in *"is unknown (no VERSION file, or no X.Y.Z in it)"*) ;; *) note "c2: an unknown installed version is not said";; esac
+    # two mindholes (review H-0195, a17): the Desk is one process for every tab, so a tab says Restart needed
+    # when ANY joined mindhole has another version installed, not only the mindholes of that tab
+    local v2="$T/h2/.claude/orbit-kb/share/orbit-kb/VERSION" pg2 want
+    desk_hub "$T/h2"; mkdir -p "$(dirname "$v2")"; echo "$run" > "$vf"; echo "$run" > "$v2"
+    kill "$SPID" 2>/dev/null; srvd --hub "$T/h" --hub "$T/h2" || return
+    echo 99.0.0 > "$v2"   # h2 differs; h only is current
+    for pg2 in '/?view=everything' '/?mh=h&view=everything' '/?mh=h2&view=everything' '/?mh=all&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"Restart needed: running $run, installed 99.0.0 (h2)"*) ;; *) note "c2: $pg2 does not say Restart needed for h2 (it differs): $(snip "$txt")";; esac
+    done
+    echo "$run" > "$v2"; echo 99.0.0 > "$vf"   # now only h differs
+    for pg2 in '/?mh=h2&view=everything' '/?mh=h&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"Restart needed: running $run, installed 99.0.0 (h)"*) ;; *) note "c2: $pg2 does not say Restart needed for h (it differs)";; esac
+    done
 }
 
 run_one() {  # run_one ID

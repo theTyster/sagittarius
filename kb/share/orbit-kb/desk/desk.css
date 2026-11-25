@@ -306,5 +306,6 @@ a.actlink:focus-visible .go{text-decoration:underline;text-underline-offset:3px}
 @media (max-width:600px){header.top{position:static}}
 
 /* desk-version-marker (H-0186): the running version in the top band; a restart line when a mindhole has another installed */
-.deskver{display:inline-block;margin-left:.6em;font-size:12px;font-weight:500;color:var(--graphite);font-variant-numeric:tabular-nums;vertical-align:middle}
+header.top h1{position:relative}
+.deskver{position:absolute;left:1px;top:100%;margin-top:3px;font-size:11px;font-weight:500;line-height:1;letter-spacing:0;color:var(--graphite);font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:auto}
 .banner.deskstale{border-color:var(--burn);font-weight:600}

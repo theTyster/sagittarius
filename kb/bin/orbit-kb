@@ -7957,7 +7957,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
     dk_cat(Es, ErrH0),
-    desk_version_marker(HDs, VerH, StaleH), string_concat(StaleH, ErrH0, ErrH), string_concat(VerH, SumH0, SumH),
+    desk_version_marker(HDs0, VerH, StaleH), string_concat(StaleH, ErrH0, ErrH), SumH = SumH0,   % every joined mindhole, not the tab's: the Desk is one process for all tabs
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
     esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS),
     desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
@@ -7973,7 +7973,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <style>~w</style>
 </head>
 <body data-token=\"~w\" data-tab=\"~w\" data-view=\"~w\">
-<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
+<header class=\"top\"><h1>The Desk~w</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
 <div class=\"layout\">
@@ -7991,7 +7991,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, ViewS, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
+", [Css, TokH, TabAH, ViewS, VerH, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
 
 % desk_kbs_count(+KBCs, -N): the cards of these KBs that wait on Ty: KB actions and open questions (an ask
 % for Ty is counted in the Ledger, where its row is, so that the numbers add up to the count of the top band).
@@ -8425,11 +8425,11 @@ desk_version_marker(HDs, Marker, Stale) :-
     ;   Inst = "", StaleV = "false"
     ),
     esc(Inst, InstH),
-    dk_f("<span class=\"deskver\" data-desk-running=\"~w\" data-desk-installed=\"~w\" data-desk-stale=\"~w\" title=\"The version of the tool that this Desk process runs\">Desk ~w</span>", [RunH, InstH, StaleV, RunH], Marker),
+    dk_f("<span class=\"deskver\" data-desk-running=\"~w\" data-desk-installed=\"~w\" data-desk-stale=\"~w\" title=\"The version of the tool that this Desk process runs\">~w</span>", [RunH, InstH, StaleV, RunH], Marker),
     findall(L, ( member(N-V, Diff), esc(N, NH), esc(V, VH),
                  dk_f("<p class=\"banner deskstale\">Restart needed: running ~w, installed ~w (~w). The Desk keeps the version it started with; restart it to run the installed tool.</p>", [RunH, VH, NH], L) ), Ls1),
     findall(L, ( member(N, Unk), esc(N, NH),
-                 dk_f("<p class=\"small quiet deskunknown\">The version of the tool installed in ~w is unknown (no VERSION file), so the Desk cannot tell whether it needs a restart.</p>", [NH], L) ), Ls2),
+                 dk_f("<p class=\"small quiet deskunknown\">The version of the tool installed in ~w is unknown (no VERSION file, or no X.Y.Z in it), so the Desk cannot tell whether it needs a restart.</p>", [NH], L) ), Ls2),
     append(Ls1, Ls2, Ls), dk_cat(Ls, Stale).
 
 desk_by_due(O, A, B) :-
