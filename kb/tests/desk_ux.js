@@ -498,7 +498,7 @@ async function k16() {
   const kind = f => f.replace(/:.*/, '');
   const q = (f, kbn, qid) => kind(f) === 'q' && new RegExp('/' + kbn + '#' + qid + '$').test(f);
   for (const [name, o] of Object.entries(res)) {
-    const fd = dups(o.forms.filter(f => !/^fix:/.test(f))), idd = dups(o.ids);
+    const fd = dups(o.forms.filter(f => !/^(fix|rec):/.test(f))), idd = dups(o.ids.filter(i => !/^recs-/.test(i)));   // rec: the four forms of Change records, recs-: its datalist (kb-crud c5)
     check('view ' + name + ': no item id is on the page twice', fd.length === 0 && idd.length === 0, JSON.stringify([fd, idd]));
     check('view ' + name + ': its link turns it on', o.on === name, o.on);
   }
