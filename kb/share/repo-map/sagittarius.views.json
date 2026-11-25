@@ -42,8 +42,8 @@
       "path": "s1/record.py"
     },
     {
-      "id": "s1_jev",
-      "label": "System 1 judge (jev)",
+      "id": "s1_client",
+      "label": "System 1 client of the model",
       "path": "s1/jev.py"
     },
     {
@@ -139,7 +139,7 @@
     },
     {
       "id": "s1_model",
-      "label": "the System 1 model (jev)",
+      "label": "the System 1 model",
       "source": {
         "file": "s1/jev.py",
         "kind": "text",

@@ -24,7 +24,7 @@ flowchart TB
     subgraph g_system_1["system-1 (module)"]
       p_covers_s1["s1/ (covers)"]
       p_s1_record["System 1 record and proposals"]
-      p_s1_jev["System 1 judge (jev)"]
+      p_s1_client["System 1 client of the model"]
     end
     subgraph g_mindhole_kit["mindhole-kit (module)"]
       p_covers_hubkit["hubkit/ (covers)"]
@@ -59,7 +59,7 @@ flowchart TB
     o_desk_state["Desk state (letters, drafts)"]
     o_gitea["Gitea ty/sagittarius (origin)"]
     o_github["GitHub theTyster/sagittarius"]
-    o_s1_model["the System 1 model (jev)"]
+    o_s1_model["the System 1 model"]
     o_claude_code["Claude Code (runs sessions, hooks)"]
   end
 ```
@@ -200,7 +200,7 @@ sequenceDiagram
 | `group:system-1` | `MODULES.json json system-1` |
 | `part:covers:s1` | `MODULES.json json s1` |
 | `part:s1_record` | `s1/record.py file s1/record.py` |
-| `part:s1_jev` | `s1/jev.py file s1/jev.py` |
+| `part:s1_client` | `s1/jev.py file s1/jev.py` |
 | `group:mindhole-kit` | `MODULES.json json mindhole-kit` |
 | `part:covers:hubkit` | `MODULES.json json hubkit` |
 | `part:hub_template` | `hubkit/hub/CLAUDE.md file hubkit/hub/CLAUDE.md` |
