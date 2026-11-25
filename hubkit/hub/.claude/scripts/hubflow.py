@@ -1201,6 +1201,7 @@ def cmd_add(g, a):
     refs = common_item_opts(g, o)
     no_kb = check_no_kb(g, kind, o.get("no_kb", False), any(k == "kb" for k, _ in refs))
     check_ask_note(g, kind, o.get("note"))
+    warn_kit_thread(kind, o["title"], any(k == "kb" for k, _ in refs))
 
     def fn(c, w):
         if o.get("owner") == "none":
@@ -1256,6 +1257,19 @@ def check_due(kind, v):
     if kind != "ask":  # due on an ask only
         raise Bad("--due belongs to an ask: the date by which the asker needs the answer")
     return parse_date(v, "--due")
+
+
+# kb-query c6: a thread about the kit (a title that starts with "Kit") with no kb ref is a finding that
+# has no owner. Warn, and name the query that finds the spec KB that owns it. It blocks nothing.
+KIT_TITLE = re.compile(r"\s*Kit\b[\s:,-]", re.I)
+KIT_WARN = ("hubflow: warning: this thread is about the kit and has no kb ref; find the spec KB that owns it:"
+            " orbit hub query 'ticket_fact(S, claim(C, L, T))' (the goals and claims of every spec KB), then add"
+            " --ref kb:<slug> (hubflow ref ID add kb:<slug>)")
+
+
+def warn_kit_thread(kind, title, has_kb):
+    if kind == "thread" and not has_kb and isinstance(title, str) and KIT_TITLE.match(title):
+        print(KIT_WARN, file=sys.stderr)
 
 
 ASK_KB = ("an ask says whether it rests on a KB: give --ref kb:<slug> (or kb:/abs/path, kb:~/path) for the KB"

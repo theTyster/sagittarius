@@ -146,6 +146,7 @@ MUTANTS = [
     ("ask-note-blank-allowed", 'not (note or "").strip():  # an ask carries a context note',
      'not note:  # an ask carries a context note'),
     ("no-kb-with-kb-ref-allowed", "if no_kb and has_kb:", "if False:"),
+    ("kit-thread-warning-dropped", "if kind == \"thread\" and not has_kb and isinstance(title, str) and KIT_TITLE.match(title):", "if False:"),
     ("set-no-kb-yes-with-kb-ref", "if new and item_kb_refs(c, iid):  # no_kb with a kb ref", "if False:"),
     ("ref-add-kb-keeps-no-kb", 'if kind == "kb" and it["no_kb"]:  # q5: a kb ref says the ask rests on a KB', "if False:"),
     # q5: a KB outside the hub
@@ -3598,6 +3599,22 @@ def case_goal_ref(r, root):
     r.check("goal-ref-check", res[0] == 0, res)
 
 
+def case_kb_query_warn(r, root):
+    """kb-query c6: a new thread about the kit (a title that starts with Kit) with no kb ref exits 0 and
+    prints a warning that names the query that finds the spec KB that owns it. With a kb ref, or a title that
+    is not about the kit, or an ask, it prints no such warning."""
+    d = fresh(r, root, "kbq-warn")
+    res = hf(r, d, "add", "thread", "--title", "Kit: lint ED8 refuses a probe")
+    r.check("kbq-c6-kit-thread-warns", res[0] == 0 and "kb ref" in res[2] and "spec KB that owns it" in res[2]
+            and "orbit hub query" in res[2] and "ticket_fact(S, claim(C, L, T))" in res[2], res)
+    res = hf(r, d, "add", "thread", "--title", "Kit: another probe", "--ref", "kb:some-spec")
+    r.check("kbq-c6-kb-ref-no-warning", res[0] == 0 and "spec KB that owns it" not in res[2], res)
+    res = hf(r, d, "add", "thread", "--title", "A thread about the desk")
+    r.check("kbq-c6-other-title-no-warning", res[0] == 0 and "spec KB that owns it" not in res[2], res)
+    res = hf(r, d, "add", "thread", "--title", "Kitchen sink defect")
+    r.check("kbq-c6-kitchen-is-not-the-kit", res[0] == 0 and "spec KB that owns it" not in res[2], res)
+
+
 def case_dk_no_kb(r, root):
     """q5: a new ask says whether it rests on a KB: a kb ref, or --no-kb (no_kb 1). With neither, add ask
     exits 1 and names both ways; --no-kb with a kb ref, or on another kind, exits 1. set --no-kb yes|no
@@ -3958,6 +3975,7 @@ def cases(r):
         run_case(r, case_dk_due, root)
         run_case(r, case_dk_ask_note, root)
         run_case(r, case_dk_no_kb, root)
+        run_case(r, case_kb_query_warn, root)
         run_case(r, case_park_due, root)
         run_case(r, case_migrate_park_due, root)
         run_case(r, case_goal_ref, root)

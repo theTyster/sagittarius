@@ -190,6 +190,14 @@ Monday. Every week dir has a `WEEK.md` whose first line is its date range. Rotat
 Before you drop something, ask: **is it durable?** Durable knowledge is promoted out of the week
 dirs (a root file, a skill, the project KB), never left to roll off.
 
+## Find the spec KB that owns a finding
+
+Before you open a ledger item for a finding (a defect, a gap, a doubt about a result), find the spec KB
+that owns it. List the goals and the claims of every spec KB with `orbit hub query` (for example
+`orbit hub query 'ticket_fact(S, claim(C, L, T))'`), read which claim the finding is about, and give
+that KB's ref (`--ref kb:<slug>`) on the item, not only the KB of the work in which you found it.
+`grep` over `specs/*/kb.pl` also finds a word, but it cannot tell a current claim from a superseded one.
+
 ## Flow state lives in the db
 
 `orbit` is the door to every store: a session reads and writes a store through it (`orbit hub
