@@ -1555,9 +1555,234 @@
   },
   "trace_note": "request: the first one is on the orbit init arrow, each later one on orbit add request. Where a kind has a Desk path and a tool path, kb.pl does not say which one wrote a record: the trace places it on the tool arrow unless its actor fact names desk. An answer is placed on apply-pending (each Desk answer reaches kb.pl there).",
   "not_drawn": [
-    "The install link of each module is one box (install links in ~); no line joins a module to its links (MODULES.json installs names them).",
-    "No line joins a store to the lane or part that holds it; the lanes name their store in the flow view.",
+    "The lanes of the flow view have no line to their store; the lanes name it in the flow view.",
+    "A line to a store is drawn only for the modules and parts listed as creating or writing it (module_stores, part_stores in the facts file): a part that only reads a store has none, and a store that no listed part writes (tracker) has none.",
+    "The Desk letters (desk.py) and the Desk state are not a store: they have no line to one.",
     "orbit report: whether it reads judgments and adoptions was not confirmed (cmd_report names adoption once, judgment never); the s25 arrow does not carry them.",
     "Questions and answers of a ticket that waits in a ledger ask are drawn once (the Desk closes the ask); the ask itself is not traced."
+  ],
+  "module_installs": [
+    {
+      "id": "install:mindhole-kit:hub-engine",
+      "module": "mindhole-kit",
+      "to": "outside:mindhole_stores",
+      "what": "hubkit.py install copies the engine files and the owned files into a hub (kit.json engine, owned)",
+      "sources": [
+        {
+          "file": "hubkit/tools/hubkit.py",
+          "kind": "def",
+          "name": "cmd_install"
+        },
+        {
+          "file": "hubkit/kit.json",
+          "kind": "json",
+          "name": "engine"
+        }
+      ],
+      "short": "the engine files and owned files, in a hub"
+    },
+    {
+      "id": "install:mindhole-kit:hub-orbit-kb",
+      "module": "mindhole-kit",
+      "to": "outside:mindhole_stores",
+      "what": "the kit copies kb/bin and kb/share into .claude/orbit-kb of a hub (kit.json orbit_kb)",
+      "sources": [
+        {
+          "file": "hubkit/kit.json",
+          "kind": "json",
+          "name": "orbit_kb"
+        },
+        {
+          "file": "hubkit/tools/hubkit.py",
+          "kind": "def",
+          "name": "okb_sources"
+        }
+      ],
+      "short": "a copy of orbit-kb, in a hub"
+    }
+  ],
+  "module_stores": [
+    {
+      "id": "creates:orbit-kb:spec",
+      "module": "orbit-kb",
+      "store": "spec",
+      "what": "orbit-kb init makes a spec KB: a directory with kb.pl",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_init"
+        }
+      ]
+    },
+    {
+      "id": "creates:orbit-kb:project",
+      "module": "orbit-kb",
+      "store": "project",
+      "what": "orbit-kb init --uses project makes a project KB; its pins are kept in pins/ (the project module declares pin)",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_init"
+        },
+        {
+          "file": "kb/share/orbit-kb/modules/project.pl",
+          "kind": "decl",
+          "name": "pin"
+        }
+      ]
+    },
+    {
+      "id": "creates:mindhole-kit:ledger",
+      "module": "mindhole-kit",
+      "store": "ledger",
+      "what": "hubflow.py init makes flow/flow.db from flow/seed.json",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "cmd_init"
+        },
+        {
+          "file": "hubkit/kit.json",
+          "kind": "json",
+          "name": "flow/seed.json"
+        }
+      ]
+    },
+    {
+      "id": "creates:mindhole-kit:memory",
+      "module": "mindhole-kit",
+      "store": "memory",
+      "what": "install writes the memory files (CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md: kit.json owned) into a hub",
+      "sources": [
+        {
+          "file": "hubkit/tools/hubkit.py",
+          "kind": "def",
+          "name": "cmd_install"
+        },
+        {
+          "file": "hubkit/kit.json",
+          "kind": "json",
+          "name": "HEURISTICS.md"
+        }
+      ]
+    },
+    {
+      "id": "creates:mindhole-kit:weeks",
+      "module": "mindhole-kit",
+      "store": "weeks",
+      "what": "install writes W0/WEEK.md (kit.json owned); the rotation makes each new W0",
+      "sources": [
+        {
+          "file": "hubkit/kit.json",
+          "kind": "json",
+          "name": "W0/WEEK.md"
+        },
+        {
+          "file": "hubkit/hub/.claude/skills/hub-rotate/scripts/rotate.py",
+          "kind": "text",
+          "name": "os.makedirs(\"W0\""
+        }
+      ]
+    }
+  ],
+  "part_stores": [
+    {
+      "id": "writes:orbit_tool:spec",
+      "part": "orbit_tool",
+      "store": "spec",
+      "what": "orbit-kb add and attest append records to kb.pl; apply-pending applies the Desk's waiting answers",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "add"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "attest"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "kb_cmd",
+          "name": "apply-pending"
+        }
+      ]
+    },
+    {
+      "id": "writes:desk_page:spec",
+      "part": "desk_page",
+      "store": "spec",
+      "what": "the Desk page posts an answer; orbit-kb serve queues it in answers.pending, then writes kb.pl",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "route",
+          "name": "post /answer"
+        },
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "apply_pending"
+        }
+      ]
+    },
+    {
+      "id": "writes:kb_modules:project",
+      "part": "kb_modules",
+      "store": "project",
+      "what": "orbit-kb pin-item writes a pin (a copy with a digest) to the project KB; the project module declares pin",
+      "sources": [
+        {
+          "file": "kb/bin/orbit-kb",
+          "kind": "pred",
+          "name": "cmd_pin_item"
+        },
+        {
+          "file": "kb/share/orbit-kb/modules/project.pl",
+          "kind": "decl",
+          "name": "pin"
+        }
+      ]
+    },
+    {
+      "id": "writes:ledger_engine:ledger",
+      "part": "ledger_engine",
+      "store": "ledger",
+      "what": "hubflow.py is the only writer of flow/flow.db: it opens it read-write and adds items",
+      "sources": [
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "connect_rw"
+        },
+        {
+          "file": "hubkit/hub/.claude/scripts/hubflow.py",
+          "kind": "def",
+          "name": "cmd_add"
+        }
+      ]
+    },
+    {
+      "id": "writes:hubkit_py:memory",
+      "part": "hubkit_py",
+      "store": "memory",
+      "what": "hubkit.py install and upgrade copy the memory files into a hub",
+      "sources": [
+        {
+          "file": "hubkit/tools/hubkit.py",
+          "kind": "def",
+          "name": "cmd_install"
+        },
+        {
+          "file": "hubkit/tools/hubkit.py",
+          "kind": "def",
+          "name": "cmd_upgrade"
+        }
+      ]
+    }
   ]
 }

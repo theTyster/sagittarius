@@ -36,6 +36,10 @@ svg .h { font-size: 13px; font-weight: 700; }
 .hd.w { fill: var(--w); } .hd.r { fill: var(--r); } .hd.d { fill: var(--d); } .hd.c { fill: var(--c); }
 table { border-collapse: collapse; font-size: 12px; } td, th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 .tw { overflow-x: auto; max-width: 100%; }
+.tg { stroke-width: 1; fill-opacity: .12; } .tg.install { stroke: var(--c); fill: var(--c); }
+.tg.creates { stroke: var(--d); fill: var(--d); } .tg.writes { stroke: var(--w); fill: var(--w); }
+.flow-narrow { display: none; } .flow-narrow svg { max-width: 100%; height: auto; }
+@media (max-width: 760px) { .flow-wide { display: none; } .flow-narrow { display: block; } }
 code { font-size: 12px; }
 </style>
 </head>
@@ -46,61 +50,154 @@ code { font-size: 12px; }
 <section id="v-groups">
 <h2>Groups view</h2>
 <p>Each module of MODULES.json is one group, with each part in the one module that covers its path (the except lists hold). What is outside the repo is drawn below it.</p>
-<div class="frame"><svg id="groups" xmlns="http://www.w3.org/2000/svg" width="1274" height="868" viewBox="0 0 1274 868" role="img" aria-label="Groups view">
+<div class="frame"><svg id="groups" xmlns="http://www.w3.org/2000/svg" width="1274" height="1450" viewBox="0 0 1274 1450" role="img" aria-label="Groups view">
 <text x="20" y="34" class="h">Sagittarius: one repo, the modules of MODULES.json</text>
-<rect class="repo" x="12" y="42" width="1250" height="512" rx="8"/>
-<g data-box="group:sagittarius"><rect class="grp" x="20" y="56" width="398" height="250" rx="6"/><text class="lb" x="30" y="75">sagittarius (module)</text></g>
-<g data-box="part:covers:prompt" data-in="group:sagittarius"><rect class="part" x="30" y="86" width="378" height="24" rx="3"/><text class="lb" x="40" y="102">prompt/ (covers)</text></g>
-<g data-box="part:prompt_main" data-in="group:sagittarius"><rect class="part" x="30" y="116" width="378" height="24" rx="3"/><text class="lb" x="40" y="132">the prompt (SAGITTARIUS.md)</text></g>
-<g data-box="part:prompt_panes" data-in="group:sagittarius"><rect class="part" x="30" y="146" width="378" height="24" rx="3"/><text class="lb" x="40" y="162">pane prompts (PANES.md, panes/)</text></g>
-<g data-box="group:orbit-kb"><rect class="grp" x="438" y="56" width="398" height="250" rx="6"/><text class="lb" x="448" y="75">orbit-kb (module)</text></g>
-<g data-box="part:covers:kb/bin" data-in="group:orbit-kb"><rect class="part" x="448" y="86" width="378" height="24" rx="3"/><text class="lb" x="458" y="102">kb/bin/ (covers)</text></g>
-<g data-box="part:covers:kb/share" data-in="group:orbit-kb"><rect class="part" x="448" y="116" width="378" height="24" rx="3"/><text class="lb" x="458" y="132">kb/share/ (covers)</text></g>
-<g data-box="part:orbit_tool" data-in="group:orbit-kb"><rect class="part" x="448" y="146" width="378" height="24" rx="3"/><text class="lb" x="458" y="162">orbit-kb and orbit (the tool)</text></g>
-<g data-box="part:repo_map" data-in="group:orbit-kb"><rect class="part" x="448" y="176" width="378" height="24" rx="3"/><text class="lb" x="458" y="192">repo-map</text></g>
-<g data-box="part:core_pl" data-in="group:orbit-kb"><rect class="part" x="448" y="206" width="378" height="24" rx="3"/><text class="lb" x="458" y="222">core.pl (record kinds, verdict rules)</text></g>
-<g data-box="part:kb_modules" data-in="group:orbit-kb"><rect class="part" x="448" y="236" width="378" height="24" rx="3"/><text class="lb" x="458" y="252">modules build, discovery, project</text></g>
-<g data-box="part:desk_page" data-in="group:orbit-kb"><rect class="part" x="448" y="266" width="378" height="24" rx="3"/><text class="lb" x="458" y="282">the Desk page (desk.js, desk.css)</text></g>
-<g data-box="group:system-1"><rect class="grp" x="856" y="56" width="398" height="250" rx="6"/><text class="lb" x="866" y="75">system-1 (module)</text></g>
-<g data-box="part:covers:s1" data-in="group:system-1"><rect class="part" x="866" y="86" width="378" height="24" rx="3"/><text class="lb" x="876" y="102">s1/ (covers)</text></g>
-<g data-box="part:s1_record" data-in="group:system-1"><rect class="part" x="866" y="116" width="378" height="24" rx="3"/><text class="lb" x="876" y="132">System 1 record and proposals</text></g>
-<g data-box="part:s1_client" data-in="group:system-1"><rect class="part" x="866" y="146" width="378" height="24" rx="3"/><text class="lb" x="876" y="162">System 1 client of the model</text></g>
-<g data-box="group:mindhole-kit"><rect class="grp" x="20" y="326" width="398" height="220" rx="6"/><text class="lb" x="30" y="345">mindhole-kit (module)</text></g>
-<g data-box="part:covers:hubkit" data-in="group:mindhole-kit"><rect class="part" x="30" y="356" width="378" height="24" rx="3"/><text class="lb" x="40" y="372">hubkit/ (covers)</text></g>
-<g data-box="part:hub_template" data-in="group:mindhole-kit"><rect class="part" x="30" y="386" width="378" height="24" rx="3"/><text class="lb" x="40" y="402">the hub template (hubkit/hub)</text></g>
-<g data-box="part:ledger_engine" data-in="group:mindhole-kit"><rect class="part" x="30" y="416" width="378" height="24" rx="3"/><text class="lb" x="40" y="432">the ledger engine (hubflow.py)</text></g>
-<g data-box="part:desk_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="446" width="378" height="24" rx="3"/><text class="lb" x="40" y="462">the Desk letters (desk.py)</text></g>
-<g data-box="part:store_map" data-in="group:mindhole-kit"><rect class="part" x="30" y="476" width="378" height="24" rx="3"/><text class="lb" x="40" y="492">the store map (store-facts.json)</text></g>
-<g data-box="part:hubkit_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="506" width="378" height="24" rx="3"/><text class="lb" x="40" y="522">install and upgrade (hubkit.py)</text></g>
-<g data-box="group:s1-glance"><rect class="grp" x="438" y="326" width="398" height="220" rx="6"/><text class="lb" x="448" y="345">s1-glance (module)</text></g>
-<g data-box="part:covers:s1/glance" data-in="group:s1-glance"><rect class="part" x="448" y="356" width="378" height="24" rx="3"/><text class="lb" x="458" y="372">s1/glance/ (covers)</text></g>
-<g data-box="part:s1_glance" data-in="group:s1-glance"><rect class="part" x="448" y="386" width="378" height="24" rx="3"/><text class="lb" x="458" y="402">s1-glance skill</text></g>
-<g data-box="group:desk-toast"><rect class="grp" x="856" y="326" width="398" height="220" rx="6"/><text class="lb" x="866" y="345">desk-toast (module)</text></g>
-<g data-box="part:covers:hubkit/hub/.claude/scripts/desk-toast" data-in="group:desk-toast"><rect class="part" x="866" y="356" width="378" height="24" rx="3"/><text class="lb" x="876" y="372">hubkit/hub/.claude/scripts/desk-toast/ (covers)</text></g>
-<g data-box="part:desk_toast" data-in="group:desk-toast"><rect class="part" x="866" y="386" width="378" height="24" rx="3"/><text class="lb" x="876" y="402">desk-toast plugin</text></g>
-<text x="20" y="596" class="h">Outside the repo</text>
-<g data-box="outside:mindhole_stores"><rect class="grp out" x="20" y="608" width="1234" height="130" rx="6"/><text class="lb" x="30" y="627">a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json</text></g>
-<g data-box="store:spec" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="638" width="378" height="24" rx="3"/><text class="lb" x="40" y="654">store spec</text></g>
-<g data-box="store:project" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="638" width="378" height="24" rx="3"/><text class="lb" x="458" y="654">store project</text></g>
-<g data-box="store:ledger" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="638" width="378" height="24" rx="3"/><text class="lb" x="876" y="654">store ledger</text></g>
-<g data-box="store:memory" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="668" width="378" height="24" rx="3"/><text class="lb" x="40" y="684">store memory</text></g>
-<g data-box="store:weeks" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="668" width="378" height="24" rx="3"/><text class="lb" x="458" y="684">store weeks</text></g>
-<g data-box="store:bespoke" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="668" width="378" height="24" rx="3"/><text class="lb" x="876" y="684">store bespoke</text></g>
-<g data-box="store:tracker" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="698" width="378" height="24" rx="3"/><text class="lb" x="40" y="714">store tracker</text></g>
-<g data-box="outside:install_links"><rect class="ext" x="20" y="758" width="398" height="24" rx="3"/><text class="lb" x="30" y="774">install links in ~ (~/.claude, ~/.local)</text></g>
-<g data-box="outside:sidequest_mindhole"><rect class="ext" x="438" y="758" width="398" height="24" rx="3"/><text class="lb" x="448" y="774">sidequest-mindhole (a hub)</text></g>
-<g data-box="outside:hwh_mindhole"><rect class="ext" x="856" y="758" width="398" height="24" rx="3"/><text class="lb" x="866" y="774">hwh-mindhole (a hub)</text></g>
-<g data-box="outside:desk_state"><rect class="ext" x="20" y="788" width="398" height="24" rx="3"/><text class="lb" x="30" y="804">Desk state (letters, drafts)</text></g>
-<g data-box="outside:gitea"><rect class="ext" x="438" y="788" width="398" height="24" rx="3"/><text class="lb" x="448" y="804">Gitea ty/sagittarius (origin)</text></g>
-<g data-box="outside:github"><rect class="ext" x="856" y="788" width="398" height="24" rx="3"/><text class="lb" x="866" y="804">GitHub theTyster/sagittarius</text></g>
-<g data-box="outside:s1_model"><rect class="ext" x="20" y="818" width="398" height="24" rx="3"/><text class="lb" x="30" y="834">the System 1 model</text></g>
-<g data-box="outside:claude_code"><rect class="ext" x="438" y="818" width="398" height="24" rx="3"/><text class="lb" x="448" y="834">Claude Code (runs sessions, hooks)</text></g>
+<rect class="repo" x="12" y="42" width="1250" height="864" rx="8"/>
+<g data-box="group:sagittarius"><rect class="grp" x="20" y="56" width="398" height="466" rx="6"/><text class="lb" x="30" y="75">sagittarius (module)</text></g>
+<g data-box="tag:group:sagittarius|install|install:sagittarius:~/.claude/sagittarius" data-in="group:sagittarius"><rect class="tg install" x="30" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="100">installs: ~/.claude/sagittarius</text>
+</g>
+<g data-box="part:covers:prompt" data-in="group:sagittarius"><rect class="part" x="30" y="114" width="378" height="24" rx="3"/><text class="lb" x="40" y="130">prompt/ (covers)</text></g>
+<g data-box="part:prompt_main" data-in="group:sagittarius"><rect class="part" x="30" y="144" width="378" height="24" rx="3"/><text class="lb" x="40" y="160">the prompt (SAGITTARIUS.md)</text></g>
+<g data-box="part:prompt_panes" data-in="group:sagittarius"><rect class="part" x="30" y="174" width="378" height="24" rx="3"/><text class="lb" x="40" y="190">pane prompts (PANES.md, panes/)</text></g>
+<g data-box="group:orbit-kb"><rect class="grp" x="438" y="56" width="398" height="466" rx="6"/><text class="lb" x="448" y="75">orbit-kb (module)</text></g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/orbit-kb" data-in="group:orbit-kb"><rect class="tg install" x="448" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="100">installs: ~/.local/bin/orbit-kb</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/orbit" data-in="group:orbit-kb"><rect class="tg install" x="448" y="112" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="126">installs: ~/.local/bin/orbit</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/bin/repo-map" data-in="group:orbit-kb"><rect class="tg install" x="448" y="138" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="152">installs: ~/.local/bin/repo-map</text>
+</g>
+<g data-box="tag:group:orbit-kb|install|install:orbit-kb:~/.local/share/orbit-kb" data-in="group:orbit-kb"><rect class="tg install" x="448" y="164" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="178">installs: ~/.local/share/orbit-kb</text>
+</g>
+<g data-box="tag:group:orbit-kb|creates|creates:orbit-kb:spec,creates:orbit-kb:project" data-in="group:orbit-kb"><rect class="tg creates" x="448" y="190" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="204">creates: spec, project</text>
+</g>
+<g data-box="part:covers:kb/bin" data-in="group:orbit-kb"><rect class="part" x="448" y="218" width="378" height="24" rx="3"/><text class="lb" x="458" y="234">kb/bin/ (covers)</text></g>
+<g data-box="part:covers:kb/share" data-in="group:orbit-kb"><rect class="part" x="448" y="248" width="378" height="24" rx="3"/><text class="lb" x="458" y="264">kb/share/ (covers)</text></g>
+<g data-box="part:orbit_tool" data-in="group:orbit-kb"><rect class="part" x="448" y="278" width="378" height="52" rx="3"/><text class="lb" x="458" y="294">orbit-kb and orbit (the tool)</text></g>
+<g data-box="tag:part:orbit_tool|writes|writes:orbit_tool:spec" data-in="part:orbit_tool"><rect class="tg writes" x="454" y="302" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="316">writes: spec</text>
+</g>
+<g data-box="part:repo_map" data-in="group:orbit-kb"><rect class="part" x="448" y="336" width="378" height="24" rx="3"/><text class="lb" x="458" y="352">repo-map</text></g>
+<g data-box="part:core_pl" data-in="group:orbit-kb"><rect class="part" x="448" y="366" width="378" height="24" rx="3"/><text class="lb" x="458" y="382">core.pl (record kinds, verdict rules)</text></g>
+<g data-box="part:kb_modules" data-in="group:orbit-kb"><rect class="part" x="448" y="396" width="378" height="52" rx="3"/><text class="lb" x="458" y="412">modules build, discovery, project</text></g>
+<g data-box="tag:part:kb_modules|writes|writes:kb_modules:project" data-in="part:kb_modules"><rect class="tg writes" x="454" y="420" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="434">writes: project</text>
+</g>
+<g data-box="part:desk_page" data-in="group:orbit-kb"><rect class="part" x="448" y="454" width="378" height="52" rx="3"/><text class="lb" x="458" y="470">the Desk page (desk.js, desk.css)</text></g>
+<g data-box="tag:part:desk_page|writes|writes:desk_page:spec" data-in="part:desk_page"><rect class="tg writes" x="454" y="478" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="492">writes: spec</text>
+</g>
+<g data-box="group:system-1"><rect class="grp" x="856" y="56" width="398" height="466" rx="6"/><text class="lb" x="866" y="75">system-1 (module)</text></g>
+<g data-box="tag:group:system-1|install|install:system-1:~/.claude/sagittarius-s1" data-in="group:system-1"><rect class="tg install" x="866" y="86" width="378" height="22" rx="2"/>
+<text class="sm tt" x="872" y="100">installs: ~/.claude/sagittarius-s1</text>
+</g>
+<g data-box="part:covers:s1" data-in="group:system-1"><rect class="part" x="866" y="114" width="378" height="24" rx="3"/><text class="lb" x="876" y="130">s1/ (covers)</text></g>
+<g data-box="part:s1_record" data-in="group:system-1"><rect class="part" x="866" y="144" width="378" height="24" rx="3"/><text class="lb" x="876" y="160">System 1 record and proposals</text></g>
+<g data-box="part:s1_client" data-in="group:system-1"><rect class="part" x="866" y="174" width="378" height="24" rx="3"/><text class="lb" x="876" y="190">System 1 client of the model</text></g>
+<g data-box="group:mindhole-kit"><rect class="grp" x="20" y="542" width="398" height="356" rx="6"/><text class="lb" x="30" y="561">mindhole-kit (module)</text></g>
+<g data-box="tag:group:mindhole-kit|install|install:mindhole-kit:hub-engine" data-in="group:mindhole-kit"><rect class="tg install" x="30" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="586">installs: the engine files and owned files, in a hub</text>
+</g>
+<g data-box="tag:group:mindhole-kit|install|install:mindhole-kit:hub-orbit-kb" data-in="group:mindhole-kit"><rect class="tg install" x="30" y="598" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="612">installs: a copy of orbit-kb, in a hub</text>
+</g>
+<g data-box="tag:group:mindhole-kit|creates|creates:mindhole-kit:ledger,creates:mindhole-kit:memory,creates:mindhole-kit:weeks" data-in="group:mindhole-kit"><rect class="tg creates" x="30" y="624" width="378" height="22" rx="2"/>
+<text class="sm tt" x="36" y="638">creates: ledger, memory, weeks</text>
+</g>
+<g data-box="part:covers:hubkit" data-in="group:mindhole-kit"><rect class="part" x="30" y="652" width="378" height="24" rx="3"/><text class="lb" x="40" y="668">hubkit/ (covers)</text></g>
+<g data-box="part:hub_template" data-in="group:mindhole-kit"><rect class="part" x="30" y="682" width="378" height="24" rx="3"/><text class="lb" x="40" y="698">the hub template (hubkit/hub)</text></g>
+<g data-box="part:ledger_engine" data-in="group:mindhole-kit"><rect class="part" x="30" y="712" width="378" height="52" rx="3"/><text class="lb" x="40" y="728">the ledger engine (hubflow.py)</text></g>
+<g data-box="tag:part:ledger_engine|writes|writes:ledger_engine:ledger" data-in="part:ledger_engine"><rect class="tg writes" x="36" y="736" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="750">writes: ledger</text>
+</g>
+<g data-box="part:desk_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="770" width="378" height="24" rx="3"/><text class="lb" x="40" y="786">the Desk letters (desk.py)</text></g>
+<g data-box="part:store_map" data-in="group:mindhole-kit"><rect class="part" x="30" y="800" width="378" height="24" rx="3"/><text class="lb" x="40" y="816">the store map (store-facts.json)</text></g>
+<g data-box="part:hubkit_py" data-in="group:mindhole-kit"><rect class="part" x="30" y="830" width="378" height="52" rx="3"/><text class="lb" x="40" y="846">install and upgrade (hubkit.py)</text></g>
+<g data-box="tag:part:hubkit_py|writes|writes:hubkit_py:memory" data-in="part:hubkit_py"><rect class="tg writes" x="36" y="854" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="868">writes: memory</text>
+</g>
+<g data-box="group:s1-glance"><rect class="grp" x="438" y="542" width="398" height="356" rx="6"/><text class="lb" x="448" y="561">s1-glance (module)</text></g>
+<g data-box="tag:group:s1-glance|install|install:s1-glance:~/.claude/skills/s1-glance" data-in="group:s1-glance"><rect class="tg install" x="448" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="454" y="586">installs: ~/.claude/skills/s1-glance</text>
+</g>
+<g data-box="part:covers:s1/glance" data-in="group:s1-glance"><rect class="part" x="448" y="600" width="378" height="24" rx="3"/><text class="lb" x="458" y="616">s1/glance/ (covers)</text></g>
+<g data-box="part:s1_glance" data-in="group:s1-glance"><rect class="part" x="448" y="630" width="378" height="24" rx="3"/><text class="lb" x="458" y="646">s1-glance skill</text></g>
+<g data-box="group:desk-toast"><rect class="grp" x="856" y="542" width="398" height="356" rx="6"/><text class="lb" x="866" y="561">desk-toast (module)</text></g>
+<g data-box="tag:group:desk-toast|install|install:desk-toast:~/.claude/skills/desk-toast" data-in="group:desk-toast"><rect class="tg install" x="866" y="572" width="378" height="22" rx="2"/>
+<text class="sm tt" x="872" y="586">installs: ~/.claude/skills/desk-toast</text>
+</g>
+<g data-box="part:covers:hubkit/hub/.claude/scripts/desk-toast" data-in="group:desk-toast"><rect class="part" x="866" y="600" width="378" height="24" rx="3"/><text class="lb" x="876" y="616">hubkit/hub/.claude/scripts/desk-toast/ (covers)</text></g>
+<g data-box="part:desk_toast" data-in="group:desk-toast"><rect class="part" x="866" y="630" width="378" height="24" rx="3"/><text class="lb" x="876" y="646">desk-toast plugin</text></g>
+<text x="20" y="948" class="h">Outside the repo</text>
+<g data-box="outside:mindhole_stores"><rect class="grp out" x="20" y="960" width="1234" height="282" rx="6"/><text class="lb" x="30" y="979">a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json</text></g>
+<g data-box="tag:outside:mindhole_stores|install|install:mindhole-kit:hub-engine,install:mindhole-kit:hub-orbit-kb" data-in="outside:mindhole_stores"><rect class="tg install" x="30" y="990" width="1214" height="22" rx="2"/>
+<text class="sm tt" x="36" y="1004">installed by: mindhole-kit</text>
+</g>
+<g data-box="store:spec" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1018" width="378" height="94" rx="3"/><text class="lb" x="40" y="1034">store spec</text></g>
+<g data-box="tag:store:spec|creates|creates:orbit-kb:spec" data-in="store:spec"><rect class="tg creates" x="36" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1056">created by: orbit-kb</text>
+</g>
+<g data-box="tag:store:spec|writes|writes:orbit_tool:spec,writes:desk_page:spec" data-in="store:spec"><rect class="tg writes" x="36" y="1068" width="366" height="38" rx="2"/>
+<text class="sm tt" x="42" y="1082">written by: orbit-kb and orbit (the tool), the Desk</text>
+<text class="sm tt" x="42" y="1098">page (desk.js, desk.css)</text>
+</g>
+<g data-box="store:project" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="1018" width="378" height="78" rx="3"/><text class="lb" x="458" y="1034">store project</text></g>
+<g data-box="tag:store:project|creates|creates:orbit-kb:project" data-in="store:project"><rect class="tg creates" x="454" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1056">created by: orbit-kb</text>
+</g>
+<g data-box="tag:store:project|writes|writes:kb_modules:project" data-in="store:project"><rect class="tg writes" x="454" y="1068" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1082">written by: modules build, discovery, project</text>
+</g>
+<g data-box="store:ledger" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="1018" width="378" height="78" rx="3"/><text class="lb" x="876" y="1034">store ledger</text></g>
+<g data-box="tag:store:ledger|creates|creates:mindhole-kit:ledger" data-in="store:ledger"><rect class="tg creates" x="872" y="1042" width="366" height="22" rx="2"/>
+<text class="sm tt" x="878" y="1056">created by: mindhole-kit</text>
+</g>
+<g data-box="tag:store:ledger|writes|writes:ledger_engine:ledger" data-in="store:ledger"><rect class="tg writes" x="872" y="1068" width="366" height="22" rx="2"/>
+<text class="sm tt" x="878" y="1082">written by: the ledger engine (hubflow.py)</text>
+</g>
+<g data-box="store:memory" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1118" width="378" height="78" rx="3"/><text class="lb" x="40" y="1134">store memory</text></g>
+<g data-box="tag:store:memory|creates|creates:mindhole-kit:memory" data-in="store:memory"><rect class="tg creates" x="36" y="1142" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1156">created by: mindhole-kit</text>
+</g>
+<g data-box="tag:store:memory|writes|writes:hubkit_py:memory" data-in="store:memory"><rect class="tg writes" x="36" y="1168" width="366" height="22" rx="2"/>
+<text class="sm tt" x="42" y="1182">written by: install and upgrade (hubkit.py)</text>
+</g>
+<g data-box="store:weeks" data-in="outside:mindhole_stores"><rect class="part store" x="448" y="1118" width="378" height="52" rx="3"/><text class="lb" x="458" y="1134">store weeks</text></g>
+<g data-box="tag:store:weeks|creates|creates:mindhole-kit:weeks" data-in="store:weeks"><rect class="tg creates" x="454" y="1142" width="366" height="22" rx="2"/>
+<text class="sm tt" x="460" y="1156">created by: mindhole-kit</text>
+</g>
+<g data-box="store:bespoke" data-in="outside:mindhole_stores"><rect class="part store" x="866" y="1118" width="378" height="24" rx="3"/><text class="lb" x="876" y="1134">store bespoke</text></g>
+<g data-box="store:tracker" data-in="outside:mindhole_stores"><rect class="part store" x="30" y="1202" width="378" height="24" rx="3"/><text class="lb" x="40" y="1218">store tracker</text></g>
+<g data-box="outside:install_links"><rect class="ext" x="20" y="1262" width="398" height="68" rx="3"/><text class="lb" x="30" y="1278">install links in ~ (~/.claude, ~/.local)</text></g>
+<g data-box="tag:outside:install_links|install|install:sagittarius:~/.claude/sagittarius,install:orbit-kb:~/.local/bin/orbit-kb,install:orbit-kb:~/.local/bin/orbit,install:orbit-kb:~/.local/bin/repo-map,install:orbit-kb:~/.local/share/orbit-kb,install:system-1:~/.claude/sagittarius-s1,install:s1-glance:~/.claude/skills/s1-glance,install:desk-toast:~/.claude/skills/desk-toast" data-in="outside:install_links"><rect class="tg install" x="26" y="1286" width="386" height="38" rx="2"/>
+<text class="sm tt" x="32" y="1300">installed by: sagittarius, orbit-kb, system-1,</text>
+<text class="sm tt" x="32" y="1316">s1-glance, desk-toast</text>
+</g>
+<g data-box="outside:sidequest_mindhole"><rect class="ext" x="438" y="1262" width="398" height="24" rx="3"/><text class="lb" x="448" y="1278">sidequest-mindhole (a hub)</text></g>
+<g data-box="outside:hwh_mindhole"><rect class="ext" x="856" y="1262" width="398" height="24" rx="3"/><text class="lb" x="866" y="1278">hwh-mindhole (a hub)</text></g>
+<g data-box="outside:desk_state"><rect class="ext" x="20" y="1336" width="398" height="24" rx="3"/><text class="lb" x="30" y="1352">Desk state (letters, drafts)</text></g>
+<g data-box="outside:gitea"><rect class="ext" x="438" y="1336" width="398" height="24" rx="3"/><text class="lb" x="448" y="1352">Gitea ty/sagittarius (origin)</text></g>
+<g data-box="outside:github"><rect class="ext" x="856" y="1336" width="398" height="24" rx="3"/><text class="lb" x="866" y="1352">GitHub theTyster/sagittarius</text></g>
+<g data-box="outside:s1_model"><rect class="ext" x="20" y="1366" width="398" height="24" rx="3"/><text class="lb" x="30" y="1382">the System 1 model</text></g>
+<g data-box="outside:claude_code"><rect class="ext" x="438" y="1366" width="398" height="24" rx="3"/><text class="lb" x="448" y="1382">Claude Code (runs sessions, hooks)</text></g>
+<text x="20" y="1414" class="h">Tags</text>
+<rect class="tg install" x="70" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="96" y="1414">installs, installed by (a link in ~, or a hub)</text>
+<rect class="tg creates" x="470" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="496" y="1414">creates, created by (a store)</text>
+<rect class="tg writes" x="741" y="1404" width="18" height="12" rx="2"/>
+<text class="lb" x="767" y="1414">writes, written by (a store)</text>
 </svg></div>
 </section>
 <section id="v-flow">
 <h2>Flow view</h2>
 <p>One row for each step, in the order of time. An arrow goes from the part that acts to the part it writes or reads. A red mark names a step where the store map (store-facts.json) names another owner than the code writes to.</p>
-<div class="frame"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="1032" height="3600" viewBox="0 0 1032 3600" role="img" aria-label="Flow view">
+<div class="frame flow-wide"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="1032" height="3600" viewBox="0 0 1032 3600" role="img" aria-label="Flow view">
 <text x="20" y="34" class="h">The flow of the records over time</text>
 <text x="20" y="54" class="sm">One row for each step, top to bottom: what happens, then the arrow.</text>
 <line class="life" x1="79" y1="126" x2="79" y2="828"/>
@@ -508,10 +605,461 @@ code { font-size: 12px; }
 <text class="lb" x="20" y="3554">human is an experiment of the goal, with its own verdict (the step experiment/3, verdict/2 of the judgment).</text>
 <text class="lb" x="20" y="3572">A Desk write goes through a queue: the Desk appends to answers.pending, and apply-pending writes kb.pl.</text>
 </svg></div>
+<div class="frame flow-narrow"><svg id="flow-narrow" xmlns="http://www.w3.org/2000/svg" width="346" height="3794" viewBox="0 0 346 3794" role="img" aria-label="Flow view, narrow">
+<text x="10" y="24" class="h">The flow of the records over time</text>
+<text x="10" y="44" class="sm">One row for each step, top to bottom: what</text>
+<line class="life" x1="28" y1="250" x2="28" y2="952"/>
+<line class="life" x1="69" y1="250" x2="69" y2="952"/>
+<line class="life" x1="110" y1="250" x2="110" y2="952"/>
+<line class="life" x1="151" y1="250" x2="151" y2="952"/>
+<line class="life" x1="192" y1="250" x2="192" y2="952"/>
+<line class="life" x1="233" y1="250" x2="233" y2="952"/>
+<line class="life" x1="274" y1="250" x2="274" y2="952"/>
+<line class="life" x1="315" y1="250" x2="315" y2="952"/>
+<line class="life" x1="28" y1="982" x2="28" y2="1704"/>
+<line class="life" x1="69" y1="982" x2="69" y2="1704"/>
+<line class="life" x1="110" y1="982" x2="110" y2="1704"/>
+<line class="life" x1="151" y1="982" x2="151" y2="1704"/>
+<line class="life" x1="192" y1="982" x2="192" y2="1704"/>
+<line class="life" x1="233" y1="982" x2="233" y2="1704"/>
+<line class="life" x1="274" y1="982" x2="274" y2="1704"/>
+<line class="life" x1="315" y1="982" x2="315" y2="1704"/>
+<line class="life" x1="28" y1="1734" x2="28" y2="2404"/>
+<line class="life" x1="69" y1="1734" x2="69" y2="2404"/>
+<line class="life" x1="110" y1="1734" x2="110" y2="2404"/>
+<line class="life" x1="151" y1="1734" x2="151" y2="2404"/>
+<line class="life" x1="192" y1="1734" x2="192" y2="2404"/>
+<line class="life" x1="233" y1="1734" x2="233" y2="2404"/>
+<line class="life" x1="274" y1="1734" x2="274" y2="2404"/>
+<line class="life" x1="315" y1="1734" x2="315" y2="2404"/>
+<line class="life" x1="28" y1="2434" x2="28" y2="3176"/>
+<line class="life" x1="69" y1="2434" x2="69" y2="3176"/>
+<line class="life" x1="110" y1="2434" x2="110" y2="3176"/>
+<line class="life" x1="151" y1="2434" x2="151" y2="3176"/>
+<line class="life" x1="192" y1="2434" x2="192" y2="3176"/>
+<line class="life" x1="233" y1="2434" x2="233" y2="3176"/>
+<line class="life" x1="274" y1="2434" x2="274" y2="3176"/>
+<line class="life" x1="315" y1="2434" x2="315" y2="3176"/>
+<line class="life" x1="28" y1="3206" x2="28" y2="3522"/>
+<line class="life" x1="69" y1="3206" x2="69" y2="3522"/>
+<line class="life" x1="110" y1="3206" x2="110" y2="3522"/>
+<line class="life" x1="151" y1="3206" x2="151" y2="3522"/>
+<line class="life" x1="192" y1="3206" x2="192" y2="3522"/>
+<line class="life" x1="233" y1="3206" x2="233" y2="3522"/>
+<line class="life" x1="274" y1="3206" x2="274" y2="3522"/>
+<line class="life" x1="315" y1="3206" x2="315" y2="3522"/>
+<text x="10" y="60" class="sm">happens, then the arrow.</text>
+<text class="lb" x="10" y="82">1 the human (Ty) (outside)</text>
+<text class="lb" x="10" y="100">2 a session (the prompt) (sagittarius)</text>
+<text class="lb" x="10" y="118">3 the orbit tool (orbit-kb)</text>
+<text class="lb" x="10" y="136">4 the spec KB (kb.pl) (orbit-kb)</text>
+<text class="lb" x="10" y="154">5 the ledger (flow.db) (mindhole-kit)</text>
+<text class="lb" x="10" y="172">6 the Desk (orbit-kb)</text>
+<text class="lb" x="10" y="190">7 System 1 (system-1)</text>
+<text class="lb" x="10" y="208">8 the tracker (outside)</text>
+<g data-box="lane:human"><rect class="lane" x="10" y="220" width="37" height="30" rx="4"/><text class="lb" x="24" y="239">1</text></g>
+<g data-box="lane:session"><rect class="lane" x="51" y="220" width="37" height="30" rx="4"/><text class="lb" x="65" y="239">2</text></g>
+<g data-box="lane:tool"><rect class="lane" x="92" y="220" width="37" height="30" rx="4"/><text class="lb" x="106" y="239">3</text></g>
+<g data-box="lane:speckb"><rect class="lane" x="133" y="220" width="37" height="30" rx="4"/><text class="lb" x="147" y="239">4</text></g>
+<g data-box="lane:ledger"><rect class="lane" x="174" y="220" width="37" height="30" rx="4"/><text class="lb" x="188" y="239">5</text></g>
+<g data-box="lane:desk"><rect class="lane" x="215" y="220" width="37" height="30" rx="4"/><text class="lb" x="229" y="239">6</text></g>
+<g data-box="lane:s1"><rect class="lane" x="256" y="220" width="37" height="30" rx="4"/><text class="lb" x="270" y="239">7</text></g>
+<g data-box="lane:tracker"><rect class="lane" x="297" y="220" width="37" height="30" rx="4"/><text class="lb" x="311" y="239">8</text></g>
+<g data-step="s01"><rect class="row" x="10" y="258" width="326" height="64"/>
+<text class="lb" data-label="s01" x="20" y="274">s01 request: states the request in a</text>
+<text class="lb" data-label="s01" x="50" y="292">session</text>
+<line class="ar c" x1="28" y1="311" x2="62" y2="311"/>
+<path class="hd c" d="M69 311 L61 306 L61 316 Z"/>
+<circle class="dot" cx="28" cy="311" r="3"/>
+</g>
+<g data-step="s02"><rect class="row" x="10" y="326" width="326" height="64"/>
+<text class="lb" data-label="s02" x="20" y="342">s02 request: the session reads the</text>
+<text class="lb" data-label="s02" x="50" y="360">ticket and saves its text to a file</text>
+<line class="ar c" x1="315" y1="379" x2="76" y2="379"/>
+<path class="hd c" d="M69 379 L77 374 L77 384 Z"/>
+<circle class="dot" cx="315" cy="379" r="3"/>
+</g>
+<g data-step="s03"><rect class="row" x="10" y="394" width="326" height="64"/>
+<text class="lb" data-label="s03" x="20" y="410">s03 request: orbit pin-request:</text>
+<text class="lb" data-label="s03" x="50" y="428">request_pin/4, request_accepted/3</text>
+<line class="ar w" x1="110" y1="447" x2="144" y2="447"/>
+<path class="hd w" d="M151 447 L143 442 L143 452 Z"/>
+<circle class="dot" cx="110" cy="447" r="3"/>
+</g>
+<g data-step="s04"><rect class="row" x="10" y="462" width="326" height="80"/>
+<text class="lb" data-label="s04" x="20" y="478">s04 request: orbit init: the first</text>
+<text class="lb" data-label="s04" x="50" y="496">request(R, Text)</text>
+<text class="sm mark" x="20" y="513">! store map: the tracker owns request</text>
+<line class="ar w" x1="110" y1="531" x2="144" y2="531"/>
+<path class="hd w" d="M151 531 L143 526 L143 536 Z"/>
+<circle class="dot" cx="110" cy="531" r="3"/>
+</g>
+<g data-step="s05"><rect class="row" x="10" y="546" width="326" height="80"/>
+<text class="lb" data-label="s05" x="20" y="562">s05 request: orbit add request: each</text>
+<text class="lb" data-label="s05" x="50" y="580">later request</text>
+<text class="sm mark" x="20" y="597">! store map: the tracker owns request</text>
+<line class="ar w" x1="110" y1="615" x2="144" y2="615"/>
+<path class="hd w" d="M151 615 L143 610 L143 620 Z"/>
+<circle class="dot" cx="110" cy="615" r="3"/>
+</g>
+<g data-step="s06"><rect class="row" x="10" y="630" width="326" height="64"/>
+<text class="lb" data-label="s06" x="20" y="646">s06 request: types a new requirement</text>
+<text class="lb" data-label="s06" x="50" y="664">on the Desk</text>
+<line class="ar c" x1="28" y1="683" x2="226" y2="683"/>
+<path class="hd c" d="M233 683 L225 678 L225 688 Z"/>
+<circle class="dot" cx="28" cy="683" r="3"/>
+</g>
+<g data-step="s07"><rect class="row" x="10" y="698" width="326" height="64"/>
+<text class="lb" data-label="s07" x="20" y="714">s07 request: desk_intake: a ledger</text>
+<text class="lb" data-label="s07" x="50" y="732">thread for review</text>
+<line class="ar w" x1="233" y1="751" x2="199" y2="751"/>
+<path class="hd w" d="M192 751 L200 746 L200 756 Z"/>
+<circle class="dot" cx="233" cy="751" r="3"/>
+</g>
+<g data-step="s08"><rect class="row" x="10" y="766" width="326" height="46"/>
+<text class="lb" data-label="s08" x="20" y="782">s08 goal: orbit add goal: goal/4</text>
+<line class="ar w" x1="110" y1="801" x2="144" y2="801"/>
+<path class="hd w" d="M151 801 L143 796 L143 806 Z"/>
+<circle class="dot" cx="110" cy="801" r="3"/>
+</g>
+<g data-step="s09"><rect class="row" x="10" y="816" width="326" height="64"/>
+<text class="lb" data-label="s09" x="20" y="832">s09 hypothesis: orbit add</text>
+<text class="lb" data-label="s09" x="50" y="850">hypothesis: hypothesis/4</text>
+<line class="ar w" x1="110" y1="869" x2="144" y2="869"/>
+<path class="hd w" d="M151 869 L143 864 L143 874 Z"/>
+<circle class="dot" cx="110" cy="869" r="3"/>
+</g>
+<g data-step="s10"><rect class="row" x="10" y="884" width="326" height="64"/>
+<text class="lb" data-label="s10" x="20" y="900">s10 premise: orbit add premise:</text>
+<text class="lb" data-label="s10" x="50" y="918">premise/3</text>
+<line class="ar w" x1="110" y1="937" x2="144" y2="937"/>
+<path class="hd w" d="M151 937 L143 932 L143 942 Z"/>
+<circle class="dot" cx="110" cy="937" r="3"/>
+</g>
+<g data-box="lane:human"><rect class="lane" x="10" y="952" width="37" height="30" rx="4"/><text class="lb" x="24" y="971">1</text></g>
+<g data-box="lane:session"><rect class="lane" x="51" y="952" width="37" height="30" rx="4"/><text class="lb" x="65" y="971">2</text></g>
+<g data-box="lane:tool"><rect class="lane" x="92" y="952" width="37" height="30" rx="4"/><text class="lb" x="106" y="971">3</text></g>
+<g data-box="lane:speckb"><rect class="lane" x="133" y="952" width="37" height="30" rx="4"/><text class="lb" x="147" y="971">4</text></g>
+<g data-box="lane:ledger"><rect class="lane" x="174" y="952" width="37" height="30" rx="4"/><text class="lb" x="188" y="971">5</text></g>
+<g data-box="lane:desk"><rect class="lane" x="215" y="952" width="37" height="30" rx="4"/><text class="lb" x="229" y="971">6</text></g>
+<g data-box="lane:s1"><rect class="lane" x="256" y="952" width="37" height="30" rx="4"/><text class="lb" x="270" y="971">7</text></g>
+<g data-box="lane:tracker"><rect class="lane" x="297" y="952" width="37" height="30" rx="4"/><text class="lb" x="311" y="971">8</text></g>
+<g data-step="s11"><rect class="row" x="10" y="990" width="326" height="64"/>
+<text class="lb" data-label="s11" x="20" y="1006">s11 question: orbit add question:</text>
+<text class="lb" data-label="s11" x="50" y="1024">question/3, option/3</text>
+<line class="ar w" x1="110" y1="1043" x2="144" y2="1043"/>
+<path class="hd w" d="M151 1043 L143 1038 L143 1048 Z"/>
+<circle class="dot" cx="110" cy="1043" r="3"/>
+</g>
+<g data-step="s12"><rect class="row" x="10" y="1058" width="326" height="64"/>
+<text class="lb" data-label="s12" x="20" y="1074">s12 question: the Desk shows open</text>
+<text class="lb" data-label="s12" x="50" y="1092">questions</text>
+<line class="ar r" x1="151" y1="1111" x2="226" y2="1111"/>
+<path class="hd r" d="M233 1111 L225 1106 L225 1116 Z"/>
+<circle class="dot" cx="151" cy="1111" r="3"/>
+</g>
+<g data-step="s13"><rect class="row" x="10" y="1126" width="326" height="46"/>
+<text class="lb" data-label="s13" x="20" y="1142">s13 answer: answers: POST /answer</text>
+<line class="ar c" x1="28" y1="1161" x2="226" y2="1161"/>
+<path class="hd c" d="M233 1161 L225 1156 L225 1166 Z"/>
+<circle class="dot" cx="28" cy="1161" r="3"/>
+</g>
+<g data-step="s14"><rect class="row" x="10" y="1176" width="326" height="64"/>
+<text class="lb" data-label="s14" x="20" y="1192">s14 answer: serve_write: queue</text>
+<text class="lb" data-label="s14" x="50" y="1210">answer/3 in answers.pending</text>
+<line class="ar w" x1="233" y1="1229" x2="158" y2="1229"/>
+<path class="hd w" d="M151 1229 L159 1224 L159 1234 Z"/>
+<circle class="dot" cx="233" cy="1229" r="3"/>
+</g>
+<g data-step="s15"><rect class="row" x="10" y="1244" width="326" height="64"/>
+<text class="lb" data-label="s15" x="20" y="1260">s15 answer: apply-pending (a child):</text>
+<text class="lb" data-label="s15" x="50" y="1278">answer/3 into kb.pl</text>
+<line class="ar w" x1="110" y1="1297" x2="144" y2="1297"/>
+<path class="hd w" d="M151 1297 L143 1292 L143 1302 Z"/>
+<circle class="dot" cx="110" cy="1297" r="3"/>
+</g>
+<g data-step="s16"><rect class="row" x="10" y="1312" width="326" height="82"/>
+<text class="lb" data-label="s16" x="20" y="1328">s16 answer/question: a question that</text>
+<text class="lb" data-label="s16" x="50" y="1346">a ledger ask owns: close the ask</text>
+<text class="lb" data-label="s16" x="50" y="1364">(and answer_pin/4)</text>
+<line class="ar w" x1="233" y1="1383" x2="199" y2="1383"/>
+<path class="hd w" d="M192 1383 L200 1378 L200 1388 Z"/>
+<circle class="dot" cx="233" cy="1383" r="3"/>
+</g>
+<g data-step="s17"><rect class="row" x="10" y="1398" width="326" height="64"/>
+<text class="lb" data-label="s17" x="20" y="1414">s17 claim: orbit add claim: claim/3,</text>
+<text class="lb" data-label="s17" x="50" y="1432">example/2</text>
+<line class="ar w" x1="110" y1="1451" x2="144" y2="1451"/>
+<path class="hd w" d="M151 1451 L143 1446 L143 1456 Z"/>
+<circle class="dot" cx="110" cy="1451" r="3"/>
+</g>
+<g data-step="s18"><rect class="row" x="10" y="1466" width="326" height="80"/>
+<text class="lb" data-label="s18" x="20" y="1482">s18 check: orbit add check: check/2,</text>
+<text class="lb" data-label="s18" x="50" y="1500">procedure/2</text>
+<text class="sm mark" x="20" y="1517">! store map: the tracker owns checks</text>
+<line class="ar w" x1="110" y1="1535" x2="144" y2="1535"/>
+<path class="hd w" d="M151 1535 L143 1530 L143 1540 Z"/>
+<circle class="dot" cx="110" cy="1535" r="3"/>
+</g>
+<g data-step="s19"><rect class="row" x="10" y="1550" width="326" height="82"/>
+<text class="lb" data-label="s19" x="20" y="1566">s19 goal/hypothesis/claim/question:</text>
+<text class="lb" data-label="s19" x="50" y="1584">orbit s1-record --json: also open</text>
+<text class="lb" data-label="s19" x="50" y="1602">questions, project goals</text>
+<line class="ar r" x1="151" y1="1621" x2="267" y2="1621"/>
+<path class="hd r" d="M274 1621 L266 1616 L266 1626 Z"/>
+<circle class="dot" cx="151" cy="1621" r="3"/>
+</g>
+<g data-step="s20"><rect class="row" x="10" y="1636" width="326" height="64"/>
+<text class="lb" data-label="s20" x="20" y="1652">s20 proposal: orbit propose --from</text>
+<text class="lb" data-label="s20" x="50" y="1670">system1: proposed/4</text>
+<line class="ar w" x1="274" y1="1689" x2="158" y2="1689"/>
+<path class="hd w" d="M151 1689 L159 1684 L159 1694 Z"/>
+<circle class="dot" cx="274" cy="1689" r="3"/>
+</g>
+<g data-box="lane:human"><rect class="lane" x="10" y="1704" width="37" height="30" rx="4"/><text class="lb" x="24" y="1723">1</text></g>
+<g data-box="lane:session"><rect class="lane" x="51" y="1704" width="37" height="30" rx="4"/><text class="lb" x="65" y="1723">2</text></g>
+<g data-box="lane:tool"><rect class="lane" x="92" y="1704" width="37" height="30" rx="4"/><text class="lb" x="106" y="1723">3</text></g>
+<g data-box="lane:speckb"><rect class="lane" x="133" y="1704" width="37" height="30" rx="4"/><text class="lb" x="147" y="1723">4</text></g>
+<g data-box="lane:ledger"><rect class="lane" x="174" y="1704" width="37" height="30" rx="4"/><text class="lb" x="188" y="1723">5</text></g>
+<g data-box="lane:desk"><rect class="lane" x="215" y="1704" width="37" height="30" rx="4"/><text class="lb" x="229" y="1723">6</text></g>
+<g data-box="lane:s1"><rect class="lane" x="256" y="1704" width="37" height="30" rx="4"/><text class="lb" x="270" y="1723">7</text></g>
+<g data-box="lane:tracker"><rect class="lane" x="297" y="1704" width="37" height="30" rx="4"/><text class="lb" x="311" y="1723">8</text></g>
+<g data-step="s21"><rect class="row" x="10" y="1742" width="326" height="64"/>
+<text class="lb" data-label="s21" x="20" y="1758">s21 proposal: the hook: one line of</text>
+<text class="lb" data-label="s21" x="50" y="1776">additionalContext</text>
+<line class="ar c" x1="274" y1="1795" x2="76" y2="1795"/>
+<path class="hd c" d="M69 1795 L77 1790 L77 1800 Z"/>
+<circle class="dot" cx="274" cy="1795" r="3"/>
+</g>
+<g data-step="s22"><rect class="row" x="10" y="1810" width="326" height="64"/>
+<text class="lb" data-label="s22" x="20" y="1826">s22 proposal: stop hook: a revision</text>
+<text class="lb" data-label="s22" x="50" y="1844">proposed as a note</text>
+<line class="ar w" x1="274" y1="1863" x2="158" y2="1863"/>
+<path class="hd w" d="M151 1863 L159 1858 L159 1868 Z"/>
+<circle class="dot" cx="274" cy="1863" r="3"/>
+</g>
+<g data-step="s23"><rect class="row" x="10" y="1878" width="326" height="82"/>
+<text class="lb" data-label="s23" x="20" y="1894">s23 proposal: orbit confirm-</text>
+<text class="lb" data-label="s23" x="50" y="1912">proposal: the proposal becomes a</text>
+<text class="lb" data-label="s23" x="50" y="1930">record</text>
+<line class="ar w" x1="110" y1="1949" x2="144" y2="1949"/>
+<path class="hd w" d="M151 1949 L143 1944 L143 1954 Z"/>
+<circle class="dot" cx="110" cy="1949" r="3"/>
+</g>
+<g data-step="s24"><rect class="row" x="10" y="1964" width="326" height="46"/>
+<text class="lb" data-label="s24" x="20" y="1980">s24 vote: votes GO, NO-GO or HOLD</text>
+<line class="ar c" x1="28" y1="1999" x2="226" y2="1999"/>
+<path class="hd c" d="M233 1999 L225 1994 L225 2004 Z"/>
+<circle class="dot" cx="28" cy="1999" r="3"/>
+</g>
+<g data-step="s25"><rect class="row" x="10" y="2014" width="326" height="64"/>
+<text class="lb" data-label="s25" x="20" y="2030">s25 vote/letter: a letter</text>
+<text class="lb" data-label="s25" x="50" y="2048">(letters.jsonl), given by the hook</text>
+<line class="ar c" x1="233" y1="2067" x2="76" y2="2067"/>
+<path class="hd c" d="M69 2067 L77 2062 L77 2072 Z"/>
+<circle class="dot" cx="233" cy="2067" r="3"/>
+</g>
+<g data-step="s26"><rect class="row" x="10" y="2082" width="326" height="64"/>
+<text class="lb" data-label="s26" x="20" y="2098">s26 vote: orbit attest: vote (by</text>
+<text class="lb" data-label="s26" x="50" y="2116">human or agent)</text>
+<line class="ar w" x1="110" y1="2135" x2="144" y2="2135"/>
+<path class="hd w" d="M151 2135 L143 2130 L143 2140 Z"/>
+<circle class="dot" cx="110" cy="2135" r="3"/>
+</g>
+<g data-step="s27"><rect class="row" x="10" y="2150" width="326" height="64"/>
+<text class="lb" data-label="s27" x="20" y="2166">s27 handoff: orbit hub ledger</text>
+<text class="lb" data-label="s27" x="50" y="2184">handoff</text>
+<line class="ar w" x1="69" y1="2203" x2="185" y2="2203"/>
+<path class="hd w" d="M192 2203 L184 2198 L184 2208 Z"/>
+<circle class="dot" cx="69" cy="2203" r="3"/>
+</g>
+<g data-step="s28"><rect class="row" x="10" y="2218" width="326" height="46"/>
+<text class="lb" data-label="s28" x="20" y="2234">s28 handoff: inbox (v_inbox)</text>
+<line class="ar r" x1="192" y1="2253" x2="76" y2="2253"/>
+<path class="hd r" d="M69 2253 L77 2248 L77 2258 Z"/>
+<circle class="dot" cx="192" cy="2253" r="3"/>
+</g>
+<g data-step="s29"><rect class="row" x="10" y="2268" width="326" height="64"/>
+<text class="lb" data-label="s29" x="20" y="2284">s29 handoff: orbit hub ledger</text>
+<text class="lb" data-label="s29" x="50" y="2302">accept: accepted_at</text>
+<line class="ar w" x1="69" y1="2321" x2="185" y2="2321"/>
+<path class="hd w" d="M192 2321 L184 2316 L184 2326 Z"/>
+<circle class="dot" cx="69" cy="2321" r="3"/>
+</g>
+<g data-step="s30"><rect class="row" x="10" y="2336" width="326" height="64"/>
+<text class="lb" data-label="s30" x="20" y="2352">s30 adoption: adopts a hypothesis on</text>
+<text class="lb" data-label="s30" x="50" y="2370">the Desk</text>
+<line class="ar c" x1="28" y1="2389" x2="226" y2="2389"/>
+<path class="hd c" d="M233 2389 L225 2384 L225 2394 Z"/>
+<circle class="dot" cx="28" cy="2389" r="3"/>
+</g>
+<g data-box="lane:human"><rect class="lane" x="10" y="2404" width="37" height="30" rx="4"/><text class="lb" x="24" y="2423">1</text></g>
+<g data-box="lane:session"><rect class="lane" x="51" y="2404" width="37" height="30" rx="4"/><text class="lb" x="65" y="2423">2</text></g>
+<g data-box="lane:tool"><rect class="lane" x="92" y="2404" width="37" height="30" rx="4"/><text class="lb" x="106" y="2423">3</text></g>
+<g data-box="lane:speckb"><rect class="lane" x="133" y="2404" width="37" height="30" rx="4"/><text class="lb" x="147" y="2423">4</text></g>
+<g data-box="lane:ledger"><rect class="lane" x="174" y="2404" width="37" height="30" rx="4"/><text class="lb" x="188" y="2423">5</text></g>
+<g data-box="lane:desk"><rect class="lane" x="215" y="2404" width="37" height="30" rx="4"/><text class="lb" x="229" y="2423">6</text></g>
+<g data-box="lane:s1"><rect class="lane" x="256" y="2404" width="37" height="30" rx="4"/><text class="lb" x="270" y="2423">7</text></g>
+<g data-box="lane:tracker"><rect class="lane" x="297" y="2404" width="37" height="30" rx="4"/><text class="lb" x="311" y="2423">8</text></g>
+<g data-step="s31"><rect class="row" x="10" y="2442" width="326" height="64"/>
+<text class="lb" data-label="s31" x="20" y="2458">s31 adoption: queue: attest adoption</text>
+<text class="lb" data-label="s31" x="50" y="2476">by human (answers.pending)</text>
+<line class="ar w" x1="233" y1="2495" x2="158" y2="2495"/>
+<path class="hd w" d="M151 2495 L159 2490 L159 2500 Z"/>
+<circle class="dot" cx="233" cy="2495" r="3"/>
+</g>
+<g data-step="s32"><rect class="row" x="10" y="2510" width="326" height="64"/>
+<text class="lb" data-label="s32" x="20" y="2526">s32 adoption: apply-pending: the</text>
+<text class="lb" data-label="s32" x="50" y="2544">adoption into kb.pl</text>
+<line class="ar w" x1="110" y1="2563" x2="144" y2="2563"/>
+<path class="hd w" d="M151 2563 L143 2558 L143 2568 Z"/>
+<circle class="dot" cx="110" cy="2563" r="3"/>
+</g>
+<g data-step="s33"><rect class="row" x="10" y="2578" width="326" height="64"/>
+<text class="lb" data-label="s33" x="20" y="2594">s33 adoption: orbit adopt (the</text>
+<text class="lb" data-label="s33" x="50" y="2612">human&#x27;s words)</text>
+<line class="ar w" x1="110" y1="2631" x2="144" y2="2631"/>
+<path class="hd w" d="M151 2631 L143 2626 L143 2636 Z"/>
+<circle class="dot" cx="110" cy="2631" r="3"/>
+</g>
+<g data-step="s34"><rect class="row" x="10" y="2646" width="326" height="64"/>
+<text class="lb" data-label="s34" x="20" y="2662">s34 run: orbit run K -- CMD: attest</text>
+<text class="lb" data-label="s34" x="50" y="2680">test_result</text>
+<line class="ar w" x1="110" y1="2699" x2="144" y2="2699"/>
+<path class="hd w" d="M151 2699 L143 2694 L143 2704 Z"/>
+<circle class="dot" cx="110" cy="2699" r="3"/>
+</g>
+<g data-step="s35"><rect class="row" x="10" y="2714" width="326" height="64"/>
+<text class="lb" data-label="s35" x="20" y="2730">s35 verdict: verdict/2 derived from</text>
+<text class="lb" data-label="s35" x="50" y="2748">each run</text>
+<line class="ar d" x1="151" y1="2767" x2="117" y2="2767"/>
+<path class="hd d" d="M110 2767 L118 2762 L118 2772 Z"/>
+<circle class="dot" cx="151" cy="2767" r="3"/>
+</g>
+<g data-step="s36"><rect class="row" x="10" y="2782" width="326" height="82"/>
+<text class="lb" data-label="s36" x="20" y="2798">s36 request/goal/hypothesis/premise/</text>
+<text class="lb" data-label="s36" x="50" y="2816">claim/question/check/run/verdict:</text>
+<text class="lb" data-label="s36" x="50" y="2834">orbit report, orbit show open</text>
+<line class="ar r" x1="110" y1="2853" x2="76" y2="2853"/>
+<path class="hd r" d="M69 2853 L77 2848 L77 2858 Z"/>
+<circle class="dot" cx="110" cy="2853" r="3"/>
+</g>
+<g data-step="s37"><rect class="row" x="10" y="2868" width="326" height="82"/>
+<text class="lb" data-label="s37" x="20" y="2884">s37 claim/check/run/judgment: query</text>
+<text class="lb" data-label="s37" x="50" y="2902">blocking(X) before an item closes</text>
+<text class="lb" data-label="s37" x="50" y="2920">(goal_unjudged too)</text>
+<line class="ar r" x1="151" y1="2939" x2="185" y2="2939"/>
+<path class="hd r" d="M192 2939 L184 2934 L184 2944 Z"/>
+<circle class="dot" cx="151" cy="2939" r="3"/>
+</g>
+<g data-step="s38"><rect class="row" x="10" y="2954" width="326" height="64"/>
+<text class="lb" data-label="s38" x="20" y="2970">s38 judgment: chooses satisfied or</text>
+<text class="lb" data-label="s38" x="50" y="2988">not satisfied</text>
+<line class="ar c" x1="28" y1="3007" x2="226" y2="3007"/>
+<path class="hd c" d="M233 3007 L225 3002 L225 3012 Z"/>
+<circle class="dot" cx="28" cy="3007" r="3"/>
+</g>
+<g data-step="s39"><rect class="row" x="10" y="3022" width="326" height="82"/>
+<text class="lb" data-label="s39" x="20" y="3038">s39 judgment/letter: POST /send:</text>
+<text class="lb" data-label="s39" x="50" y="3056">letter first, then queue attest</text>
+<text class="lb" data-label="s39" x="50" y="3074">judgment</text>
+<line class="ar w" x1="233" y1="3093" x2="158" y2="3093"/>
+<path class="hd w" d="M151 3093 L159 3088 L159 3098 Z"/>
+<circle class="dot" cx="233" cy="3093" r="3"/>
+</g>
+<g data-step="s40"><rect class="row" x="10" y="3108" width="326" height="64"/>
+<text class="lb" data-label="s40" x="20" y="3124">s40 judgment: apply-pending: the</text>
+<text class="lb" data-label="s40" x="50" y="3142">judgment into kb.pl</text>
+<line class="ar w" x1="110" y1="3161" x2="144" y2="3161"/>
+<path class="hd w" d="M151 3161 L143 3156 L143 3166 Z"/>
+<circle class="dot" cx="110" cy="3161" r="3"/>
+</g>
+<g data-box="lane:human"><rect class="lane" x="10" y="3176" width="37" height="30" rx="4"/><text class="lb" x="24" y="3195">1</text></g>
+<g data-box="lane:session"><rect class="lane" x="51" y="3176" width="37" height="30" rx="4"/><text class="lb" x="65" y="3195">2</text></g>
+<g data-box="lane:tool"><rect class="lane" x="92" y="3176" width="37" height="30" rx="4"/><text class="lb" x="106" y="3195">3</text></g>
+<g data-box="lane:speckb"><rect class="lane" x="133" y="3176" width="37" height="30" rx="4"/><text class="lb" x="147" y="3195">4</text></g>
+<g data-box="lane:ledger"><rect class="lane" x="174" y="3176" width="37" height="30" rx="4"/><text class="lb" x="188" y="3195">5</text></g>
+<g data-box="lane:desk"><rect class="lane" x="215" y="3176" width="37" height="30" rx="4"/><text class="lb" x="229" y="3195">6</text></g>
+<g data-box="lane:s1"><rect class="lane" x="256" y="3176" width="37" height="30" rx="4"/><text class="lb" x="270" y="3195">7</text></g>
+<g data-box="lane:tracker"><rect class="lane" x="297" y="3176" width="37" height="30" rx="4"/><text class="lb" x="311" y="3195">8</text></g>
+<g data-step="s41"><rect class="row" x="10" y="3214" width="326" height="64"/>
+<text class="lb" data-label="s41" x="20" y="3230">s41 judgment: orbit judge (the</text>
+<text class="lb" data-label="s41" x="50" y="3248">human&#x27;s words)</text>
+<line class="ar w" x1="110" y1="3267" x2="144" y2="3267"/>
+<path class="hd w" d="M151 3267 L143 3262 L143 3272 Z"/>
+<circle class="dot" cx="110" cy="3267" r="3"/>
+</g>
+<g data-step="s42"><rect class="row" x="10" y="3282" width="326" height="64"/>
+<text class="lb" data-label="s42" x="20" y="3298">s42 judgment: the Desk shows the</text>
+<text class="lb" data-label="s42" x="50" y="3316">judgments of a goal</text>
+<line class="ar r" x1="151" y1="3335" x2="226" y2="3335"/>
+<path class="hd r" d="M233 3335 L225 3330 L225 3340 Z"/>
+<circle class="dot" cx="151" cy="3335" r="3"/>
+</g>
+<g data-step="s43"><rect class="row" x="10" y="3350" width="326" height="82"/>
+<text class="lb" data-label="s43" x="20" y="3366">s43 judgment/verdict: experiment/3,</text>
+<text class="lb" data-label="s43" x="50" y="3384">verdict/2 of the judgment (an</text>
+<text class="lb" data-label="s43" x="50" y="3402">experiment of the goal)</text>
+<line class="ar d" x1="151" y1="3421" x2="117" y2="3421"/>
+<path class="hd d" d="M110 3421 L118 3416 L118 3426 Z"/>
+<circle class="dot" cx="151" cy="3421" r="3"/>
+</g>
+<g data-step="s44"><rect class="row" x="10" y="3436" width="326" height="82"/>
+<text class="lb" data-label="s44" x="20" y="3452">s44 question/draft: orbit draft:</text>
+<text class="lb" data-label="s44" x="50" y="3470">draft/4 rows (blocking items,</text>
+<text class="lb" data-label="s44" x="50" y="3488">questions); a human sends</text>
+<line class="ar c" x1="110" y1="3507" x2="308" y2="3507"/>
+<path class="hd c" d="M315 3507 L307 3502 L307 3512 Z"/>
+<circle class="dot" cx="110" cy="3507" r="3"/>
+</g>
+<line class="ar w" x1="10" y1="3540" x2="40" y2="3540"/>
+<text class="lb" x="48" y="3544">write</text>
+<line class="ar r" x1="110" y1="3540" x2="140" y2="3540"/>
+<text class="lb" x="148" y="3544">read</text>
+<line class="ar d" x1="203" y1="3540" x2="233" y2="3540"/>
+<text class="lb" x="241" y="3544">derive</text>
+<line class="ar c" x1="311" y1="3540" x2="341" y2="3540"/>
+<text class="lb" x="349" y="3544">carry</text>
+<text class="lb" x="10" y="3568">derive: the tool computes it from the</text>
+<text class="lb" x="10" y="3586">record; carry: words of a person, or a</text>
+<text class="lb" x="10" y="3604">carrier (letter, handoff, proposal).</text>
+<text class="lb" x="10" y="3622">An experiment is a check with its runs:</text>
+<text class="lb" x="10" y="3640">each run (test_result) gives one verdict</text>
+<text class="lb" x="10" y="3658">(meets, conflicts, unresolved). A</text>
+<text class="lb" x="10" y="3676">judgment of the human is an experiment of</text>
+<text class="lb" x="10" y="3694">the goal, with its own verdict (the step</text>
+<text class="lb" x="10" y="3712">experiment/3, verdict/2 of the judgment).</text>
+<text class="lb" x="10" y="3730">A Desk write goes through a queue: the</text>
+<text class="lb" x="10" y="3748">Desk appends to answers.pending, and</text>
+<text class="lb" x="10" y="3766">apply-pending writes kb.pl.</text>
+</svg></div>
 </section>
 <section id="v-sources">
 <h2>What this map does not draw</h2>
-<ul><li>The install link of each module is one box (install links in ~); no line joins a module to its links (MODULES.json installs names them).</li><li>No line joins a store to the lane or part that holds it; the lanes name their store in the flow view.</li><li>orbit report: whether it reads judgments and adoptions was not confirmed (cmd_report names adoption once, judgment never); the s25 arrow does not carry them.</li><li>Questions and answers of a ticket that waits in a ledger ask are drawn once (the Desk closes the ask); the ask itself is not traced.</li></ul>
+<ul><li>The lanes of the flow view have no line to their store; the lanes name it in the flow view.</li><li>A line to a store is drawn only for the modules and parts listed as creating or writing it (module_stores, part_stores in the facts file): a part that only reads a store has none, and a store that no listed part writes (tracker) has none.</li><li>The Desk letters (desk.py) and the Desk state are not a store: they have no line to one.</li><li>orbit report: whether it reads judgments and adoptions was not confirmed (cmd_report names adoption once, judgment never); the s25 arrow does not carry them.</li><li>Questions and answers of a ticket that waits in a ledger ask are drawn once (the Desk closes the ask); the ask itself is not traced.</li></ul>
+<h2>Sources of the lines of the groups view</h2>
+<div class="tw"><table><tr><th>line</th><th>kind</th><th>from</th><th>to</th><th>what</th><th>sources (file, kind, name)</th></tr>
+<tr><td><code>install:sagittarius:~/.claude/sagittarius</code></td><td>install</td><td>group:sagittarius</td><td>outside:install_links</td><td>~/.claude/sagittarius links prompt</td><td><code>MODULES.json json ~/.claude/sagittarius</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:orbit-kb:~/.local/bin/orbit-kb</code></td><td>install</td><td>group:orbit-kb</td><td>outside:install_links</td><td>~/.local/bin/orbit-kb links kb/bin/orbit-kb</td><td><code>MODULES.json json ~/.local/bin/orbit-kb</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:orbit-kb:~/.local/bin/orbit</code></td><td>install</td><td>group:orbit-kb</td><td>outside:install_links</td><td>~/.local/bin/orbit links kb/bin/orbit</td><td><code>MODULES.json json ~/.local/bin/orbit</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:orbit-kb:~/.local/bin/repo-map</code></td><td>install</td><td>group:orbit-kb</td><td>outside:install_links</td><td>~/.local/bin/repo-map links kb/bin/repo-map</td><td><code>MODULES.json json ~/.local/bin/repo-map</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:orbit-kb:~/.local/share/orbit-kb</code></td><td>install</td><td>group:orbit-kb</td><td>outside:install_links</td><td>~/.local/share/orbit-kb links kb/share/orbit-kb</td><td><code>MODULES.json json ~/.local/share/orbit-kb</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:system-1:~/.claude/sagittarius-s1</code></td><td>install</td><td>group:system-1</td><td>outside:install_links</td><td>~/.claude/sagittarius-s1 links s1</td><td><code>MODULES.json json ~/.claude/sagittarius-s1</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:s1-glance:~/.claude/skills/s1-glance</code></td><td>install</td><td>group:s1-glance</td><td>outside:install_links</td><td>~/.claude/skills/s1-glance links s1/glance</td><td><code>MODULES.json json ~/.claude/skills/s1-glance</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:desk-toast:~/.claude/skills/desk-toast</code></td><td>install</td><td>group:desk-toast</td><td>outside:install_links</td><td>~/.claude/skills/desk-toast links hubkit/hub/.claude/scripts/desk-toast</td><td><code>MODULES.json json ~/.claude/skills/desk-toast</code><br><code>install.py def main</code></td></tr>
+<tr><td><code>install:mindhole-kit:hub-engine</code></td><td>install</td><td>group:mindhole-kit</td><td>outside:mindhole_stores</td><td>hubkit.py install copies the engine files and the owned files into a hub (kit.json engine, owned)</td><td><code>hubkit/tools/hubkit.py def cmd_install</code><br><code>hubkit/kit.json json engine</code></td></tr>
+<tr><td><code>install:mindhole-kit:hub-orbit-kb</code></td><td>install</td><td>group:mindhole-kit</td><td>outside:mindhole_stores</td><td>the kit copies kb/bin and kb/share into .claude/orbit-kb of a hub (kit.json orbit_kb)</td><td><code>hubkit/kit.json json orbit_kb</code><br><code>hubkit/tools/hubkit.py def okb_sources</code></td></tr>
+<tr><td><code>creates:orbit-kb:spec</code></td><td>creates</td><td>group:orbit-kb</td><td>store:spec</td><td>orbit-kb init makes a spec KB: a directory with kb.pl</td><td><code>kb/bin/orbit-kb pred cmd_init</code></td></tr>
+<tr><td><code>creates:orbit-kb:project</code></td><td>creates</td><td>group:orbit-kb</td><td>store:project</td><td>orbit-kb init --uses project makes a project KB; its pins are kept in pins/ (the project module declares pin)</td><td><code>kb/bin/orbit-kb pred cmd_init</code><br><code>kb/share/orbit-kb/modules/project.pl decl pin</code></td></tr>
+<tr><td><code>creates:mindhole-kit:ledger</code></td><td>creates</td><td>group:mindhole-kit</td><td>store:ledger</td><td>hubflow.py init makes flow/flow.db from flow/seed.json</td><td><code>hubkit/hub/.claude/scripts/hubflow.py def cmd_init</code><br><code>hubkit/kit.json json flow/seed.json</code></td></tr>
+<tr><td><code>creates:mindhole-kit:memory</code></td><td>creates</td><td>group:mindhole-kit</td><td>store:memory</td><td>install writes the memory files (CLAUDE.md, HEURISTICS.md, TECHNOLOGIES.md: kit.json owned) into a hub</td><td><code>hubkit/tools/hubkit.py def cmd_install</code><br><code>hubkit/kit.json json HEURISTICS.md</code></td></tr>
+<tr><td><code>creates:mindhole-kit:weeks</code></td><td>creates</td><td>group:mindhole-kit</td><td>store:weeks</td><td>install writes W0/WEEK.md (kit.json owned); the rotation makes each new W0</td><td><code>hubkit/kit.json json W0/WEEK.md</code><br><code>hubkit/hub/.claude/skills/hub-rotate/scripts/rotate.py text os.makedirs(&quot;W0&quot;</code></td></tr>
+<tr><td><code>writes:orbit_tool:spec</code></td><td>writes</td><td>part:orbit_tool</td><td>store:spec</td><td>orbit-kb add and attest append records to kb.pl; apply-pending applies the Desk&#x27;s waiting answers</td><td><code>kb/bin/orbit-kb kb_cmd add</code><br><code>kb/bin/orbit-kb kb_cmd attest</code><br><code>kb/bin/orbit-kb kb_cmd apply-pending</code></td></tr>
+<tr><td><code>writes:desk_page:spec</code></td><td>writes</td><td>part:desk_page</td><td>store:spec</td><td>the Desk page posts an answer; orbit-kb serve queues it in answers.pending, then writes kb.pl</td><td><code>kb/bin/orbit-kb route post /answer</code><br><code>kb/bin/orbit-kb pred apply_pending</code></td></tr>
+<tr><td><code>writes:kb_modules:project</code></td><td>writes</td><td>part:kb_modules</td><td>store:project</td><td>orbit-kb pin-item writes a pin (a copy with a digest) to the project KB; the project module declares pin</td><td><code>kb/bin/orbit-kb pred cmd_pin_item</code><br><code>kb/share/orbit-kb/modules/project.pl decl pin</code></td></tr>
+<tr><td><code>writes:ledger_engine:ledger</code></td><td>writes</td><td>part:ledger_engine</td><td>store:ledger</td><td>hubflow.py is the only writer of flow/flow.db: it opens it read-write and adds items</td><td><code>hubkit/hub/.claude/scripts/hubflow.py def connect_rw</code><br><code>hubkit/hub/.claude/scripts/hubflow.py def cmd_add</code></td></tr>
+<tr><td><code>writes:hubkit_py:memory</code></td><td>writes</td><td>part:hubkit_py</td><td>store:memory</td><td>hubkit.py install and upgrade copy the memory files into a hub</td><td><code>hubkit/tools/hubkit.py def cmd_install</code><br><code>hubkit/tools/hubkit.py def cmd_upgrade</code></td></tr>
+</table></div>
 <h2>Sources of the arrows</h2>
 <div class="tw"><table><tr><th>step</th><th>kinds</th><th>verb</th><th>from, to</th><th>what</th><th>sources (file, kind, name)</th></tr>
 <tr><td>s01</td><td>request</td><td>carry</td><td>human to session</td><td>states the request in a session</td><td><code>prompt/SAGITTARIUS.md text ## The ticket</code></td></tr>
@@ -615,7 +1163,7 @@ code { font-size: 12px; }
 <tr><td><code>lane:tracker</code></td><td><code>kb/bin/orbit-kb pred cmd_pin_item</code></td></tr>
 </table></div>
 </section>
-<script type="application/json" id="repo-map-data">{"groups":[{"id":"sagittarius","parts":["covers:prompt","prompt_main","prompt_panes"]},{"id":"orbit-kb","parts":["covers:kb/bin","covers:kb/share","orbit_tool","repo_map","core_pl","kb_modules","desk_page"]},{"id":"system-1","parts":["covers:s1","s1_record","s1_client"]},{"id":"mindhole-kit","parts":["covers:hubkit","hub_template","ledger_engine","desk_py","store_map","hubkit_py"]},{"id":"s1-glance","parts":["covers:s1/glance","s1_glance"]},{"id":"desk-toast","parts":["covers:hubkit/hub/.claude/scripts/desk-toast","desk_toast"]}],"kinds":["request","goal","hypothesis","premise","claim","check","run","verdict","judgment","question","answer","adoption","vote","proposal","handoff","letter","draft"],"lanes":["human","session","tool","speckb","ledger","desk","s1","tracker"],"outside":["install_links","sidequest_mindhole","hwh_mindhole","desk_state","gitea","github","s1_model","claude_code"],"steps":[{"from":"human","id":"s01","kinds":["request"],"to":"session","verb":"carry"},{"from":"tracker","id":"s02","kinds":["request"],"to":"session","verb":"carry"},{"from":"tool","id":"s03","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s04","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s05","kinds":["request"],"to":"speckb","verb":"write"},{"from":"human","id":"s06","kinds":["request"],"to":"desk","verb":"carry"},{"from":"desk","id":"s07","kinds":["request"],"to":"ledger","verb":"write"},{"from":"tool","id":"s08","kinds":["goal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s09","kinds":["hypothesis"],"to":"speckb","verb":"write"},{"from":"tool","id":"s10","kinds":["premise"],"to":"speckb","verb":"write"},{"from":"tool","id":"s11","kinds":["question"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s12","kinds":["question"],"to":"desk","verb":"read"},{"from":"human","id":"s13","kinds":["answer"],"to":"desk","verb":"carry"},{"from":"desk","id":"s14","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"tool","id":"s15","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"desk","id":"s16","kinds":["answer","question"],"to":"ledger","verb":"write"},{"from":"tool","id":"s17","kinds":["claim"],"to":"speckb","verb":"write"},{"from":"tool","id":"s18","kinds":["check"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s19","kinds":["goal","hypothesis","claim","question"],"to":"s1","verb":"read"},{"from":"s1","id":"s20","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"s1","id":"s21","kinds":["proposal"],"to":"session","verb":"carry"},{"from":"s1","id":"s22","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s23","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"human","id":"s24","kinds":["vote"],"to":"desk","verb":"carry"},{"from":"desk","id":"s25","kinds":["vote","letter"],"to":"session","verb":"carry"},{"from":"tool","id":"s26","kinds":["vote"],"to":"speckb","verb":"write"},{"from":"session","id":"s27","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"ledger","id":"s28","kinds":["handoff"],"to":"session","verb":"read"},{"from":"session","id":"s29","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"human","id":"s30","kinds":["adoption"],"to":"desk","verb":"carry"},{"from":"desk","id":"s31","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s32","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s33","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s34","kinds":["run"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s35","kinds":["verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s36","kinds":["request","goal","hypothesis","premise","claim","question","check","run","verdict"],"to":"session","verb":"read"},{"from":"speckb","id":"s37","kinds":["claim","check","run","judgment"],"to":"ledger","verb":"read"},{"from":"human","id":"s38","kinds":["judgment"],"to":"desk","verb":"carry"},{"from":"desk","id":"s39","kinds":["judgment","letter"],"to":"speckb","verb":"write"},{"from":"tool","id":"s40","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"tool","id":"s41","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s42","kinds":["judgment"],"to":"desk","verb":"read"},{"from":"speckb","id":"s43","kinds":["judgment","verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s44","kinds":["question","draft"],"to":"tracker","verb":"carry"}],"stores":["spec","project","ledger","memory","weeks","bespoke","tracker"]}</script>
+<script type="application/json" id="repo-map-data">{"groups":[{"id":"sagittarius","parts":["covers:prompt","prompt_main","prompt_panes"]},{"id":"orbit-kb","parts":["covers:kb/bin","covers:kb/share","orbit_tool","repo_map","core_pl","kb_modules","desk_page"]},{"id":"system-1","parts":["covers:s1","s1_record","s1_client"]},{"id":"mindhole-kit","parts":["covers:hubkit","hub_template","ledger_engine","desk_py","store_map","hubkit_py"]},{"id":"s1-glance","parts":["covers:s1/glance","s1_glance"]},{"id":"desk-toast","parts":["covers:hubkit/hub/.claude/scripts/desk-toast","desk_toast"]}],"kinds":["request","goal","hypothesis","premise","claim","check","run","verdict","judgment","question","answer","adoption","vote","proposal","handoff","letter","draft"],"lanes":["human","session","tool","speckb","ledger","desk","s1","tracker"],"lines":[{"from":"group:sagittarius","id":"install:sagittarius:~/.claude/sagittarius","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/orbit","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/bin/repo-map","kind":"install","to":"outside:install_links"},{"from":"group:orbit-kb","id":"install:orbit-kb:~/.local/share/orbit-kb","kind":"install","to":"outside:install_links"},{"from":"group:system-1","id":"install:system-1:~/.claude/sagittarius-s1","kind":"install","to":"outside:install_links"},{"from":"group:s1-glance","id":"install:s1-glance:~/.claude/skills/s1-glance","kind":"install","to":"outside:install_links"},{"from":"group:desk-toast","id":"install:desk-toast:~/.claude/skills/desk-toast","kind":"install","to":"outside:install_links"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-engine","kind":"install","to":"outside:mindhole_stores"},{"from":"group:mindhole-kit","id":"install:mindhole-kit:hub-orbit-kb","kind":"install","to":"outside:mindhole_stores"},{"from":"group:orbit-kb","id":"creates:orbit-kb:spec","kind":"creates","to":"store:spec"},{"from":"group:orbit-kb","id":"creates:orbit-kb:project","kind":"creates","to":"store:project"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:ledger","kind":"creates","to":"store:ledger"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:memory","kind":"creates","to":"store:memory"},{"from":"group:mindhole-kit","id":"creates:mindhole-kit:weeks","kind":"creates","to":"store:weeks"},{"from":"part:orbit_tool","id":"writes:orbit_tool:spec","kind":"writes","to":"store:spec"},{"from":"part:desk_page","id":"writes:desk_page:spec","kind":"writes","to":"store:spec"},{"from":"part:kb_modules","id":"writes:kb_modules:project","kind":"writes","to":"store:project"},{"from":"part:ledger_engine","id":"writes:ledger_engine:ledger","kind":"writes","to":"store:ledger"},{"from":"part:hubkit_py","id":"writes:hubkit_py:memory","kind":"writes","to":"store:memory"}],"outside":["install_links","sidequest_mindhole","hwh_mindhole","desk_state","gitea","github","s1_model","claude_code"],"steps":[{"from":"human","id":"s01","kinds":["request"],"to":"session","verb":"carry"},{"from":"tracker","id":"s02","kinds":["request"],"to":"session","verb":"carry"},{"from":"tool","id":"s03","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s04","kinds":["request"],"to":"speckb","verb":"write"},{"from":"tool","id":"s05","kinds":["request"],"to":"speckb","verb":"write"},{"from":"human","id":"s06","kinds":["request"],"to":"desk","verb":"carry"},{"from":"desk","id":"s07","kinds":["request"],"to":"ledger","verb":"write"},{"from":"tool","id":"s08","kinds":["goal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s09","kinds":["hypothesis"],"to":"speckb","verb":"write"},{"from":"tool","id":"s10","kinds":["premise"],"to":"speckb","verb":"write"},{"from":"tool","id":"s11","kinds":["question"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s12","kinds":["question"],"to":"desk","verb":"read"},{"from":"human","id":"s13","kinds":["answer"],"to":"desk","verb":"carry"},{"from":"desk","id":"s14","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"tool","id":"s15","kinds":["answer"],"to":"speckb","verb":"write"},{"from":"desk","id":"s16","kinds":["answer","question"],"to":"ledger","verb":"write"},{"from":"tool","id":"s17","kinds":["claim"],"to":"speckb","verb":"write"},{"from":"tool","id":"s18","kinds":["check"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s19","kinds":["goal","hypothesis","claim","question"],"to":"s1","verb":"read"},{"from":"s1","id":"s20","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"s1","id":"s21","kinds":["proposal"],"to":"session","verb":"carry"},{"from":"s1","id":"s22","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"tool","id":"s23","kinds":["proposal"],"to":"speckb","verb":"write"},{"from":"human","id":"s24","kinds":["vote"],"to":"desk","verb":"carry"},{"from":"desk","id":"s25","kinds":["vote","letter"],"to":"session","verb":"carry"},{"from":"tool","id":"s26","kinds":["vote"],"to":"speckb","verb":"write"},{"from":"session","id":"s27","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"ledger","id":"s28","kinds":["handoff"],"to":"session","verb":"read"},{"from":"session","id":"s29","kinds":["handoff"],"to":"ledger","verb":"write"},{"from":"human","id":"s30","kinds":["adoption"],"to":"desk","verb":"carry"},{"from":"desk","id":"s31","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s32","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s33","kinds":["adoption"],"to":"speckb","verb":"write"},{"from":"tool","id":"s34","kinds":["run"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s35","kinds":["verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s36","kinds":["request","goal","hypothesis","premise","claim","question","check","run","verdict"],"to":"session","verb":"read"},{"from":"speckb","id":"s37","kinds":["claim","check","run","judgment"],"to":"ledger","verb":"read"},{"from":"human","id":"s38","kinds":["judgment"],"to":"desk","verb":"carry"},{"from":"desk","id":"s39","kinds":["judgment","letter"],"to":"speckb","verb":"write"},{"from":"tool","id":"s40","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"tool","id":"s41","kinds":["judgment"],"to":"speckb","verb":"write"},{"from":"speckb","id":"s42","kinds":["judgment"],"to":"desk","verb":"read"},{"from":"speckb","id":"s43","kinds":["judgment","verdict"],"to":"tool","verb":"derive"},{"from":"tool","id":"s44","kinds":["question","draft"],"to":"tracker","verb":"carry"}],"stores":["spec","project","ledger","memory","weeks","bespoke","tracker"],"tags":[{"box":"group:desk-toast","kind":"install","lines":["install:desk-toast:~/.claude/skills/desk-toast"]},{"box":"group:mindhole-kit","kind":"install","lines":["install:mindhole-kit:hub-engine"]},{"box":"group:mindhole-kit","kind":"install","lines":["install:mindhole-kit:hub-orbit-kb"]},{"box":"group:mindhole-kit","kind":"creates","lines":["creates:mindhole-kit:ledger","creates:mindhole-kit:memory","creates:mindhole-kit:weeks"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/orbit-kb"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/orbit"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/bin/repo-map"]},{"box":"group:orbit-kb","kind":"install","lines":["install:orbit-kb:~/.local/share/orbit-kb"]},{"box":"group:orbit-kb","kind":"creates","lines":["creates:orbit-kb:spec","creates:orbit-kb:project"]},{"box":"group:s1-glance","kind":"install","lines":["install:s1-glance:~/.claude/skills/s1-glance"]},{"box":"group:sagittarius","kind":"install","lines":["install:sagittarius:~/.claude/sagittarius"]},{"box":"group:system-1","kind":"install","lines":["install:system-1:~/.claude/sagittarius-s1"]},{"box":"outside:install_links","kind":"install","lines":["install:sagittarius:~/.claude/sagittarius","install:orbit-kb:~/.local/bin/orbit-kb","install:orbit-kb:~/.local/bin/orbit","install:orbit-kb:~/.local/bin/repo-map","install:orbit-kb:~/.local/share/orbit-kb","install:system-1:~/.claude/sagittarius-s1","install:s1-glance:~/.claude/skills/s1-glance","install:desk-toast:~/.claude/skills/desk-toast"]},{"box":"outside:mindhole_stores","kind":"install","lines":["install:mindhole-kit:hub-engine","install:mindhole-kit:hub-orbit-kb"]},{"box":"part:desk_page","kind":"writes","lines":["writes:desk_page:spec"]},{"box":"part:hubkit_py","kind":"writes","lines":["writes:hubkit_py:memory"]},{"box":"part:kb_modules","kind":"writes","lines":["writes:kb_modules:project"]},{"box":"part:ledger_engine","kind":"writes","lines":["writes:ledger_engine:ledger"]},{"box":"part:orbit_tool","kind":"writes","lines":["writes:orbit_tool:spec"]},{"box":"store:ledger","kind":"creates","lines":["creates:mindhole-kit:ledger"]},{"box":"store:ledger","kind":"writes","lines":["writes:ledger_engine:ledger"]},{"box":"store:memory","kind":"creates","lines":["creates:mindhole-kit:memory"]},{"box":"store:memory","kind":"writes","lines":["writes:hubkit_py:memory"]},{"box":"store:project","kind":"creates","lines":["creates:orbit-kb:project"]},{"box":"store:project","kind":"writes","lines":["writes:kb_modules:project"]},{"box":"store:spec","kind":"creates","lines":["creates:orbit-kb:spec"]},{"box":"store:spec","kind":"writes","lines":["writes:orbit_tool:spec","writes:desk_page:spec"]},{"box":"store:weeks","kind":"creates","lines":["creates:mindhole-kit:weeks"]}]}</script>
 </main>
 </body>
 </html>

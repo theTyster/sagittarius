@@ -8,7 +8,10 @@
 
 The groups view takes its groups from MODULES.json (modules.py), its stores from
 hubkit/tools/store-facts.json, and its parts and outside things from the facts file
-(kb/share/repo-map/sagittarius.views.json). The flow view takes its lanes, record kinds and arrows
+(kb/share/repo-map/sagittarius.views.json). Its lines are of three kinds: install (a module to
+what it links into ~: derived from the `installs` of MODULES.json, and hand-written ones in the
+facts file), creates (a module to a store that it makes) and writes (an acting part to a store that
+it writes). Each line names its sources (file, kind of name, name), which `check` finds. The flow view takes its lanes, record kinds and arrows
 from the facts file. Each box and arrow names a source by a name that `check` finds in its file.
 `check` also goes red when a module, a store, or a declared record kind (decl(fact, ...) or
 attest_type of core.pl and the modules build and discovery) is not in the map and not left out with
@@ -184,9 +187,48 @@ def model(root, facts):
     store_boxes = [{"id": "store:" + s, "label": "store " + s,
                     "source": {"file": STORE_FACTS, "kind": "json", "name": s}} for s in stores]
     outside = [dict(o) for o in facts.get("outside", [])]
-    return {"groups": groups, "stores": store_boxes, "outside": outside,
+    lines, lerrs = group_lines(mods, facts, gi, [s["id"] for s in store_boxes], [o["id"] for o in outside])
+    errors += lerrs
+    return {"groups": groups, "stores": store_boxes, "outside": outside, "lines": lines,
             "lanes": facts.get("lanes", []), "kinds": facts.get("kinds", []),
             "steps": facts.get("steps", []), "not_drawn": facts.get("not_drawn", [])}, errors
+
+
+def group_lines(mods, facts, gi, store_ids, outside_ids):
+    """The lines of the groups view: [{id, kind, from, to, what, sources}] and the errors."""
+    lines, errs = [], []
+    part_ids = {p["id"] for g in gi.values() for p in g["parts"]}
+    for mo in mods:                                  # install: one line for each link of MODULES.json
+        for link, rel in mo.get("installs", {}).items():
+            lines.append({"id": "install:%s:%s" % (mo["name"], link), "kind": "install",
+                          "from": "group:" + mo["name"], "to": "outside:install_links",
+                          "what": "%s links %s" % (link, rel),
+                          "sources": [{"file": "MODULES.json", "kind": "json", "name": link},
+                                      {"file": "install.py", "kind": "def", "name": "main"}]})
+    for key, kind in (("module_installs", "install"), ("module_stores", "creates"), ("part_stores", "writes")):
+        for l in facts.get(key, []):
+            if key == "part_stores":
+                frm, to = "part:" + l.get("part", "?"), "store:" + l.get("store", "?")
+                if l.get("part") not in part_ids:
+                    errs.append("line %s: %s is not a part" % (l.get("id"), l.get("part")))
+            elif key == "module_stores":
+                frm, to = "group:" + l.get("module", "?"), "store:" + l.get("store", "?")
+            else:
+                frm, to = "group:" + l.get("module", "?"), l.get("to", "?")
+            if key != "part_stores" and l.get("module") not in gi:
+                errs.append("line %s: %s is not a module" % (l.get("id"), l.get("module")))
+            if to.startswith("store:") and to not in store_ids:
+                errs.append("line %s: %s is not a store" % (l.get("id"), to))
+            if to.startswith("outside:") and to[len("outside:"):] not in outside_ids + ["mindhole_stores"]:
+                errs.append("line %s: %s is not a box" % (l.get("id"), to))
+            lines.append({"id": l.get("id", "?"), "kind": kind, "from": frm, "to": to,
+                          "what": l.get("what", ""), "short": l.get("short"), "sources": l.get("sources", [])})
+    seen = set()
+    for l in lines:
+        if l["id"] in seen:
+            errs.append("line %s is listed twice" % l["id"])
+        seen.add(l["id"])
+    return lines, errs
 
 
 def boxes(m):
@@ -211,6 +253,8 @@ def map_data(m):
         "groups": [{"id": g["id"], "parts": [p["id"] for p in g["parts"]]} for g in m["groups"]],
         "stores": [s["id"][len("store:"):] for s in m["stores"]],
         "outside": [o["id"] for o in m["outside"]],
+        "lines": [{"id": l["id"], "kind": l["kind"], "from": l["from"], "to": l["to"]} for l in m["lines"]],
+        "tags": [{"box": b, "kind": tg["kind"], "lines": tg["lines"]} for b, tgs in sorted(box_tags(m).items()) for tg in tgs],
         "lanes": [l["id"] for l in m["lanes"]],
         "kinds": [k["id"] for k in m["kinds"]],
         "steps": [{"id": s["id"], "kinds": s["kinds"], "verb": s["verb"], "from": s["from"],
@@ -228,7 +272,92 @@ def tw(s, ch=CH):
     return int(len(s) * ch + 0.999)
 
 
+TAG_KINDS = [("install", "installs", "installed by"), ("creates", "creates", "created by"), ("writes", "writes", "written by")]
+TAG_LINE = 16     # the distance of two lines of one tag (px)
+
+
+def box_name(m, bid):
+    """The readable name that the map already uses for a box (a module, a part, a store)."""
+    kind, _, name = bid.partition(":")
+    if kind == "group":
+        return name
+    if kind == "part":
+        for g in m["groups"]:
+            for p in g["parts"]:
+                if p["id"] == name:
+                    return p["label"]
+    if kind == "store":
+        return name
+    if kind == "outside":
+        for o in m["outside"]:
+            if o["id"] == name:
+                return o["label"]
+        return "a mindhole"
+    return bid
+
+
+def box_tags(m):
+    """{box id: [tag]}, a tag is {kind, text, lines: [line ids]}. At the end that acts (a module, a part):
+    "installs: LINK" for each install line, and one tag "creates: A, B" or "writes: A" for each other kind.
+    At the other end one tag for each kind: "installed by: ...", "created by: ...", "written by: ...".
+    The words of the tags come from the lines (MODULES.json installs and the facts file)."""
+    out = {}
+    word = {k: (a, b) for k, a, b in TAG_KINDS}
+    for l in m["lines"]:
+        if l["kind"] == "install":
+            link = l["id"].split(":", 2)[2] if l["id"].count(":") >= 2 and l["id"].startswith("install:") else l["id"]
+            text = "installs: " + (l.get("short") or link)
+            out.setdefault(l["from"], []).append({"kind": "install", "text": text, "lines": [l["id"]]})
+    for kind, acts, passive in TAG_KINDS:
+        by_from, by_to = {}, {}
+        for l in m["lines"]:
+            if l["kind"] == kind:
+                by_from.setdefault(l["from"], []).append(l)
+                by_to.setdefault(l["to"], []).append(l)
+        if kind != "install":
+            for bid, ls in by_from.items():
+                out.setdefault(bid, []).append({"kind": kind, "lines": [l["id"] for l in ls],
+                                                "text": "%s: %s" % (acts, ", ".join(box_name(m, l["to"]) for l in ls))})
+        for bid, ls in by_to.items():
+            names = []
+            for l in ls:
+                n = box_name(m, l["from"])
+                if n not in names:
+                    names.append(n)
+            out.setdefault(bid, []).append({"kind": kind, "lines": [l["id"] for l in ls],
+                                            "text": "%s: %s" % (passive, ", ".join(names))})
+    return out
+
+
+def tag_layout(tags, width):
+    """[(tag, wrapped lines, height)] for tags that are WIDTH px wide (the text keeps 6 px on each side)."""
+    res = []
+    for tg in tags:
+        ls = textwrap.wrap(tg["text"], max(8, int((width - 12) / CH_SMALL)), break_long_words=True)
+        res.append((tg, ls, 6 + TAG_LINE * len(ls)))
+    return res
+
+
+def tags_height(lay):
+    return sum(h + 4 for _, _, h in lay) + (2 if lay else 0)
+
+
+def tag_svg(box_id, lay, x, y, width):
+    """The tags of one box, one below the other from (x, y); each is a box of its own inside the box."""
+    out = []
+    for tg, ls, h in lay:
+        key = "%s|%s|%s" % (box_id, tg["kind"], ",".join(tg["lines"]))
+        out.append('<g data-box="tag:%s" data-in="%s"><rect class="tg %s" x="%d" y="%d" width="%d" height="%d" rx="2"/>'
+                   % (esc(key), esc(box_id), tg["kind"], x, y, width, h))
+        for j, ln in enumerate(ls):
+            out.append('<text class="sm tt" x="%d" y="%d">%s</text>' % (x + 6, y + 4 + TAG_LINE * j + 10, esc(ln)))
+        out.append('</g>')
+        y += h + 4
+    return out
+
+
 def svg_groups(m):
+    tags = box_tags(m)
     labels = [g["label"] + " (module)" for g in m["groups"]]
     labels += [p["label"] for g in m["groups"] for p in g["parts"]]
     labels += [s["label"] for s in m["stores"]] + [o["label"] for o in m["outside"]]
@@ -237,7 +366,7 @@ def svg_groups(m):
     cols, gap, margin = 3, 20, 20
     ph, pgap, head = 24, 6, 30
     W = margin * 2 + cols * gw + (cols - 1) * gap
-    out, rects = [], []
+    out = []
     y = margin
     out.append('<text x="%d" y="%d" class="h">Sagittarius: one repo, the modules of MODULES.json</text>'
                % (margin, y + 14))
@@ -246,20 +375,30 @@ def svg_groups(m):
     y += PAD
     rows = [m["groups"][i:i + cols] for i in range(0, len(m["groups"]), cols)]
     for row in rows:
-        rh = max(head + len(g["parts"]) * (ph + pgap) + PAD for g in row)
+        def glay(g):
+            return tag_layout(tags.get("group:" + g["id"], []), bw)
+
+        def play(g):
+            return [tag_layout(tags.get("part:" + p["id"], []), bw) for p in g["parts"]]
+        rh = max(head + tags_height(glay(g)) + sum(ph + tags_height(l) + pgap for l in play(g)) + PAD for g in row)
         for ci, g in enumerate(row):
-            gx = margin + PAD + ci * (gw + gap) - PAD if False else margin + ci * (gw + gap)
+            gx = margin + ci * (gw + gap)
             gid = "group:" + g["id"]
             out.append('<g data-box="%s"><rect class="grp" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
                        % (esc(gid), gx, y, gw, rh, gx + PAD, y + 19, esc(g["label"] + " (module)")))
             py = y + head
-            for p in g["parts"]:
+            gl = glay(g)
+            out += tag_svg(gid, gl, gx + PAD, py, bw)
+            py += tags_height(gl)
+            for p, pl in zip(g["parts"], play(g)):
+                bh = ph + tags_height(pl)
+                pid = "part:" + p["id"]
                 out.append('<g data-box="%s" data-in="%s"><rect class="part" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                            '<text class="lb" x="%d" y="%d">%s</text></g>'
-                           % (esc("part:" + p["id"]), esc(gid), gx + PAD, py, bw, ph, gx + 2 * PAD,
-                              py + 16, esc(p["label"])))
-                py += ph + pgap
+                           % (esc(pid), esc(gid), gx + PAD, py, bw, bh, gx + 2 * PAD, py + 16, esc(p["label"])))
+                out += tag_svg(pid, pl, gx + PAD + 6, py + ph, bw - 12)
+                py += bh + pgap
         y += rh + gap
     out.insert(1, '<rect class="repo" x="%d" y="%d" width="%d" height="%d" rx="8"/>'
                % (margin - 8, top - 4, W - 2 * margin + 16, y - top - gap + 12))
@@ -269,28 +408,50 @@ def svg_groups(m):
     y += 26
     sc = cols
     srows = [m["stores"][i:i + sc] for i in range(0, len(m["stores"]), sc)]
-    mh = head + len(srows) * (ph + pgap) + PAD
-    out.append('<g data-box="outside:mindhole_stores"><rect class="grp out" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
+    mid_box = "outside:mindhole_stores"
+    ml = tag_layout(tags.get(mid_box, []), W - 2 * margin - 2 * PAD)
+    slays = [[tag_layout(tags.get(s["id"], []), bw) for s in row] for row in srows]
+    sh = [max(ph + tags_height(l) for l in row) for row in slays]
+    mh = head + tags_height(ml) + sum(h + pgap for h in sh) + PAD
+    out.append('<g data-box="%s"><rect class="grp out" x="%d" y="%d" width="%d" height="%d" rx="6"/>'
                '<text class="lb" x="%d" y="%d">%s</text></g>'
-               % (margin, y, W - 2 * margin, mh, margin + PAD, y + 19,
+               % (mid_box, margin, y, W - 2 * margin, mh, margin + PAD, y + 19,
                   esc("a mindhole (sidequest-mindhole, hwh-mindhole): the seven stores of store-facts.json")))
     py = y + head
-    for row in srows:
-        for ci, s in enumerate(row):
+    out += tag_svg(mid_box, ml, margin + PAD, py, W - 2 * margin - 2 * PAD)
+    py += tags_height(ml)
+    for row, rl, h in zip(srows, slays, sh):
+        for ci, (s, l) in enumerate(zip(row, rl)):
             sx = margin + PAD + ci * (gw + gap)
-            out.append('<g data-box="%s" data-in="outside:mindhole_stores"><rect class="part store" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
+            out.append('<g data-box="%s" data-in="%s"><rect class="part store" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
-                       % (esc(s["id"]), sx, py, bw, ph, sx + PAD, py + 16, esc(s["label"])))
-        py += ph + pgap
+                       % (esc(s["id"]), mid_box, sx, py, bw, ph + tags_height(l), sx + PAD, py + 16, esc(s["label"])))
+            out += tag_svg(s["id"], l, sx + 6, py + ph, bw - 12)
+        py += h + pgap
     y += mh + gap
     orows = [m["outside"][i:i + cols] for i in range(0, len(m["outside"]), cols)]
     for row in orows:
-        for ci, o in enumerate(row):
+        ols = [tag_layout(tags.get("outside:" + o["id"], []), gw) for o in row]
+        oh = max(ph + tags_height(l) for l in ols)
+        for ci, (o, l) in enumerate(zip(row, ols)):
             ox = margin + ci * (gw + gap)
             out.append('<g data-box="%s"><rect class="ext" x="%d" y="%d" width="%d" height="%d" rx="3"/>'
                        '<text class="lb" x="%d" y="%d">%s</text></g>'
-                       % (esc("outside:" + o["id"]), ox, y, gw, ph, ox + PAD, y + 16, esc(o["label"])))
-        y += ph + pgap
+                       % (esc("outside:" + o["id"]), ox, y, gw, ph + tags_height(l), ox + PAD, y + 16, esc(o["label"])))
+            out += tag_svg("outside:" + o["id"], l, ox + 6, y + ph, gw - 12)
+        y += oh + pgap
+    y += 4
+    out.append('<text x="%d" y="%d" class="h">Tags</text>' % (margin, y + 14))
+    lx = margin + 50
+    for kind, word in (("install", "installs, installed by (a link in ~, or a hub)"), ("creates", "creates, created by (a store)"),
+                       ("writes", "writes, written by (a store)")):
+        out.append('<rect class="tg %s" x="%d" y="%d" width="18" height="12" rx="2"/>' % (kind, lx, y + 4))
+        out.append('<text class="lb" x="%d" y="%d">%s</text>' % (lx + 26, y + 14, esc(word)))
+        lx += 26 + tw(word) + 24
+        if lx > W - 200:
+            lx = margin + 50
+            y += 20
+    y += 30
     H = y + margin
     return W, H, "\n".join(out)
 
@@ -302,9 +463,15 @@ def step_text(s):
     return "%s %s: %s" % (s["id"], "/".join(s["kinds"]), s["label"])
 
 
-def svg_flow(m):
+COMPACT_W = 346   # the width of the narrow flow view: it fits a frame of a 400 px window (less the scrollbar)
+COMPACT_WRAP = 36
+
+
+def svg_flow(m, compact=False):
     """Lanes side by side; one row for each step, top to bottom: the label on top, the arrow under
-    it. The row of lane headers comes again every HEAD_EVERY steps."""
+    it. The row of lane headers comes again every HEAD_EVERY steps. COMPACT: the narrow view for a
+    window of 400 px: lanes of 37 px with a number, a key of the numbers above the first header, and
+    a width of COMPACT_W px, so that no frame scrolls sideways."""
     lanes = m["lanes"]
     li = {l["id"]: i for i, l in enumerate(lanes)}
 
@@ -322,20 +489,40 @@ def svg_flow(m):
     lw = max(max(tw(a), tw(b), tw(c, CH_SMALL)) for (a, b), c in zip(heads, mods)) + 2 * PAD
     lgap = 6
     margin = 20
+    wrap = WRAP
+    if compact:
+        margin, lgap, wrap = 10, 4, COMPACT_WRAP
+        lw = (COMPACT_W - 2 * margin - (len(lanes) - 1) * lgap) // len(lanes)
     x0 = margin
-    W = x0 + len(lanes) * (lw + lgap) + margin
-    texts = [textwrap.wrap(step_text(s), WRAP, break_long_words=True) for s in m["steps"]]
+    W = COMPACT_W if compact else x0 + len(lanes) * (lw + lgap) + margin
+    texts = [textwrap.wrap(step_text(s), wrap, break_long_words=True) for s in m["steps"]]
     notes = [s.get("store_map", "") for s in m["steps"]]
     out, lifes = [], []
     y = margin
     out.append('<text x="%d" y="%d" class="h">The flow of the records over time</text>' % (margin, y + 14))
     y += 22
-    out.append('<text x="%d" y="%d" class="sm">One row for each step, top to bottom: what happens, then the arrow.</text>'
-               % (margin, y + 12))
-    y += 22
-    hh = 62
+    for part in textwrap.wrap("One row for each step, top to bottom: what happens, then the arrow.",
+                              int((W - 2 * margin) / CH_SMALL) if compact else 200):
+        out.append('<text x="%d" y="%d" class="sm">%s</text>' % (margin, y + 12, esc(part)))
+        y += 16
+    y += 6
+    if compact:
+        for i, l in enumerate(lanes):
+            for j, part in enumerate(textwrap.wrap("%d %s (%s)" % (i + 1, l["label"], l.get("module", "")),
+                                                   int((W - 2 * margin) / CH) - 2)):
+                out.append('<text class="lb" x="%d" y="%d">%s</text>' % (margin + (0 if j == 0 else 14), y + 12, esc(part)))
+                y += LINE
+        y += 6
+    hh = 30 if compact else 62
 
     def header(y):
+        if compact:
+            for i, l in enumerate(lanes):
+                x = x0 + i * (lw + lgap)
+                out.append('<g data-box="lane:%s"><rect class="lane" x="%d" y="%d" width="%d" height="%d" rx="4"/>'
+                           '<text class="lb" x="%d" y="%d">%d</text></g>'
+                           % (esc(l["id"]), x, y, lw, hh, x + lw // 2 - 4, y + 19, i + 1))
+            return y + hh + 8
         for i, l in enumerate(lanes):
             x = x0 + i * (lw + lgap)
             a, b = heads[i]
@@ -389,7 +576,7 @@ def svg_flow(m):
         lx += 38 + tw(word) + 24
     y += 24
     for line in LEGEND_LINES:
-        for part in textwrap.wrap(line, int((W - 2 * margin) / CH)):
+        for part in textwrap.wrap(line, int((W - 2 * margin) / CH) - (1 if compact else 0)):
             out.append('<text class="lb" x="%d" y="%d">%s</text>' % (margin, y + 10, esc(part)))
             y += LINE
     H = y + 20
@@ -436,6 +623,10 @@ svg .h { font-size: 13px; font-weight: 700; }
 .hd.w { fill: var(--w); } .hd.r { fill: var(--r); } .hd.d { fill: var(--d); } .hd.c { fill: var(--c); }
 table { border-collapse: collapse; font-size: 12px; } td, th { border: 1px solid var(--line); padding: 3px 6px; text-align: left; vertical-align: top; }
 .tw { overflow-x: auto; max-width: 100%; }
+.tg { stroke-width: 1; fill-opacity: .12; } .tg.install { stroke: var(--c); fill: var(--c); }
+.tg.creates { stroke: var(--d); fill: var(--d); } .tg.writes { stroke: var(--w); fill: var(--w); }
+.flow-narrow { display: none; } .flow-narrow svg { max-width: 100%; height: auto; }
+@media (max-width: 760px) { .flow-wide { display: none; } .flow-narrow { display: block; } }
 code { font-size: 12px; }
 """
 
@@ -443,6 +634,7 @@ code { font-size: 12px; }
 def render_html(m):
     gW, gH, gs = svg_groups(m)
     fW, fH, fs = svg_flow(m)
+    nW, nH, ns = svg_flow(m, compact=True)
     data = json.dumps(map_data(m), sort_keys=True, separators=(",", ":")).replace("</", "<\\/")
     rows = []
     for s in m["steps"]:
@@ -450,6 +642,11 @@ def render_html(m):
             esc(s["id"]), esc("/".join(s["kinds"])), esc(s["verb"]), esc(s["from"]), esc(s["to"]),
             esc(s["label"] + ((" (" + s["store_map"] + ")") if s.get("store_map") else "")),
             "<br>".join("<code>%s</code>" % esc(src_text(x)) for x in s.get("sources", []))))
+    lrows = []
+    for l in m["lines"]:
+        lrows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
+            esc(l["id"]), esc(l["kind"]), esc(l["from"]), esc(l["to"]), esc(l["what"]),
+            "<br>".join("<code>%s</code>" % esc(src_text(x)) for x in l["sources"])))
     brows = []
     for bid, src in boxes(m):
         brows.append("<tr><td><code>%s</code></td><td><code>%s</code></td></tr>" % (esc(bid), esc(src_text(src))))
@@ -468,15 +665,21 @@ def render_html(m):
         '<section id="v-flow">\n<h2>Flow view</h2>\n<p>One row for each step, in the order of time. An arrow goes from the '
         'part that acts to the part it writes or reads. A red mark names a step where the store map '
         '(store-facts.json) names another owner than the code writes to.</p>\n'
-        '<div class="frame"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
-        'viewBox="0 0 %d %d" role="img" aria-label="Flow view">\n%s\n</svg></div>\n</section>\n'
+        '<div class="frame flow-wide"><svg id="flow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+        'viewBox="0 0 %d %d" role="img" aria-label="Flow view">\n%s\n</svg></div>\n'
+        '<div class="frame flow-narrow"><svg id="flow-narrow" xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+        'viewBox="0 0 %d %d" role="img" aria-label="Flow view, narrow">\n%s\n</svg></div>\n</section>\n'
         '<section id="v-sources">\n<h2>What this map does not draw</h2>\n<ul>%s</ul>\n'
+        '<h2>Sources of the lines of the groups view</h2>\n<div class="tw"><table><tr><th>line</th><th>kind</th><th>from</th>'
+        '<th>to</th><th>what</th><th>sources (file, kind, name)</th></tr>\n%s\n</table></div>\n'
         '<h2>Sources of the arrows</h2>\n<div class="tw"><table><tr><th>step</th><th>kinds</th><th>verb</th>'
         '<th>from, to</th><th>what</th><th>sources (file, kind, name)</th></tr>\n%s\n</table></div>\n'
         '<h2>Sources of the boxes</h2>\n<div class="tw"><table><tr><th>box</th><th>source</th></tr>\n%s\n</table></div>\n</section>\n'
         '<script type="application/json" id="repo-map-data">%s</script>\n'
         '</main>\n</body>\n</html>\n'
-    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, "".join("<li>%s</li>" % esc(x) for x in m["not_drawn"]), "\n".join(rows), "\n".join(brows), data)
+    ) % (CSS, gW, gH, gW, gH, gs, fW, fH, fW, fH, fs, nW, nH, nW, nH, ns,
+                                "".join("<li>%s</li>" % esc(x) for x in m["not_drawn"]), "\n".join(lrows), "\n".join(rows),
+                                "\n".join(brows), data)
 
 
 # ---------------------------------------------------------------- render: Markdown with Mermaid
@@ -487,6 +690,14 @@ def mid(s):
 
 def mlabel(s):
     return s.replace('"', "'").replace("#", "").replace(";", ",")
+
+
+def md_node(bid):
+    """The Mermaid node (or subgraph) id of a box id."""
+    kind, _, name = bid.partition(":")
+    if bid == "outside:mindhole_stores":
+        return "mh"
+    return {"group": "g_", "part": "p_", "outside": "o_"}.get(kind, "") + mid(bid if kind == "store" else name)
 
 
 def render_md(m):
@@ -511,7 +722,16 @@ def render_md(m):
     for o in m["outside"]:
         L.append('    o_%s["%s"]' % (mid(o["id"]), mlabel(o["label"])))
     L.append("  end")
-    L += ["```", "", "## Flow view", "", "```mermaid", "sequenceDiagram"]
+    for l in m["lines"]:
+        L.append("  %s -->|%s| %s" % (md_node(l["from"]), {"install": "installs", "creates": "creates", "writes": "writes"}[l["kind"]],
+                                      md_node(l["to"])))
+    L += ["```", "", "## Sources of the lines of the groups view", "",
+          "| line | kind | from | to | what | sources (file, kind, name) |", "|---|---|---|---|---|---|"]
+    for l in m["lines"]:
+        L.append("| `%s` | %s | %s | %s | %s | %s |" % (
+            l["id"].replace("|", "/"), l["kind"], l["from"], l["to"], l["what"].replace("|", "/"),
+            "<br>".join("`%s`" % src_text(x).replace("|", "/") for x in l["sources"])))
+    L += ["", "## Flow view", "", "```mermaid", "sequenceDiagram"]
     for l in m["lanes"]:
         L.append("  participant %s as %s (%s)" % (mid(l["id"]), mlabel(l["label"]), mlabel(l.get("module", ""))))
     arrow = {"write": "->>", "read": "-->>", "derive": "-->>", "carry": "-)"}
@@ -563,6 +783,13 @@ def check(root, facts_path, out_dir):
             errs.append("box %s: %s" % (bid, r))
     lane_ids = {l["id"] for l in m["lanes"]}
     kind_ids = {k["id"] for k in m["kinds"]}
+    for l in m["lines"]:                        # c3 of the lines: each names sources, and each resolves
+        if not l.get("sources"):
+            errs.append("line %s: no source" % l["id"])
+        for src in l.get("sources", []):
+            r = resolve(root, files, src, cache)
+            if r:
+                errs.append("line %s: %s" % (l["id"], r))
     for s in m["steps"]:
         if not s.get("sources"):
             errs.append("arrow %s: no source" % s.get("id"))
@@ -647,15 +874,35 @@ def check(root, facts_path, out_dir):
                 for x in data.get(key, []):
                     if x not in want[key]:
                         errs.append("box %s:%s in the map has no source" % (what, x))
+            wl = {l["id"] for l in want["lines"]}
+            cl = {l["id"] for l in data.get("lines", [])}
+            for x in sorted(wl - cl):
+                errs.append("line %s is not in the map" % x)
+            for x in sorted(cl - wl):
+                errs.append("line %s in the map has no source" % x)
             ws = {s["id"] for s in want["steps"]}
             for s in data.get("steps", []):
                 if s["id"] not in ws:
                     errs.append("arrow %s in the map has no source" % s["id"])
             # a box drawn in the SVG that the data does not list
             known = {b for b, _ in boxes(m)} | {"outside:mindhole_stores"}
+            wt = {(x["box"], x["kind"], tuple(x["lines"])) for x in want["tags"]}
+            ct = {(x["box"], x["kind"], tuple(x["lines"])) for x in data.get("tags", [])}
+            for x in sorted(wt - ct):
+                errs.append("tag %s of %s is not in the map" % (x[1], x[0]))
+            for x in sorted(ct - wt):
+                errs.append("tag %s of %s in the map has no source" % (x[1], x[0]))
+            drawn = set()
+            for tg in re.findall(r'data-box="tag:([^"]+)"', text):
+                b, k, ids = html.unescape(tg).split("|", 2)
+                drawn.add((b, k, tuple(ids.split(","))))
+            for x in sorted(wt - drawn):
+                errs.append("tag %s of %s is in the data and not drawn" % (x[1], x[0]))
+            for x in sorted(drawn - wt):
+                errs.append("tag %s of %s is drawn and has no source" % (x[1], x[0]))
             for b in re.findall(r'data-box="([^"]+)"', text):
                 b = html.unescape(b)
-                if b not in known:
+                if b not in known and not b.startswith("tag:"):
                     errs.append("box %s in the map has no source" % b)
         for path, fresh in ((hp, fresh_html), (mp, fresh_md)):
             with open(path, encoding="utf-8") as f:
