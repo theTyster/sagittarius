@@ -2198,7 +2198,7 @@ t_QS77() {  # Desk c15 (H-0166): Ty can ratify a proposed relation of a project 
     page_ok || return; chk raw "$T/page.html" '!excludes(d1,d2)'
 }
 
-t_QS81() {  # desk-version-marker c1 c2 c3 (H-0186): the page shows the version of the tool the Desk runs; when the tool installed in a joined mindhole has another version it says restart, with both versions; when equal, no restart
+t_QS81() {  # desk-version-marker c1 c2 c3 c4 (H-0186; c4: Ty q1): the page shows the version of the tool the Desk runs; when the tool installed in a joined mindhole has another version it says restart, with both versions; when equal, no restart
     desk_hub "$T/h"; local run vf="$T/h/.claude/orbit-kb/share/orbit-kb/VERSION" txt
     run=$("$OKB" version | awk '{print $NF}'); [ -n "$run" ] || { note "setup: no tool version"; return; }
     mkdir -p "$(dirname "$vf")"; echo "$run" > "$vf"
@@ -2224,10 +2224,18 @@ t_QS81() {  # desk-version-marker c1 c2 c3 (H-0186): the page shows the version 
     local v2="$T/h2/.claude/orbit-kb/share/orbit-kb/VERSION" pg2 want
     desk_hub "$T/h2"; mkdir -p "$(dirname "$v2")"; echo "$run" > "$vf"; echo "$run" > "$v2"
     kill "$SPID" 2>/dev/null; srvd --hub "$T/h" --hub "$T/h2" || return
-    echo 99.0.0 > "$v2"   # h2 differs; h only is current
+    echo 99.0.0 > "$v2"   # h2 differs and is AHEAD; h (the Desk's own mindhole) is current (c4: no Restart needed for another mindhole)
     for pg2 in '/?view=everything' '/?mh=h&view=everything' '/?mh=h2&view=everything' '/?mh=all&view=everything'; do
         get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
-        case "$txt" in *"Restart needed: running $run, installed 99.0.0 (h2)"*) ;; *) note "c2: $pg2 does not say Restart needed for h2 (it differs): $(snip "$txt")";; esac
+        case "$txt" in *"The tool in h2 is ahead: it has 99.0.0 and the Desk runs $run. To fix it, upgrade the mindhole of the Desk, then restart the Desk"*) ;; *) note "c4: $pg2 does not say upgrade the Desk's mindhole and restart, for h2 (ahead): $(snip "$txt")";; esac
+        case "$txt" in *"Restart needed"*) note "c4: $pg2 says Restart needed for another mindhole";; esac
+    done
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c4: another mindhole that differs must not make the Desk stale"
+    echo 0.0.1 > "$v2"   # h2 is BEHIND: upgrade h2, no restart
+    for pg2 in '/?view=everything' '/?mh=h2&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"The tool in h2 is behind: it has 0.0.1 and the Desk runs $run. To fix it, upgrade h2."*) ;; *) note "c4: $pg2 does not say upgrade h2 (behind): $(snip "$txt")";; esac
+        case "$txt" in *"Restart needed"*|*"then restart the Desk"*) note "c4: $pg2 asks for a restart for a mindhole that is behind";; esac
     done
     echo "$run" > "$v2"; echo 99.0.0 > "$vf"   # now only h differs
     for pg2 in '/?mh=h2&view=everything' '/?mh=h&view=everything'; do

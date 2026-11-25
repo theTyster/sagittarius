@@ -5355,11 +5355,15 @@ cmd_serve(Dirs0, Args, Code) :-
     (   Hubs = [Hub|_] -> HubOpt = some(Hub) ; HubOpt = none ),
     serve_token(Token),
     tool_version_text(RunVer),   % desk-version-marker: the version this process started with
+    (   Hubs = [OwnH|_] -> OwnHub = OwnH      % desk-version-marker c4: the mindhole the Desk started from
+    ;   absolute_file_name('.', Cwd0), directory_file_path(Cwd0, 'flow/flow.db', CwdDb), exists_file(CwdDb) -> serve_norm(Cwd0, OwnHub)
+    ;   OwnHub = none
+    ),
     (   getenv('ORBIT_KB_WRITER', W0), W0 \== '' -> Writer = W0 ; Writer = human ),
     orbit_script(Script),
     retractall(serve_conf(_, _)),
     forall(member(K-V, [dirs-Dirs, root-RootOpt, ledger-LedOpt, owner-OwnOpt, token-Token,
-                        writer-Writer, script-Script, hub-HubOpt, hubs-Hubs, desk-DeskMode, running-RunVer]),
+                        writer-Writer, script-Script, hub-HubOpt, hubs-Hubs, desk-DeskMode, running-RunVer, ownhub-OwnHub]),
            assertz(serve_conf(K, V))),
     use_module(library(http/thread_httpd)),
     ( Port == 0 -> true ; BindPort = Port ),     % an unbound port: the system picks a free one
@@ -8415,22 +8419,38 @@ desk_installed_version(Path, V) :-
 desk_version_marker(HDs, Marker, Stale) :-
     ( serve_conf(running, Run0) -> true ; Run0 = '(version unknown)' ),
     atom_string(Run0, Run), esc(Run, RunH),
+    ( serve_conf(ownhub, Own0), Own0 \== none -> dk_own_path(Own0, OwnP) ; OwnP = "" ),
     findall(N-P-V, ( member(HD, HDs), dk_str(HD.name, N), dk_str(HD.path, P),
                      ( desk_installed_version(P, V0) -> atom_string(V0, V) ; V = "" ) ), Vs),
-    findall(N-V, ( member(N-_-V, Vs), V \== "", V \== Run ), Diff),
+    findall(N-V, ( member(N-P-V, Vs), V \== "", V \== Run, dk_own_path(P, OwnP) ), Diff),          % the Desk's own mindhole: restart
+    findall(N-V, ( member(N-P-V, Vs), V \== "", V \== Run, \+ dk_own_path(P, OwnP) ), Others),    % another mindhole: upgrade it, or ours
     findall(N, member(N-_-"", Vs), Unk),
     (   Diff = [_-V1|_] -> Inst = V1, StaleV = "true"
-    ;   Vs = [_-_-V2|_], V2 \== "" -> Inst = V2, StaleV = "false"
-    ;   member(_-_-V3, Vs), V3 \== "" -> Inst = V3, StaleV = "false"
+    ;   member(_-P0-V2, Vs), V2 \== "", dk_own_path(P0, OwnP) -> Inst = V2, StaleV = "false"
+    ;   Vs = [_-_-V3|_], V3 \== "" -> Inst = V3, StaleV = "false"
+    ;   member(_-_-V4, Vs), V4 \== "" -> Inst = V4, StaleV = "false"
     ;   Inst = "", StaleV = "false"
     ),
     esc(Inst, InstH),
     dk_f("<span class=\"deskver\" data-desk-running=\"~w\" data-desk-installed=\"~w\" data-desk-stale=\"~w\" title=\"The version of the tool that this Desk process runs\">~w</span>", [RunH, InstH, StaleV, RunH], Marker),
     findall(L, ( member(N-V, Diff), esc(N, NH), esc(V, VH),
                  dk_f("<p class=\"banner deskstale\">Restart needed: running ~w, installed ~w (~w). The Desk keeps the version it started with; restart it to run the installed tool.</p>", [RunH, VH, NH], L) ), Ls1),
+    findall(L, ( member(N-V, Others), esc(N, NH), esc(V, VH), dk_version_older(V, Run),
+                 dk_f("<p class=\"small deskother\" data-desk-other=\"behind\">The tool in ~w is behind: it has ~w and the Desk runs ~w. To fix it, upgrade ~w.</p>", [NH, VH, RunH, NH], L) ), Ls3),
+    findall(L, ( member(N-V, Others), esc(N, NH), esc(V, VH), \+ dk_version_older(V, Run),
+                 dk_f("<p class=\"small deskother\" data-desk-other=\"ahead\">The tool in ~w is ahead: it has ~w and the Desk runs ~w. To fix it, upgrade the mindhole of the Desk, then restart the Desk, because ~w is newer.</p>", [NH, VH, RunH, NH], L) ), Ls4),
     findall(L, ( member(N, Unk), esc(N, NH),
                  dk_f("<p class=\"small quiet deskunknown\">The version of the tool installed in ~w is unknown (no VERSION file, or no X.Y.Z in it), so the Desk cannot tell whether it needs a restart.</p>", [NH], L) ), Ls2),
-    append(Ls1, Ls2, Ls), dk_cat(Ls, Stale).
+    append([Ls1, Ls3, Ls4, Ls2], Ls), dk_cat(Ls, Stale).
+
+% dk_own_path(+P, -Norm): a mindhole path as text without a trailing slash, so that two spellings compare equal.
+dk_own_path(P, N) :- atom_string(P, S0), ( sub_string(S0, B, 1, 0, "/"), B > 0 -> sub_string(S0, 0, B, _, N) ; N = S0 ).
+
+% dk_version_older(+V, +W): version text V (X.Y.Z) is older than W; a version that is not X.Y.Z is not older.
+dk_version_older(V, W) :-
+    split_string(V, ".", "", Vp), split_string(W, ".", "", Wp),
+    maplist([S, N]>>number_string(N, S), Vp, Vn), maplist([S, N]>>number_string(N, S), Wp, Wn),
+    Vn @< Wn.
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
