@@ -592,6 +592,18 @@ EOF
         rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/$f.txt" 2>&1) || rc=$?
         rc_is 1 "the summary $f is refused"; any_has 'summary check:'
     done
+    # c4: --reduce runs the reducer agent (claude -p; a fake here, never a paid call) with the changed KBs only
+    mkdir -p "$T/bin"
+    printf '#!/bin/sh\ncat > "%s/agent.in"\necho "3 KBs change: kb1, kb2, kb3. Each loses lint W14."\n' "$T" > "$T/bin/claude"; chmod +x "$T/bin/claude"
+    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
+    rc_is 0 "--reduce with an agent that tells the truth"; any_has 'Each loses lint W14'; any_has "its count and its slugs match the tool"
+    for i in 1 2 3; do grep -q "kb$i" "$T/agent.in" || note "the agent was not given kb$i"; done
+    for i in 4 5 6; do grep -q "kb$i" "$T/agent.in" && note "the agent was given kb$i, which did not change"; done
+    printf '#!/bin/sh\ncat > /dev/null\necho "2 KBs change: kb1, kb2."\n' > "$T/bin/claude"
+    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
+    rc_is 1 "--reduce with an agent whose count differs from the tool"; any_has "it differs from the tool"; any_has '^preview digest: sha256:'
+    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --reduce 2>&1) || rc=$?
+    rc_is 1 "--reduce is for the dry run"; any_has 'dry run'
 }
 
 # ================================================================ c19: closed KBs are previewed too

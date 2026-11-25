@@ -353,7 +353,7 @@ def remove(hub, rel):
 
 def parse(argv):
     o = {"kit": os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hub": None, "yes": False, "paths": [],
-         "edition": None, "uat": False, "seen-migrations": None, "check-summary": None}
+         "edition": None, "uat": False, "seen-migrations": None, "check-summary": None, "reduce": False}
     a = list(argv)
     while a:
         x = a.pop(0)
@@ -363,6 +363,8 @@ def parse(argv):
             o[x[2:]] = a.pop(0)
         elif x == "--yes":
             o["yes"] = True
+        elif x == "--reduce":
+            o["reduce"] = True
         elif x == "--uat":
             o["uat"] = True
         elif x.startswith("-"):
@@ -564,6 +566,44 @@ def preview_summary(recs, nlines):
     return out
 
 
+def changed_blocks(lines, recs):
+    """preview-reducer c4: the lines of the preview that belong to the KBs that change, and no other."""
+    labels = {r["label"]: r for r in recs}
+    blocks, cur = [], None
+    for x in lines:
+        head = x.split(" (", 1)[0]
+        if not x.startswith(" ") and head in labels:
+            cur = (labels[head], [x]); blocks.append(cur)
+        elif cur is not None and x.startswith(" "):
+            cur[1].append(x)
+        else:
+            cur = None
+    return [b for r, b in ((r, b) for r, b in blocks) if r["changes"]]
+
+
+REDUCER_PROMPT = ("You are the reducer of a migration preview. Below are the plans of the spec KBs that the upgrade changes, and of "
+                  "no other. Write a short summary for the human: which claims or verdicts change, grouped by cause. Begin with a "
+                  "line `N KBs change: slug, slug, ...` that gives the number and the slugs that you were given. Do not call a tool.\n\n")
+
+
+def reduce_run(lines, recs):
+    """preview-reducer c4: run the reducer agent of the hub (claude -p, given the changed KBs only) and return its
+    answer and the number of KBs that it was given. The agent runs here, in the mindhole of the hub; the text
+    goes to the program on the PATH and nowhere else."""
+    import subprocess, tempfile
+    blocks = changed_blocks(lines, recs)
+    if not blocks:
+        return None, 0
+    text = REDUCER_PROMPT + "\n".join(x for b in blocks for x in b) + "\n"
+    try:
+        r = subprocess.run(["claude", "-p"], input=text, capture_output=True, text=True, timeout=900)
+    except (OSError, subprocess.SubprocessError) as e:
+        die(1, f"the reducer agent did not run (claude -p): {e}")
+    if r.returncode != 0:
+        die(1, f"the reducer agent failed (exit {r.returncode}): {r.stderr.strip()[:300]}")
+    return r.stdout, len(blocks)
+
+
 def check_summary(path, recs):
     """preview-reducer c4: the text that a reducer agent wrote must give the count of the tool (a line
     'N KBs change') and name exactly the slugs that change. Returns the list of what differs."""
@@ -630,11 +670,32 @@ def cmd_upgrade(o, edition=None):
     for line in module_lines(m.get("modules"), mods):
         print(line)
     pv = migration_preview(o, k, hub, plan)
+    reduce_bad = False
     if pv:
         lines, digest, bad, recs = pv
         print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
         for x in preview_summary(recs, len(lines)):
             print(x)
+        if o.get("reduce"):
+            if yes:
+                die(1, "--reduce is for the dry run: show its summary to the human, then run --yes with the digest")
+            ans, nb = reduce_run(lines, recs)
+            if ans is None:
+                print("reducer agent: no KB changes; nothing to reduce")
+            else:
+                print(f"reducer agent (claude -p; given the {nb} KBs that change, and no other):")
+                for x in ans.rstrip("\n").splitlines():
+                    print("  " + x)
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+                    f.write(ans); tmp = f.name
+                diffs = check_summary(tmp, recs)
+                os.unlink(tmp)
+                for x in diffs:
+                    print("reducer agent check: " + x)
+                print("reducer agent check: " + ("its count and its slugs match the tool" if not diffs
+                                                 else "it differs from the tool: do not rely on it; read the full preview"))
+                reduce_bad = bool(diffs)
         if o.get("check-summary"):
             diffs = check_summary(o["check-summary"], recs)
             for x in diffs:
@@ -648,6 +709,8 @@ def cmd_upgrade(o, edition=None):
     if not yes:  # dry run
         if pv:
             print(f"show the preview to the human; then: hubkit.py upgrade --hub HUB --yes --seen-migrations {pv[1]}")
+        if reduce_bad:
+            sys.exit(1)  # the agent's summary differs from the tool: the counts above are the tool's
         return
     if pv:
         lines, digest, bad, recs = pv
