@@ -35,8 +35,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 
-# The figures of the note on q4 (discovery, 2026-11-25).
-SESSION_USD = 0.10          # upper guess of one Haiku session
+# The agent under test: the current Haiku (Ty: "a haiku agent"; the newest one, a default).
+AGENT_MODEL = "claude-haiku-5-5"
+# The figures of the note on q4 (discovery, 2026-11-25), moved to AGENT_MODEL. The upper guess of
+# one session was 0.10 USD at the prices of claude-haiku-4-5 (1 / 5 USD per million tokens in /
+# out). claude-haiku-5-5 costs 0.10 / 0.50 (prompts up to 100K tokens), a tenth; its tokenizer
+# may count up to 1.35 times the tokens: 0.10 x 0.1 x 1.35 = 0.0135, rounded up to 0.02.
+SESSION_USD = 0.02          # upper guess of one session of AGENT_MODEL
 PLANTED = 12                # planted breaches, one for each criterion of the pilot
 LABELLED_JUDGED = 80        # 40 labelled transcripts, judged twice
 TOKENS_PER_QUESTION = 7100  # the largest recorded transcript, paid once per question at worst
@@ -62,6 +67,7 @@ def plan(tasks=10, arms=2, runs=3, criteria=12):
     s1_usd = mtok * S1_USD_PER_MTOK
     total = round(haiku_usd + s1_usd, 2)
     lines = [
+        f"Agent model: {AGENT_MODEL}",
         f"Haiku sessions: {tasks} tasks x {arms} arms x {runs} runs = {sessions}",
         f"Transcripts for System 1: {sessions} runs + {PLANTED} planted + {LABELLED_JUDGED} "
         f"labelled (40 judged twice) = {transcripts}",
@@ -228,7 +234,7 @@ def main(argv):
             s.add_argument("--budget", type=float, default=None)
             s.add_argument("--dry-run", action="store_true")
             s.add_argument("--out", default=None)
-            s.add_argument("--agent-model", default="claude-haiku-4-5")
+            s.add_argument("--agent-model", default=AGENT_MODEL)
             s.add_argument("--prompt", default=os.path.join(ROOT, "prompt", "SAGITTARIUS.md"))
     s = sub.add_parser("record")
     s.add_argument("out")

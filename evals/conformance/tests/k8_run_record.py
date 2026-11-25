@@ -93,7 +93,7 @@ def main(argv):
             if s1_off:
                 env["S1_OFF"] = s1_off
             out = os.path.join(tmp, f"rec-{want}")
-            r = runner_run("record", out, "--agent-model", "claude-haiku-4-5", "--prompt", prompt, env=env)
+            r = runner_run("record", out, "--agent-model", "claude-haiku-5-5", "--prompt", prompt, env=env)
             if r.returncode:
                 bad.append(f"runner.py record failed: {r.stderr.strip()}")
                 continue

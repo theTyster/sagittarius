@@ -1,4 +1,4 @@
-{"type": "system", "subtype": "init", "model": "claude-haiku-4-5"}
+{"type": "system", "subtype": "init", "model": "claude-haiku-5-5"}
 {"type": "user", "message": {"role": "user", "content": "Change initials() in names.py to put a dot after each letter."}}
 {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Goal (yours): initials() puts a dot after each letter. Hypothesis (mine): a change of the join string does it. It is false if a name of one word gets no dot."}]}}
 {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_01", "name": "Write", "input": {"file_path": "test_names.py", "content": "from names import initials\ndef test_dots():\n    assert initials('Mary Oak') == 'M.O.'\n"}}]}}
