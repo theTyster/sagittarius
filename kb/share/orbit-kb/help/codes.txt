@@ -99,7 +99,7 @@ Discovery module
   WD10 a current claim has no example: add example(C, Text). While the discovery orbit is open,
        discovery is not ready until each current claim has one; after it closed, still a warning.
   ED1  a reproduction is not on system evidence. Use a log, query, or test tagged system.
-  ED2  a model result has no model_run for its log. Add it.
+  ED2  a model result has no model_run for its log. Run orbit model-run MODEL (add refuses a model_run by hand).
   ED3  the model disagrees with the system, or the existing-world model misses the bad case.
   ED4  a claim can never apply. Fix the model, or ask the human.
   ED5  a model breaks a current claim. File a disproof with refuted(Counterexample).

@@ -642,7 +642,7 @@ give_goal_only() {  # give_goal_only [DIR]: the goal with no judgment (a test th
 oadd() { okb --dir "$K" add "$@"; }
 # oadd_mr FACT...: a model_run fact in the setup of a test. orbit refuses it by hand (orbit-front-door c3:
 # only orbit model-run writes one), so the setup puts the line in kb.pl itself.
-oadd_mr() { local f; for f in "$@"; do printf '%s.\n' "$f" >> "$K/kb.pl"; done; out=""; err=""; rc=0; }
+oadd_mr() { local f; for f in "$@"; do printf '%s.\n' "$f" >> "$K/kb.pl"; done; okb --dir "$K" query 'model_run(L, M, D)'; }
 mkclaim() { use_proto "mkclaim.${1:-build}"; }   # standard small KB in $K made through the CLI
 mkclaim_fresh() {  # the setup behind mkclaim. It runs once per suite, in a prototype (use_proto).
     K=$T/kb; kb_init "$K" "${1:-build}"

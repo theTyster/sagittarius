@@ -253,10 +253,11 @@ Solvers: write the models yourself. A subagent on a fast model can read the logs
 Set a timeout on every solver run.
 
 FLYBY (SMT) and TRAJECTORY (TLA+): record
-  orbit-kb subject m1 model.smt ; orbit-kb subject log1 run1.log     (a new log for each run)
-  orbit-kb add "model(m1, smt)"
-  D=$(orbit-kb subject m1 model.smt) ; orbit-kb add "model_run(log1, m1, '$D')"
-  orbit-kb attest model_result log1 'verdict(m1, sanity, sat)'
+  orbit-kb subject m1 model.smt ; orbit-kb add "model(m1, smt)"
+  orbit-kb model-run m1     (z3, else cvc5; for a tla model tlc, with --spec, --cfg, --with FILE: orbit help model-run)
+      It runs the tool itself, keeps runs/N-m1.log as the subject m1_runN and writes model_run. A model_run typed by hand is refused.
+      Exit 2: unknown, timeout, a failing tool: the log is kept, no model_run is written, it counts for no claim.
+  orbit-kb attest model_result m1_run1 'verdict(m1, sanity, sat)'
   orbit-kb add "finding(f1, conflict('CORE'), model)" "example(c1, 'witness')"
   For a target model: derived_from(Target, Existing) and encodes(Target, C).
   Record a disproof for each case that breaks a claim.

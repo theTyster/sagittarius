@@ -391,7 +391,7 @@ lint_issue('WD9', A, 'The human voted in this round, and the agent did not vote 
     attest(A, vote, _, vote(R, _), human, _), not vote_void(A), not discovery_agent_voted(R).
 lint_issue('ED1', A, 'This reproduction must point at evidence from the current system. Tag the subject with discovery_evidence(Subject, system); a model or a solver log is not system evidence.') :-
     attest(A, reproduction, S, _, _, _), not discovery_system_evidence(S).
-lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Add model_run(Log, Model, Digest) for the log.') :-
+lint_issue('ED2', A, 'This model result must point at a solver log of its own model. Run orbit model-run MODEL: it runs the solver, keeps the log and writes model_run(Log, Model, Digest). add refuses a model_run typed by hand.') :-
     attest(A, model_result, S, P, _, _), discovery_result_model(P, M), not model_run_of(S, M).
 lint_issue('ED3', M, 'This model disagrees with the current system. Fix the model before you use any of its verdicts.') :-
     model_diverges(M).
