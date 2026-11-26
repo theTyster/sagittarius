@@ -5408,9 +5408,11 @@ serve_route(post, '/wake', true, true, wake) :- !.     % desk-delivery c5: Ty's 
 serve_route(post, '/wake', true, false, forbidden) :- !.
 serve_route(post, '/dismiss', true, true, dismiss) :- !. % desk-delivery c6: Ty acted on a letter not acted on
 serve_route(post, '/dismiss', true, false, forbidden) :- !.
+serve_route(post, '/agent', true, true, agent) :- !.   % desk-agents c14, c17, c18: write to, stop, resume a desk agent
+serve_route(post, '/agent', true, false, forbidden) :- !.
 serve_route(get, '/demo', true, true, demo) :- !.      % H-0043: a demo image that the Desk shows
 serve_route(get, '/demo', true, false, forbidden) :- !.
-serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send', '/wake', '/dismiss', '/demo']), !.
+serve_route(_, P, true, _, bad_method) :- memberchk(P, ['/', '/answer', '/draft', '/review', '/send', '/wake', '/dismiss', '/agent', '/demo']), !.
 serve_route(_, _, true, _, not_found).
 
 serve_host_ok(Req, true) :-
@@ -5423,7 +5425,7 @@ serve_request(Req) :-
 serve_request_(Req) :-
     memberchk(method(M), Req), memberchk(path(P), Req),
     serve_host_ok(Req, HostOk),
-    (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send', '/wake', '/dismiss']), HostOk == true
+    (   M == post, memberchk(P, ['/answer', '/draft', '/review', '/send', '/wake', '/dismiss', '/agent']), HostOk == true
     ->  serve_form(Req, Form0),
         ( memberchk(x_desk_fragment(_), Req) -> Form = [desk_fragment='1'|Form0] ; Form = Form0 ),
         serve_conf(token, Tok),
@@ -5440,7 +5442,8 @@ serve_request_(Req) :-
     serve_act(Action, Form).
 
 serve_act(page, Form) :-
-    (   desk_mode -> ( serve_field(Form, mh, Tab) -> true ; Tab = "" ), ( serve_field(Form, view, View) -> true ; View = "" ), desk_page("", Tab, View, Page)
+    (   desk_mode -> ( serve_field(Form, mh, Tab) -> true ; Tab = "" ), ( serve_field(Form, view, View) -> true ; View = "" ),
+        ( serve_field(Form, q, Q) -> nb_setval(desk_q, Q) ; nb_setval(desk_q, "") ), desk_page("", Tab, View, Page)
     ;   serve_page("", Page)
     ),
     serve_reply(200, Page).
@@ -5469,6 +5472,7 @@ serve_act(send, Form) :-
     ).
 serve_act(wake, Form) :- desk_letter_act(wake, Form).
 serve_act(dismiss, Form) :- desk_letter_act(dismiss, Form).
+serve_act(agent, Form) :- desk_agent_act(Form).
 serve_act(answer, Form) :- serve_answer(Form, R),
     (   R = ok -> serve_frame_headers(FH), format("Status: 303~nLocation: /~n~wContent-type: text/html; charset=UTF-8~n~n<p>Recorded. <a href=\"/\">Back to the questions</a></p>~n", [FH])
     ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
@@ -7836,7 +7840,8 @@ desk_page(Msg0, Tab0, View0, Page) :- desk_with_page_memo(desk_page_(Msg0, Tab0,
 
 % desk_view_pick(+View0, -View): waits (also for "" and any other text), questions, answered, everything.
 desk_view_pick(V0, V) :-
-    ( catch(dk_str(V0, S), _, fail), memberchk(S-V1, ["waits"-waits, "questions"-questions, "answered"-answered, "everything"-everything]) -> V = V1 ; V = waits ).
+    ( catch(dk_str(V0, S), _, fail), memberchk(S-V1, ["waits"-waits, "questions"-questions, "answered"-answered, "everything"-everything, "agents"-agents]) -> V = V1 ; V = waits ).
+desk_view_name(agents, "Agents").
 desk_view_name(waits, "Waits on you").
 desk_view_name(questions, "Questions").
 desk_view_name(answered, "Answered").
@@ -7900,7 +7905,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     desk_load(HDs0, Missing),
     desk_drafts_load(HDs0),
     desk_tab_pick(HDs0, Tab0, HDs, Tab, Msg0, Msg),
-    desk_view_pick(View0, View), nb_setval(desk_here, View-Tab),
+    desk_view_pick(View0, View), ( View == agents -> SView = everything ; SView = View ), nb_setval(desk_here, SView-Tab),
     findall(HD-Cs, ( member(HD, HDs), desk_hub_cards(HDs, HD, Cs) ), HCs),
     findall(C, ( member(_-Cs, HCs), member(C, Cs) ), Cards),
     desk_tabs_html(HDs0, HCs, Tab, View, TabsH),
@@ -7933,20 +7938,24 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     partition([K-_-_]>>get_dict(kind, K, project), KBCs, PKBCs, SKBCs),
     % c22: one thing open on load: the first ask of the Ledger, else the first KB that waits on Ty
     (   member(C0, LAs), \+ desk_card_home(Dirs, C0, _) -> OpenFirst = card(C0.anchor)
-    ;   View \== answered, member(K-_-kbc(KQ, _, KA, KL, _), SKBCs), ( KA \== [] ; KQ \== [] ; KL \== [] ) -> OpenFirst = kb(K.dir)
+    ;   SView \== answered, member(K-_-kbc(KQ, _, KA, KL, _), SKBCs), ( KA \== [] ; KQ \== [] ; KL \== [] ) -> OpenFirst = kb(K.dir)
     ;   OpenFirst = none
     ),
-    desk_spec_groups(HDs, View, OpenFirst, SKBCs, Groups),
+    desk_spec_groups(HDs, SView, OpenFirst, SKBCs, Groups),
     desk_kbs_count(SKBCs, NWS),
     desk_kbs_count(PKBCs, NWP),
     % the sections
-    desk_ledger_store(View, OpenFirst, Dirs, AllKBs, LAs, LIs, LPs, ORows, Answered, NL, LedH),
-    desk_spec_store(View, Errs, Groups, SKBCs, NWS, NE, SpecH),
-    desk_project_store(HDs, View, PKBCs, PItems, NPP, NWP, ProjH),
+    (   View == agents      % desk-agents c15, c19: the view of all desk agents, of every mindhole of the tab
+    ->  desk_agents_store(HDs, Tab, Token, LedH), SpecH = "", ProjH = ""
+    ;   desk_ledger_store(View, OpenFirst, Dirs, AllKBs, LAs, LIs, LPs, ORows, Answered, NL, LedH),
+        desk_spec_store(View, Errs, Groups, SKBCs, NWS, NE, SpecH),
+        desk_project_store(HDs, View, PKBCs, PItems, NPP, NWP, ProjH)
+    ),
     % the row of views (c13): the count of each view
     length(SKBCs, NSK), length(PKBCs, NPK), length(Cards, NC), length(ORows, NO),
     NEv is NC + NSK + NPK + NP + NAns + NO, NQV is NQ0 + NG,
-    findall(V-N, member(V-N, [waits-NW, questions-NQV, answered-NAns, everything-NEv]), VNs),
+    desk_agents_running(HDs, NAg),
+    findall(V-N, member(V-N, [waits-NW, questions-NQV, answered-NAns, everything-NEv, agents-NAg]), VNs),
     findall(L, ( member(V-N, VNs), desk_view_name(V, VN), desk_view_href(Tab, V, Hr),
                  ( V == View -> Cur = " aria-current=\"page\" class=\"on\"" ; Cur = "" ), ( V == waits, N > 0 -> Hot = " hot" ; Hot = "" ),
                  dk_f("<a href=\"~w\"~w><span class=\"vname\">~w</span><b class=\"num~w\">~w</b></a>", [Hr, Cur, VN, Hot, N], L) ), VLs),
@@ -7956,7 +7965,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     findall(L, ( member(Id-Lb-N, ["ledger"-"Ledger"-NWL2, "spec"-"Spec KBs"-NWS, "project"-"Project KB"-NWP]),
                  dk_f("<a href=\"#store-~w\" title=\"What waits on you there\">~w<b>~w</b></a>", [Id, Lb, N], L) ), Ls),
     dk_cat(Ls, LanesH),
-    NWSE is NWS + NE, desk_store_rail(Tab, View, Groups, NWL2, NWSE, NWP, NPP, RailS),
+    NWSE is NWS + NE, desk_store_rail(Tab, SView, Groups, NWL2, NWSE, NWP, NPP, RailS),
     ( HDs = [_] -> Unwrap = true ; Unwrap = false ),
     findall(M, ( member(N-P, Missing), esc(N, NH), esc(P, PH),
                  dk_f("<div class=\"hint\">~w joined the Desk, but ~w has no ledger now.</div>", [NH, PH], M) ), Ms), dk_cat(Ms, MsH),
@@ -8486,6 +8495,99 @@ desk_letter_act(Act, Form) :-
         ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
         )
     ).
+
+% ---- desk agents (desk-agents c11 to c19): the view Agents and the form POST /agent
+
+% desk_agents_of(+HD, -As): the desk agents of a mindhole (desk.py status: agents), each a dict.
+desk_agents_of(HD, As) :-
+    (   is_dict(HD.st), get_dict(agents, HD.st, As0), is_list(As0) -> include(is_dict, As0, As) ; As = [] ).
+
+desk_agents_running(HDs, N) :-
+    aggregate_all(count, ( member(HD, HDs), desk_agents_of(HD, As), member(A, As), get_dict(running, A, true) ), N).
+
+desk_ag(A, K, S) :- ( get_dict(K, A, V) -> dk_str(V, S) ; S = "" ).
+
+% desk_agent_match(+Q, +A): the filter Q (lower case) is in the name, the KB, the role or the state.
+desk_agent_match("", _) :- !.
+desk_agent_match(Q, A) :-
+    member(K, [name, kb, role, state]), desk_ag(A, K, S), string_lower(S, L), sub_string(L, _, _, _, Q), !.
+
+desk_agents_store(HDs, Tab, Token, Html) :-
+    ( nb_current(desk_q, Q0), Q0 \== [] -> dk_str(Q0, Q1) ; Q1 = "" ), string_lower(Q1, Q),
+    findall(R, ( member(HD, HDs), desk_agents_of(HD, As), member(A, As), desk_agent_match(Q, A),
+                 desk_agent_row(HD, A, Tab, Token, R) ), Rs),
+    length(Rs, N), aggregate_all(count, ( member(HD, HDs), desk_agents_of(HD, As), member(_, As) ), All),
+    esc(Q1, QH), esc(Tab, TabH),
+    dk_f("<form class=\"agentfilter\" method=\"get\" action=\"/\"><input type=\"hidden\" name=\"mh\" value=\"~w\"><input type=\"hidden\" name=\"view\" value=\"agents\"><label>Filter <input type=\"search\" name=\"q\" value=\"~w\" placeholder=\"a word of the name, the KB or the state\" data-agent-filter></label> <button class=\"btn small\" type=\"submit\">Filter</button></form>", [TabH, QH], FH),
+    (   Rs == [] -> ( All == 0 -> Body = "<p class=\"empty\">No desk agent yet. A letter about a spec KB that nobody holds starts one.</p>" ; Body = "<p class=\"empty\">No desk agent matches the filter.</p>" )
+    ;   dk_cat(Rs, Body)
+    ),
+    dk_f("~w of ~w", [N, All], Sub),
+    dk_cat([FH, "<div class=\"agents\">", Body, "</div>"], Inner),
+    desk_store("agents", "Desk agents", Sub, "", true, Inner, Html).
+
+desk_agent_row(HD, A, Tab, Token, Html) :-
+    maplist(desk_ag(A), [name, kb, state, since, last, session_id, resume_command, role, why], [Nm, Kb, St, Since, Last, _Sid, RC, Role, Why]),
+    esc(Nm, NmH), esc(Kb, KbH), esc(St, StH), esc(Last, LastH), esc(Role, RoleH), esc(Token, TokH), esc(Tab, TabH), esc(HD.path, HubH),
+    ( Since == "" -> SinceH = "" ; dk_f(" since ~w", [Since], SinceH) ),
+    ( get_dict(running, A, true) -> Run = true ; Run = false ),
+    desk_key(Nm, Key),
+    ( get_dict(events, A, Evs0), is_list(Evs0) -> Evs = Evs0 ; Evs = [] ),
+    findall(L, ( member(E, Evs), is_dict(E), desk_ag(E, kind, EK), desk_ag(E, text, ET), desk_ag(E, at, EA),
+                 esc(EK, EKH), esc(ET, ETH), esc(EA, EAH),
+                 dk_f("<li class=\"ev ev-~w\"><span class=\"quiet small\">~w ~w</span> ~w</li>", [EKH, EAH, EKH, ETH], L) ), Ls),
+    ( Ls == [] -> EvH = "<p class=\"quiet\">Nothing yet.</p>" ; dk_cat(Ls, LH), dk_f("<ol class=\"aevents\">~w</ol>", [LH], EvH) ),
+    ( Why == "" -> WhyH = "" ; esc(Why, WH), dk_f(" (~w)", [WH], WhyH) ),
+    dk_f("<input type=\"hidden\" name=\"token\" value=\"~w\"><input type=\"hidden\" name=\"hub\" value=\"~w\"><input type=\"hidden\" name=\"agent\" value=\"~w\"><input type=\"hidden\" name=\"tab\" value=\"~w\">", [TokH, HubH, NmH, TabH], Hid),
+    (   Run == true
+    ->  dk_f("<p class=\"control\">To take control of it in a terminal, stop it first. <form class=\"inline\" method=\"post\" action=\"/agent\">~w<input type=\"hidden\" name=\"intent\" value=\"stop\"><button class=\"btn\" type=\"submit\">Stop</button></form></p>", [Hid], CtlH),
+        WriteHint = "It reads your words after its current run, or at once when you tick Stop first."
+    ;   esc(RC, RCH),
+        dk_f("<p class=\"control\">Take control in a terminal: <code class=\"resumecmd\">~w</code> <form class=\"inline\" method=\"post\" action=\"/agent\">~w<input type=\"hidden\" name=\"intent\" value=\"resume\"><button class=\"btn\" type=\"submit\">Resume here</button></form></p>", [RCH, Hid], CtlH),
+        WriteHint = "Your words start a new run of its session at once."
+    ),
+    ( Run == true -> StopBox = "<label class=\"small\"><input type=\"checkbox\" name=\"stop\" value=\"1\"> Stop first</label> " ; StopBox = "" ),
+    dk_f("<form class=\"agentwrite\" method=\"post\" action=\"/agent\">~w<input type=\"hidden\" name=\"intent\" value=\"write\"><textarea name=\"text\" aria-label=\"Your words to ~w\" placeholder=\"Write to ~w\"></textarea><div class=\"foot\">~w<button class=\"btn go\" type=\"submit\">Send to the agent</button> <span class=\"small quiet\">~w</span></div></form>", [Hid, NmH, NmH, StopBox, WriteHint], WrH),
+    ( Run == true -> Op = " open" ; Op = "" ),
+    ( St == "ended" -> StWord = "ended" ; StWord = StH ),
+    dk_f("<details class=\"agent\" id=\"agent-~w\" data-agent=\"~w ~w ~w ~w\"~w><summary><b class=\"aname\">~w</b> <span class=\"akb\">specs/~w</span> <span class=\"astate state-~w\">~w~w</span><span class=\"quiet small\">~w</span> <span class=\"anow\">~w</span></summary><div class=\"agentbody\"><p class=\"small quiet\">Role: ~w.</p>~w~w~w</div></details>",
+         [Key, NmH, KbH, StH, RoleH, Op, NmH, KbH, StH, StWord, WhyH, SinceH, LastH, RoleH, EvH, CtlH, WrH], Html).
+
+% desk_agent_act(+Form): POST /agent: intent stop (desk.py agent-stop), resume (desk.py agent-resume) or
+% write (a letter to the agent: desk.py send with the item {"type": "agent", ...}; with stop, a stop first).
+desk_agent_act(Form) :-
+    (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
+    ;   catch(desk_agent_do(Form, R), desk_refused(S, M), R = refused(S, M)),
+        (   R == ok
+        ->  serve_frame_headers(FH),
+            ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w&view=agents", [TbE]) ; Back = "/?view=agents" ),
+            ( serve_field(Form, agent, An) -> desk_key(An, AK) ; AK = "" ),
+            format("Status: 303~nLocation: ~w#agent-~w~n~wContent-type: text/html; charset=UTF-8~n~n<p>Done. <a href=\"/?view=agents\">Back to the agents</a></p>~n", [Back, AK, FH])
+        ;   R = refused(St, Msg) -> serve_message_page(St, Msg)
+        )
+    ).
+
+desk_agent_do(Form, R) :-
+    desk_load(HDs, _),
+    (   serve_field(Form, hub, HS), HS \== "", atom_string(H0, HS), serve_norm(H0, Hub), desk_hd_of(HDs, Hub, HD) -> true
+    ;   throw(desk_refused(400, "The form names no mindhole of this Desk. Reload the page."))
+    ),
+    (   serve_field(Form, agent, Nm), desk_agents_of(HD, As), member(A, As), desk_ag(A, name, Nm) -> true
+    ;   throw(desk_refused(400, "The form names no desk agent of this mindhole. Reload the page."))
+    ),
+    ( serve_field(Form, intent, I) -> true ; I = "" ),
+    atom_string(NmA, Nm),
+    (   I == "stop" -> desk_cmd(HD.path, ['agent-stop', NmA], _, R0)
+    ;   I == "resume" -> desk_cmd(HD.path, ['agent-resume', NmA], _, R0)
+    ;   I == "write"
+    ->  ( serve_field(Form, text, T), split_string(T, "", " \t\r\n", [TT]), TT \== "" -> true
+        ; throw(desk_refused(400, "Write your words to the agent first. Nothing was sent.")) ),
+        ( serve_field(Form, stop, "1") -> desk_cmd(HD.path, ['agent-stop', NmA], _, _) ; true ),
+        desk_send(HD.path, "note", _{type:"agent", agent:Nm}, T, "", L),
+        ( L = ok(_) -> R0 = ok ; L = error(M) -> R0 = error(M) ; R0 = error("The mindhole has no desk.py") )
+    ;   throw(desk_refused(400, "The form names no action (stop, resume or write)."))
+    ),
+    ( R0 == ok -> R = ok ; R0 = error(M2) -> R = refused(409, M2) ).
 
 desk_letter_form(Form, HD, Lid) :-
     desk_load(HDs, _),

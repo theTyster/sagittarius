@@ -409,7 +409,10 @@ def letter_to(letter):
 
 
 def recipients(c, letter, kbi=None):
-    """The one session named by `to`; for an old letter without `to`, the owners of its item."""
+    """The one session named by `to`; for an old letter without `to`, the owners of its item. A letter that a
+    desk agent takes (desk-agents c11, c14) goes to no session."""
+    if letter.get("agent") or (letter.get("item") or {}).get("type") == "agent":
+        return []
     to = letter_to(letter)
     return [to] if to else owners(c, letter, kbi)
 
@@ -418,6 +421,8 @@ def item_name(letter):
     it = letter.get("item") or {}
     if it.get("type") == "ask":
         return str(it.get("id"))
+    if it.get("type") == "agent":
+        return f"the desk agent {it.get('agent')}"
     if it.get("type") == "fix":
         ids = [str(x) for x in it.get("ids") or []]
         return (f"fix {it.get('what')}" + (" " + ", ".join(ids) if ids else ""))[:200]
@@ -493,10 +498,10 @@ def check_item(raw):
     if not isinstance(it, dict):
         raise Bad("--item-json must be an object")
     shapes = {"ask": ("type", "id"), "question": ("type", "slug", "kb", "q"), "kb": ("type", "slug", "kb", "ref"),
-              "fix": ("type", "what", "ids")}
+              "fix": ("type", "what", "ids"), "agent": ("type", "agent")}
     t = it.get("type")
     if t not in shapes:
-        raise Bad("item type must be ask, question, kb or fix")
+        raise Bad("item type must be ask, question, kb, fix or agent")
     if t == "fix":
         if set(it) not in ({"type", "what"}, set(shapes[t])):
             raise Bad("a fix item has the keys type, what and (optional) ids")
@@ -510,6 +515,10 @@ def check_item(raw):
         return it
     if set(it) != set(shapes[t]):
         raise Bad(f"a {t} item has exactly the keys {', '.join(shapes[t])}")
+    if t == "agent":  # Ty's words to a desk agent (desk-agents c14)
+        if not isinstance(it["agent"], str) or not AGENT_NAME.match(it["agent"]):
+            raise Bad(f"item agent {it['agent']!r} is not the name of a desk agent")
+        return it
     if t == "ask":
         if not isinstance(it["id"], str) or not ITEM_ID.match(it["id"]):
             raise Bad(f"item id {it['id']!r} is not a ledger id such as A-0002")
@@ -557,6 +566,565 @@ def find_letter(store, lid):
     raise NoHub(f"no letter {lid}")
 
 
+
+# ---- headless desk agents (desk-agents c11 to c19, Ty r3 to r8, hy8) ----
+# A letter about a spec KB that nobody holds (no live writer lock, no accepted handoff on it) starts a
+# desk agent: `claude -p` with --output-format stream-json, run by a detached runner (desk.py agent-run),
+# never in tmux. The runner holds the writer lock of the KB while claude runs, keeps each event of the run
+# in flow/desk/agents/NAME.jsonl (the Desk shows them), and releases the lock when the run ends. One
+# process per session (probe f13: claude does not refuse a second one): a letter for a running agent waits
+# in its queue and the runner starts the next run (--resume) when the current one ends; a letter for a
+# stopped or ended agent starts a new run at once. desk.py agent-stop ends the run (SIGTERM); agent-resume
+# starts a new headless run of the same session. Off: DESK_AGENTS=off, or `desk.py agents off`.
+
+AGENT_LEASE = 30 * 60          # a writer lock older than this is lapsed (orbit-kb's lease)
+AGENT_EVENTS_SHOWN = 40        # events of one agent in desk.py status
+AGENT_TEXT_MAX = 600           # one event as the Desk shows it
+AGENT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*-agent_\d{3,}$")
+AGENT_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")   # a control byte (not tab, not newline)
+AGENT_LIVE = ("starting", "running", "stopping")
+RESUME_PROMPT = "Ty resumed you from the Desk. Go on with the work of your last letter, then end your turn."
+
+
+def short_name(mindhole):
+    """The name of the agents of a mindhole: sidequest-mindhole gives sidequest."""
+    return mindhole[:-len("-mindhole")] if mindhole.endswith("-mindhole") and len(mindhole) > len("-mindhole") else mindhole
+
+
+def agents_off_flag():
+    return os.path.join(state_dir(), "agents-off")
+
+
+def agents_on():
+    return os.environ.get("DESK_AGENTS") != "off" and not os.path.exists(agents_off_flag())
+
+
+def mindhole_of(hub):
+    name = os.path.basename(hub)
+    try:
+        for x in read_mindholes(os.path.join(state_dir(), "mindholes.json")):
+            if os.path.abspath(x["path"]) == os.path.abspath(hub):
+                name = x["name"]
+    except (NoHub, OSError):
+        pass
+    return short_name(name)
+
+
+def agents_path(hub):
+    return os.path.join(desk_dir(hub), "agents.json")
+
+
+def agent_events_path(hub, name):
+    return os.path.join(desk_dir(hub), "agents", name + ".jsonl")
+
+
+def with_agents(hub, change):
+    """Run change(obj) under the flock of agents.json; write obj back when change returns True (or (True, x)).
+    Returns what change returned (x for a tuple)."""
+    ensure_dir(desk_dir(hub))
+    fd = os.open(os.path.join(desk_dir(hub), "agents.lock"), os.O_WRONLY | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        obj = read_json(agents_path(hub), [], {"next": 1, "agents": {}})
+        if not isinstance(obj, dict) or not isinstance(obj.get("agents"), dict):
+            obj = {"next": 1, "agents": {}}
+        r = change(obj)
+        if r is True or (isinstance(r, tuple) and r and r[0] is True):
+            write_atomic(agents_path(hub), obj)
+        return r[1] if isinstance(r, tuple) else r
+    finally:
+        os.close(fd)
+
+
+def pid_alive(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:  # a zombie child of this process is not alive
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as f:
+            return f.read().split(")")[-1].split()[0] != "Z"
+    except OSError:
+        return True
+
+
+def letter_slug(letter):
+    it = letter.get("item") or {}
+    return it.get("slug") if it.get("type") in ("question", "kb") else None
+
+
+def letter_kbdir(hub, letter):
+    it = letter.get("item") or {}
+    kb = it.get("kb") or f"specs/{it.get('slug')}"
+    return kb if os.path.isabs(kb) else os.path.join(hub, kb)
+
+
+def lock_of(kbdir):
+    """(writer, seconds since its time) of the writer lock of a KB, or None."""
+    try:
+        with open(os.path.join(kbdir, "writer.lock"), encoding="utf-8") as f:
+            parts = f.readline().split()
+    except OSError:
+        return None
+    if len(parts) < 2:
+        return None
+    ts = ts_secs(parts[1])
+    return parts[0], (None if ts is None else max(0.0, datetime.datetime.now(datetime.timezone.utc).timestamp() - ts))
+
+
+def live_lock(kbdir):
+    lk = lock_of(kbdir)
+    return lk if lk and (lk[1] is None or lk[1] < AGENT_LEASE) else None
+
+
+def take_lock(kbdir, sid):
+    """Take the writer lock of the KB for the session sid when it is free, lapsed or already its own."""
+    lk = live_lock(kbdir)
+    if lk and lk[0] != sid:
+        return False
+    write_atomic_text(os.path.join(kbdir, "writer.lock"), f"{sid} {now_ts()}\n")
+    return True
+
+
+def release_lock(kbdir, sid):
+    lk = lock_of(kbdir)
+    if lk and lk[0] == sid:
+        try:
+            os.remove(os.path.join(kbdir, "writer.lock"))
+        except OSError:
+            pass
+
+
+def write_atomic_text(path, text):
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def kb_held(hub, slug, kbdir):
+    """Who holds the KB: the writer of a live lock, else the receiver of an accepted handoff on it (the
+    Desk's desk_holder), else None."""
+    lk = live_lock(kbdir)
+    if lk:
+        return lk[0]
+    try:
+        c = connect(hub)
+        try:
+            for r in c.execute("SELECT r.ref, h.to_session FROM item i JOIN handoff h ON h.item_id = i.id"
+                               " JOIN item_ref r ON r.item_id = i.id AND r.kind = 'kb'"
+                               " WHERE i.status IN ('open','waiting') AND h.accepted_at IS NOT NULL"):
+                if ref_slug(r[0]) == slug and r[1]:
+                    return r[1]
+        finally:
+            c.close()
+    except sqlite3.Error:
+        pass
+    return None
+
+
+def kb_role(hub, slug):
+    roles = []
+    try:
+        c = connect(hub)
+        try:
+            roles = [r["owner_session"] for s, r in kb_items(c) if s == slug and r["owner_session"] in ("review", "discovery", "build")]
+        finally:
+            c.close()
+    except sqlite3.Error:
+        pass
+    return roles[-1] if roles else "discovery"
+
+
+def recorded_session(kbdir):
+    try:
+        with open(os.path.join(kbdir, "kb.pl"), encoding="utf-8") as f:
+            ids = re.findall(r"desk agent session ([0-9a-f-]{8,})", f.read())
+    except OSError:
+        return None
+    return ids[-1] if ids else None
+
+
+def transcript_exists(sid):
+    import glob
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    return bool(glob.glob(os.path.join(home, ".claude", "projects", "*", sid + ".jsonl")))
+
+
+def clean_text(text):
+    return AGENT_CTRL.sub(" ", text or "")
+
+
+def agent_prompt_of(letter):
+    return f"Desk letter {letter['id']} from Ty, about {about_of(letter)}:\n{clean_text(letter.get('text'))}"
+
+
+def role_prompt(role):
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    try:
+        with open(os.path.join(home, ".claude", "sagittarius", "panes", role + ".md"), encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return f"Your role is the {role} pane of Sagittarius (PANES.md)."
+
+
+def system_prompt(hub, name, role, slug):
+    return (role_prompt(role) + "\n\n"
+            + f"You are {name}, a desk agent of the mindhole at {hub}. You work on the spec KB specs/{slug} and on "
+              "nothing else. You hold its writer lock while you run; write to it with orbit-kb as yourself. "
+              "Each prompt is a letter from Ty (the Desk) or his words to you. Do what it asks, then end your turn: "
+              "the Desk shows Ty what you do, and he may write to you, stop you or resume you there.")
+
+
+def claude_prog():
+    return os.environ.get("DESK_CLAUDE") or "claude"
+
+
+def claude_found():
+    import shutil
+    return shutil.which(claude_prog()) is not None
+
+
+def kb_note(hub, kbdir, sid, fact):
+    """Write one fact to the KB as the agent (orbit-kb takes the writer lock for sid)."""
+    k = os.path.join(hub, ".claude", "orbit-kb", "bin", "orbit-kb")
+    env = dict(os.environ, ORBIT_KB_WRITER=sid)
+    env.pop("HUB_SESSION", None)
+    try:
+        r = subprocess.run([k, "--dir", kbdir, "add", fact], capture_output=True, text=True, env=env, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"orbit-kb could not run: {e}"
+    return None if r.returncode == 0 else (r.stderr.strip().splitlines() or ["orbit-kb add failed"])[0][:200]
+
+
+def q_atom(s):
+    return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def settle_dead(hub, o):
+    """A run whose runner is gone (killed, crashed, a restart) is interrupted: the agent is stopped and its
+    lock is released. Returns True when o changed."""
+    changed = False
+    for nm, a in o["agents"].items():
+        if a.get("state") in AGENT_LIVE and not pid_alive(a.get("runner")) and \
+                (ts_secs(now_ts()) or 0) - (ts_secs(a.get("since")) or 0) > 5:
+            release_lock(a.get("kbdir") or "", a.get("session_id") or "")
+            a.update(state="stopped", since=now_ts(), why="interrupted (its runner is gone)", claude=None, runner=None)
+            changed = True
+    return changed
+
+
+def agent_plan(hub, letter):
+    """None (the letter goes to its receiver, as before), or {"name", "act": new|queue|run} after the agent
+    took what it needs (a name, the lock of its KB). Raises Bad for a letter to an unknown agent."""
+    it = letter.get("item") or {}
+    if it.get("type") == "agent":
+        name = it.get("agent")
+        out = {}
+
+        def f(o):
+            ch = settle_dead(hub, o)
+            a = o["agents"].get(name)
+            if not a:
+                out["err"] = f"there is no desk agent {name}"
+                return ch
+            out["plan"] = {"name": name, "act": "queue" if a.get("state") in AGENT_LIVE else "run"}
+            return ch
+        with_agents(hub, f)
+        if "err" in out:
+            raise Bad(out["err"])
+        return out["plan"]
+    slug = letter_slug(letter)
+    if not slug or not agents_on():
+        return None
+    kbdir = letter_kbdir(hub, letter)
+    if not os.path.isfile(os.path.join(kbdir, "kb.pl")):
+        return None
+    out = {}
+
+    def g(o):
+        ch = settle_dead(hub, o)
+        for nm, a in o["agents"].items():  # the KB has its agent: the letter goes to it (c3)
+            if a.get("kbdir") == kbdir:
+                out["plan"] = {"name": nm, "act": "queue" if a.get("state") in AGENT_LIVE else "run"}
+                return ch
+        who = kb_held(hub, slug, kbdir)
+        if who:
+            return ch
+        if not claude_found():
+            out["why"] = f"{claude_prog()} is not on the PATH"
+            return ch
+        n = int(o.get("next") or 1)
+        role = kb_role(hub, slug)
+        nm = f"{mindhole_of(hub)}-{role}-agent_{n:03d}"
+        old = recorded_session(kbdir)
+        resume = bool(old) and transcript_exists(old)
+        import uuid
+        sid = old if resume else str(uuid.uuid4())
+        o["next"] = n + 1
+        o["agents"][nm] = {"name": nm, "kb": slug, "kbdir": kbdir, "role": role, "session_id": sid, "state": "starting",
+                           "started": now_ts(), "since": now_ts(), "runs": 0, "queue": [], "new_session": not resume,
+                           "lost": old if (old and not resume) else None}
+        out["plan"] = {"name": nm, "act": "new"}
+        return True
+    with_agents(hub, g)
+    if out.get("why"):
+        print(f"desk: no desk agent starts: {out['why']}; the letter keeps its receiver", file=sys.stderr)
+    p = out.get("plan")
+    if p and p["act"] == "new":
+        a = with_agents(hub, lambda o: (False, dict(o["agents"][p["name"]])))
+        facts = []
+        if a.get("lost"):
+            facts.append(f"note(r1, {q_atom('The transcript of the desk agent session ' + a['lost'] + ' was lost (' + now_ts() + '); ' + a['name'] + ' starts new and takes the KB.')})")
+        facts.append(f"note(r1, {q_atom('desk agent session ' + a['session_id'] + ' (' + a['name'] + ', ' + now_ts() + ')')})")
+        err = None
+        for fact in facts:
+            err = err or kb_note(hub, a["kbdir"], a["session_id"], fact)
+        if err or not take_lock(a["kbdir"], a["session_id"]):
+            def drop(o):
+                o["agents"].pop(p["name"], None)
+                return True
+            with_agents(hub, drop)
+            print(f"desk: no desk agent starts for {slug}: {err or 'its writer lock is held'}; the letter keeps its receiver", file=sys.stderr)
+            return None
+    return p
+
+
+def spawn_runner(hub, name):
+    me = os.path.abspath(__file__)
+    env = dict(os.environ)
+    env.pop("HUB_SESSION", None)
+    subprocess.Popen([sys.executable, me, "--hub", hub, "agent-run", name], start_new_session=True, cwd=hub, env=env,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, close_fds=True)
+
+
+def agent_dispatch(hub, plan, prompt, lid=None):
+    """Give the prompt to the agent: queue it behind the run that goes on, or start a run now."""
+    name = plan["name"]
+    out = {}
+
+    def f(o):
+        a = o["agents"].get(name)
+        if not a:
+            out["err"] = f"there is no desk agent {name}"
+            return False
+        a.setdefault("queue", []).append({"prompt": prompt, "letter": lid})
+        if a.get("state") in AGENT_LIVE and pid_alive(a.get("runner")):
+            out["queued"] = True
+        elif a.get("state") == "starting" and plan.get("act") == "new":
+            out["spawn"] = True
+        else:
+            a.update(state="starting", since=now_ts(), why=None)
+            out["spawn"] = True
+        return True
+    with_agents(hub, f)
+    if out.get("err"):
+        raise Bad(out["err"])
+    if out.get("spawn"):
+        spawn_runner(hub, name)
+    return "queued" if out.get("queued") else "started"
+
+
+def summarize_event(ev):
+    """(kind, text) of one stream-json event, or None."""
+    t = ev.get("type")
+    if t == "assistant":
+        outs = []
+        for c in ((ev.get("message") or {}).get("content") or []):
+            if not isinstance(c, dict):
+                continue
+            if c.get("type") == "tool_use":
+                inp = c.get("input") or {}
+                arg = inp.get("command") or inp.get("file_path") or inp.get("pattern") or inp.get("description") or json.dumps(inp, ensure_ascii=False)
+                outs.append(("tool", f"{c.get('name')}: {arg}"))
+            elif c.get("type") == "text" and (c.get("text") or "").strip():
+                outs.append(("text", c["text"]))
+        return outs
+    if t == "result":
+        return [("result", str(ev.get("result") or ev.get("subtype") or ""))]
+    return []
+
+
+def agent_event(hub, name, kind, text):
+    text = clean_text(text).strip()
+    if len(text) > AGENT_TEXT_MAX:
+        text = text[:AGENT_TEXT_MAX - 1] + "…"
+    ensure_dir(os.path.join(desk_dir(hub), "agents"))
+    append_line(agent_events_path(hub, name), {"at": now_ts(), "kind": kind, "text": text})
+    return text
+
+
+def cmd_agent_run(hub, a):
+    """The runner of one desk agent: one claude -p at a time, run after run while its queue has prompts."""
+    name = a.name
+    me = os.getpid()
+    while True:
+        job = {}
+
+        def take(o):
+            ag = o["agents"].get(name)
+            if not ag:
+                return False
+            r = ag.get("runner")
+            if r and r != me and pid_alive(r):
+                job["other"] = True   # one runner (one process) per session
+                return False
+            q = ag.get("queue") or []
+            if not q:
+                ag.update(state="stopped" if ag.get("state") == "stopping" else ("ended" if ag.get("runs") else ag.get("state")),
+                          runner=None, claude=None, since=now_ts())
+                return True
+            job.update(q.pop(0), agent=dict(ag))
+            ag.update(state="running", runner=me, since=now_ts(), runs=int(ag.get("runs") or 0) + 1)
+            return True
+        with_agents(hub, take)
+        if job.get("other") or "prompt" not in job:
+            return
+        ag = job["agent"]
+        sid, kbdir = ag["session_id"], ag["kbdir"]
+        if not take_lock(kbdir, sid):
+            lk = lock_of(kbdir)
+            agent_event(hub, name, "error", f"the writer lock of {ag['kb']} is held by {lk[0] if lk else '?'}: this run does not start")
+            with_agents(hub, lambda o: (o["agents"][name].update(state="stopped", runner=None, since=now_ts(),
+                                                                  why="its KB is held by another writer"), True)[1])
+            return
+        first = bool(ag.get("new_session")) and int(ag.get("runs") or 0) == 0
+        mode = os.environ.get("DESK_AGENT_PERMISSION_MODE") or "auto"
+        args = [claude_prog(), "-p", "--name", name, "--permission-mode", mode, "--output-format", "stream-json",
+                "--verbose", "--append-system-prompt", system_prompt(hub, name, ag["role"], ag["kb"]),
+                "--session-id" if first else "--resume", sid, job["prompt"]]
+        env = dict(os.environ, ORBIT_KB_WRITER=sid, DESK_AGENT=name)
+        env.pop("HUB_SESSION", None)
+        agent_event(hub, name, "start", ("Started" if first else "Resumed") + f" with: {job['prompt']}")
+        if job.get("letter"):
+            try:
+                Store(hub).add_event(job["letter"], "seen", name)
+            except OSError:
+                pass
+        try:
+            p = subprocess.Popen(args, cwd=hub, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.DEVNULL, start_new_session=True, text=True, encoding="utf-8", errors="replace")
+        except OSError as e:
+            agent_event(hub, name, "error", f"{claude_prog()} did not start: {e}")
+            release_lock(kbdir, sid)
+            with_agents(hub, lambda o: (o["agents"][name].update(state="stopped", runner=None, since=now_ts(), why=str(e)), True)[1])
+            return
+        with_agents(hub, lambda o: (o["agents"][name].update(claude=p.pid), True)[1])
+        for line in p.stdout:
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(ev, dict):
+                continue
+            for kind, text in summarize_event(ev):
+                t = agent_event(hub, name, kind, text)
+                if kind in ("text", "tool", "result"):
+                    with_agents(hub, lambda o, t=t, k=kind: (o["agents"][name].update(last=t, last_kind=k, last_at=now_ts()), True)[1])
+        rc = p.wait()
+        release_lock(kbdir, sid)
+        agent_event(hub, name, "end", f"the run ended (exit {rc})")
+        if job.get("letter"):
+            try:
+                st = Store(hub)
+                acked = any(e["event"] == "acked" and e["letter"] == job["letter"] for e in st.events())
+                st.add_event(job["letter"], "acted" if (acked or rc == 0) else "not_acted", name,
+                             None if (acked or rc == 0) else f"the run of {name} ended with exit {rc}")
+            except OSError:
+                pass
+
+        def done(o):
+            g = o["agents"][name]
+            g.update(claude=None, ended=now_ts())
+            return True
+        with_agents(hub, done)
+
+
+def cmd_agent_stop(hub, a):
+    out = {}
+
+    def f(o):
+        settle_dead(hub, o)
+        g = o["agents"].get(a.name)
+        if not g:
+            out["err"] = f"there is no desk agent {a.name}"
+            return False
+        if g.get("state") not in AGENT_LIVE:
+            out["msg"] = f"{a.name} is not running ({g.get('state')})"
+            return True
+        out["dropped"] = len(g.get("queue") or [])
+        g.update(state="stopping", since=now_ts(), queue=[])
+        out["pid"] = g.get("claude")
+        return True
+    with_agents(hub, f)
+    if out.get("err"):
+        raise NoHub(out["err"])
+    if out.get("msg"):
+        print(out["msg"])
+        return
+    pid = out.get("pid")
+    if pid and pid_alive(pid):
+        try:
+            os.killpg(pid, 15)
+        except OSError:
+            try:
+                os.kill(pid, 15)
+            except OSError:
+                pass
+    if out.get("dropped"):
+        agent_event(hub, a.name, "stop", f"stopped by Ty; {out['dropped']} waiting message(s) dropped")
+    else:
+        agent_event(hub, a.name, "stop", "stopped by Ty")
+    print(f"stopping {a.name}")
+
+
+def cmd_agent_resume(hub, a):
+    g = with_agents(hub, lambda o: (settle_dead(hub, o), dict(o["agents"].get(a.name) or {})))
+    if not g:
+        raise NoHub(f"there is no desk agent {a.name}")
+    if g.get("state") in AGENT_LIVE:
+        raise Bad(f"{a.name} is running: stop it first")
+    agent_dispatch(hub, {"name": a.name, "act": "run"}, RESUME_PROMPT)
+    print(f"resumed {a.name}")
+
+
+def cmd_agents(hub, a):
+    if a.switch == "off":
+        ensure_dir(state_dir())
+        open(agents_off_flag(), "w").close()
+        print("desk agents are off: a letter about a KB that nobody holds keeps its receiver")
+        return
+    if a.switch == "on":
+        try:
+            os.remove(agents_off_flag())
+        except OSError:
+            pass
+        print("desk agents are on" + (" (but DESK_AGENTS=off in this environment)" if os.environ.get("DESK_AGENTS") == "off" else ""))
+        return
+    print(json.dumps({"on": agents_on(), "agents": agents_view(hub)}, ensure_ascii=False, indent=1))
+
+
+def agents_view(hub):
+    """The desk agents of the hub as the Desk shows them (desk.py status)."""
+    o = with_agents(hub, lambda o: (settle_dead(hub, o), json.loads(json.dumps(o))))
+    out = []
+    for nm, g in sorted(o["agents"].items(), key=lambda kv: kv[1].get("started") or ""):
+        evs = read_jsonl(agent_events_path(hub, nm), [], ("kind",))
+        live = g.get("state") in AGENT_LIVE
+        out.append({"name": nm, "kb": g.get("kb"), "kbdir": g.get("kbdir"), "role": g.get("role"), "state": g.get("state"),
+                    "running": live, "since": g.get("since"), "started": g.get("started"), "ended": g.get("ended"),
+                    "session_id": g.get("session_id"), "why": g.get("why"), "last": g.get("last"),
+                    "queued": len(g.get("queue") or []), "events": evs[-AGENT_EVENTS_SHOWN:],
+                    "resume_command": None if live else f"cd {shlex.quote(hub)} && claude --resume {g.get('session_id')}"})
+    return out
+
+
 # ---- commands ----
 
 def cmd_send(hub, a):
@@ -579,9 +1147,18 @@ def cmd_send(hub, a):
     lid = f"L-{t.strftime('%Y%m%dT%H%M%SZ')}-{secrets.token_hex(3)}"
     letter = {"id": lid, "at": t.strftime(TS_FMT), "kind": a.kind, "item": it, "text": text,
               "choice": choice, "by": "human", **({"to": to} if to else {}), **({"about": about} if about else {})}
+    plan = agent_plan(hub, letter)  # desk-agents c11, c14: a desk agent takes it (it holds the KB first)
+    if plan:
+        letter["agent"] = plan["name"]
     append_line(os.path.join(desk_dir(hub), "letters.jsonl"), letter)  # stored before we return (c8)
-    print(json.dumps({"id": lid}))
+    print(json.dumps({"id": lid, **({"agent": plan["name"]} if plan else {})}))
     sys.stdout.flush()
+    if plan:
+        try:
+            agent_dispatch(hub, plan, agent_prompt_of(letter) if it["type"] != "agent" else clean_text(text), lid)
+        except (Bad, OSError) as e:
+            log(hub, f"agent: {plan['name']} did not take {lid}: {e!r}")
+            print(f"desk: the desk agent {plan['name']} did not take the letter: {e}", file=sys.stderr)
     # desk-delivery c5: no wake here. The Desk asks Ty for each letter to an idle session (wake_ask).
 
 
@@ -768,6 +1345,7 @@ def status_obj(hub):
     finally:
         c.close()
     return {"now": now, "sessions": sessions, "orphans": {"unowned": unowned, "unaccepted": unaccepted},
+            "agents": agents_view(hub), "agents_on": agents_on(),
             "kb_refs": kb_refs, "kb_closed": kb_closed, "kb_handoffs": kb_handoffs, "closed_recent": closed, "letters": lv,
             "bad_lines": {"count": len(store.bad), "lines": store.bad},
             # c24: no letter reaches a session of this hub while an event has no desk hook
@@ -1287,6 +1865,14 @@ def parser():
     s.add_argument("--name")
     s = sub.add_parser("mindholes")
     s.add_argument("--json", action="store_true")
+    s = sub.add_parser("agent-run")
+    s.add_argument("name")
+    s = sub.add_parser("agent-stop")
+    s.add_argument("name")
+    s = sub.add_parser("agent-resume")
+    s.add_argument("name")
+    s = sub.add_parser("agents")
+    s.add_argument("switch", nargs="?", choices=("on", "off"))
     s = sub.add_parser("service")
     s.add_argument("--hub", dest="sub_hub")
     s.add_argument("--orbit-kb")
@@ -1298,7 +1884,8 @@ def parser():
 COMMANDS = {"send": cmd_send, "render": cmd_render, "wake-text": cmd_wake_text, "event": cmd_event,
             "status": cmd_status, "draft": cmd_draft, "ack": cmd_ack, "drafts": cmd_drafts, "letters": cmd_letters,
             "wake": cmd_wake, "hooks": cmd_hooks, "join": cmd_join, "leave": cmd_leave,
-            "mindholes": cmd_mindholes, "service": cmd_service}
+            "mindholes": cmd_mindholes, "service": cmd_service, "agent-run": cmd_agent_run,
+            "agent-stop": cmd_agent_stop, "agent-resume": cmd_agent_resume, "agents": cmd_agents}
 NO_HUB = ("hooks", "wake-text", "draft", "drafts", "join", "leave", "mindholes", "service")  # find it themselves
 
 

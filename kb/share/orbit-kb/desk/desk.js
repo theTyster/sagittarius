@@ -227,3 +227,15 @@
     });
   });
 })();
+
+// desk-agents c19: the filter of the view Agents narrows the rows as Ty types (the address ?q= does it too)
+(function () {
+  var f = document.querySelector('input[data-agent-filter]');
+  if (!f) return;
+  f.addEventListener('input', function () {
+    var q = f.value.trim().toLowerCase();
+    document.querySelectorAll('details.agent').forEach(function (d) {
+      d.hidden = q !== '' && (d.getAttribute('data-agent') || '').toLowerCase().indexOf(q) < 0;
+    });
+  });
+})();
