@@ -397,12 +397,26 @@ t_VS13() {  # c14, c16
     d="$T/c13c"; vs_script_kb "$d" || return; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k1.sh"; wrin build "$d" run k1 -- sh checks/k1.sh "$T/treeA"; wr build --dir "$d" release
     gate_not "$d" go "c14: a changed script run again by the same command"
     wr build --dir "$d" add "run_input(a1, 'x', 'y')"; [ "$rc" != 0 ] || note "add took run_input typed by hand"
+    # review f23 (1): a script with = in its file name (the entry is cut at its last =sha256:)
+    d="$T/c13d"; wr build init "$d" --request "a request" --uses discovery; mkdir -p "$d/checks"; printf '#!/bin/sh
+exit 1
+' > "$d/checks/a=b.sh"
+    wr build --dir "$d" add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" \
+        "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    wrin build "$d" run k1 -- sh checks/a=b.sh; wr build --dir "$d" add "discovery_evidence(k1, system)"; wr build --dir "$d" attest vote r1 'vote(1, go)'; wr build --dir "$d" attest vote r1 'vote(1, go)' --by human; wr build --dir "$d" release
+    gate_is "$d" go "f23: a script with = in its name, nothing changed"
+    printf '#!/bin/sh
+# weaker
+exit 1
+' > "$d/checks/a=b.sh"; gate_not "$d" go "f23: and a change of that script opens the gate"
 }
 t_VS14() {  # c15
     local d="$T/c14"; vs_script_kb "$d" || return; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k1.sh"
     wrin discovery "$d" run k1 -- sh checks/k1.sh "$T/treeA"; gate_not "$d" go "the changed and run check opens the gate"
     wrin discovery "$d" attest confirmation k1 'check_change(ok)' --as discovery; wr discovery --dir "$d" release
     gate_not "$d" go "c15: the role and session that changed the check cannot confirm it"
+    ( cd "$d" && ORBIT_KB_WRITER=other-s XDG_CACHE_HOME="$T/.cache" timeout "$TMO" "$OKB" attest confirmation k1 'check_change(ok)' ) >/dev/null 2>&1; wr other-s --dir "$d" release
+    gate_not "$d" go "c15 (review f23): a confirmation by a session that names no role is not another role"
     wrin review "$d" attest confirmation k1 "check_change('it still tests c1')" --as review || note "the confirmation of review was refused: $(snip "$err")"; wr review --dir "$d" release
     gate_is "$d" go "c15: the confirmation of another pane closes it"
     printf '# again\n' >> "$d/checks/k1.sh"; gate_not "$d" go "c15: a later change of the script opens it again"

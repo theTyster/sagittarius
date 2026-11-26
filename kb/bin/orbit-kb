@@ -2119,10 +2119,15 @@ rec_before(Rs, Lim, R) :- findall(R0, ( member(R0, Rs), R0 = rec(I, _, _, _), I 
 
 same_run_input(rec(_, _, C, F), rec(_, _, C2, F2)) :- C == C2, F == F2.
 
+% run_input_entry(+E, -F, -H): an entry PATH=sha256:HEX, cut at its last "=sha256:" (a PATH may hold "=": review f23).
+run_input_entry(E, F, H) :-
+    findall(B, sub_string(E, B, _, _, "=sha256:"), Bs), last(Bs, B),
+    sub_string(E, 0, B, _, F), B1 is B + 1, sub_string(E, B1, _, 0, H).
+
 % run_input_file_changed(+Dir, +Files, -F): a file of the record has another digest now, or is gone.
 run_input_file_changed(Dir, Files, F) :-
     Dir \== none, split_string(Files, " ", "", Es), member(E, Es), E \== "",
-    sub_string(E, B, 1, _, "="), sub_string(E, 0, B, _, F), B1 is B + 1, sub_string(E, B1, _, 0, H0),
+    run_input_entry(E, F, H0),
     directory_file_path(Dir, F, Abs),
     (   exists_file(Abs), run_input_sha(Abs, H), atom_string(H, H0) -> fail ; true ), !.
 
@@ -2133,6 +2138,7 @@ valid_check_confirm(Ts, IC, CA, K) :-
     check_records(Ts, K, Rs), rec_before(Rs, IC, rec(_, RA, _, _)),
     once(( member(X, Ts), nonvar(X), X = actor(CA0, Rc, Sc), CA0 == CA )),
     once(( member(Y, Ts), nonvar(Y), Y = actor(RA0, Rr, Sr), RA0 == RA )),
+    Rc \== unknown,                                  % a session that names no role is not another role (review f23)
     Rc \== Rr, Sc \== Sr.
 
 % check_changed_derived(+Dir, +KbItems, -Facts): check_changed(K) for each check K that changed since the newest
@@ -11401,7 +11407,7 @@ vote_input_lines(KB, Items, vote, K, human, Id, [L]) :-
     check_records(Ts, K, Rs), last(Rs, rec(_, _, Cmd, Files)), !,
     kb_dir(KB, Dir),
     split_string(Files, " ", "", Es),
-    findall(E2, ( member(E, Es), E \== "", sub_string(E, B, 1, _, "="), sub_string(E, 0, B, _, F),
+    findall(E2, ( member(E, Es), E \== "", run_input_entry(E, F, _),
                   directory_file_path(Dir, F, Abs), exists_file(Abs), run_input_sha(Abs, H), format(atom(E2), "~w=~w", [F, H]) ), E2s),
     atomic_list_concat(E2s, ' ', Files2),
     clause_line(run_input(Id, Cmd, Files2), [], L).
