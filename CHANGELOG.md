@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.12.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.13.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.14.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.15.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,45 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.13.0 and MindHole Kit 0.15.0 (2026-11-26)
+
+MINOR for Sagittarius: new facts (`run_input/3`, `approval_epoch/1`), a new form of the confirmation
+(`check_change`), new blockers (`check_changed`, `change_unvoted`), a rule of the vote that changes (the approval of
+the ticket is no exception), and a migration. Ty asked for "a patch release or whatever"; a migration and a new rule
+make it more than a patch. No rule of the prompt changes. MINOR for the kit: the hub's orbit-kb brings a migration of
+spec KBs. The db schema stays 9. One ticket, verified by review (vote-start c14 to c17; H-0297), and the test fix of
+T-0074, released on Ty's word of 2026-11-26: "Make sure it lands in another patch release or whatever. I want it to
+be live when I get back." (T-0075).
+
+- **The content of a check is under the vote** (vote-start c14, c16; Ty's report H-0286: "My vote would be the
+  decider"; hy2). `orbit-kb run` records what a run read: `run_input(A, Cmd, Files)`, the command with each path
+  outside the KB directory written `<outside>` and each path inside it `kb:PATH`, and the sha256 of each file of the
+  KB that the command names. After the vote of the human, a run of a check by another command, or a change of a file
+  that its command names (run or not), is a change of the check: the vote no longer wins the gate, and `show open`
+  names `check_changed K`. A rerun by the same command, also on another tree outside the KB, is no change.
+- **Another pane confirms a changed check** (c15; Ty, q7: "A pane that did not make the change confirms it").
+  `orbit-kb attest confirmation K "check_change('WHY')" --as ROLE` closes it when its role and its session both
+  differ from those of the run that recorded the change (a confirmation with no role does not count); a change that
+  nobody ran is run first. A vote of the human
+  on the check closes it too (it records the check as it is then). A later change opens it again.
+- **The approval of the ticket is no exception** (c17; Ty, q9: "Claims need my vote; checks need another pane").
+  After it, a goal, hypothesis or claim that is added, replaced, struck or retired takes the vote of the human back
+  until he votes on it (`show open`: `change_unvoted X`; a confirmation does not stand in); a check that is added or
+  changed waits for the confirmation of another pane, or his vote.
+- **From the upgrade on** (c13's rule for this change too). The migration `m_0_13_0_approval_epoch` writes
+  `approval_epoch(N)` into each KB made before 0.13.0 that holds a vote of the human: a change above it that came
+  after a valid approval keeps its old reading. A check with no record before the vote takes its first run after the
+  vote as the baseline. The gates of existing KBs do not change at the upgrade (24 KBs of the sidequest-mindhole: 0
+  differ; with no edge 2 would have gone to hold).
+- **The Lean models** `kb/proofs/gate_ready` and `kb/proofs/open_items` follow c17: `closedGo_step` holds for each
+  step that is not back and writes no change of the specification; new theorems `change_takes_go_back`,
+  `change_after_closure_holds`, `human_vote_gives_go_back`, `confirm_does_not_carry_spec`, `confirm_gives_go_back`,
+  `c17`. No sorry; eight theorems of gate_ready now use `Classical.choice`. Ty has not yet accepted the new statements.
+- **test_kb_crud no longer depends on the shell that runs it** (T-0074): its agent-shell cases set `CLAUDECODE`
+  themselves, and a new case covers a shell that is no agent session.
+- Tests: VS13 to VS16 of `test_vote_start.sh`; VS4, VS5 and HY6, HY10, RD5, OP1, OP5, RD6, HY15 of
+  `test_orbit_kb.sh` changed to the superseding claims.
 
 ## Sagittarius 0.12.0 and MindHole Kit 0.14.0 (2026-11-26)
 

@@ -102,6 +102,34 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.15.0 (the content of a check is under the vote; the approval is no exception; one migration of spec KBs; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.13.0. The db schema is 9: no `hubflow.py migrate`. What changes in a hub:
+
+- The hub's orbit-kb: one migration of spec KBs, `m_0_13_0_approval_epoch`. It writes `approval_epoch(N)` into each
+  spec KB made before 0.13.0 that holds a vote of the human, so that its gate stays as it is. `hubkit.py upgrade`
+  only previews it: in each `specs/SLUG` of an open ticket, with no session writing it, run
+  `../../.claude/orbit-kb/bin/orbit-kb migrate plan`, then `orbit-kb migrate apply --seen sha256:DIGEST` with the
+  digest that the plan prints, then `orbit-kb release`. A closed ticket's KB is frozen and reads as wholly from
+  before the upgrade.
+- **For the panes** (vote-start c14, c15, c17): after the vote of the human, a run of a check by another command than
+  its own (for example a probe of review run under the id of the check), or a change of its script, opens the gate
+  until another pane confirms the check: `orbit-kb attest confirmation K "check_change('WHY')" --as ROLE` (another role
+  and another session than the run that changed it), or the human votes on it. Run a probe under its own check id,
+  not under the id of another check. After the approval of the ticket, a goal, hypothesis or claim that build adds,
+  replaces or strikes waits for the vote of the human (`show open`: `change_unvoted X`).
+- What the record of a run sees: the command (paths outside the KB as `<outside>`) and each file of the KB that
+  the command names. What it does not see: a file that the script sources and the command does not name, a script
+  inside a quoted word (`bash -c '...'`), and the files under a directory that the command names.
+- Edges for the panes: an edit that nobody ran cannot be confirmed until someone runs the check, and the runner then
+  counts as the one who changed it; `sh` in place of `bash` is another command; a comment added to a script opens the
+  gate; a confirmation needs a role (`--as ROLE` or `ORBIT_KB_ROLE`); the first run of an old check after the upgrade
+  becomes its baseline, so run it by its plain command, not a wrapper.
+- `desk.py`, the hooks block and `.claude/settings.json` do not change.
+
+A hub on 0.14.0 needs the upgrade and the migration in each open spec KB, then a restart of the Desk after every
+joined hub is upgraded.
+
 ### 0.14.0 (a desk agent that fails shows failed; a desk agent gets nothing of the session that started the Desk; an unknown DESK_AGENTS word leaves agents on; db schema 9, unchanged)
 
 This release pairs with Sagittarius 0.12.0. The db schema is 9: no `hubflow.py migrate`. No migration of
