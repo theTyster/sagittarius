@@ -20,6 +20,9 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                and a preview digest. --yes then needs --seen-migrations DIGEST of the
                                preview as it is now, and refuses an upgrade whose preview names a
                                change outside the declared reach of a migration
+                               The preview opens with a summary that the tool computes (spec KBs, verdicts
+                               that differ, writes, the KBs that change); the digest is that of the full
+                               preview. The tool makes no model call (preview-reducer c5).
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [formal] [--yes]
                                print the edition that the hub's manifest records. `edition formal`
@@ -504,7 +507,7 @@ def migration_preview(o, k, hub, plan):
         return None
     env = {x: v for x, v in os.environ.items() if not x.startswith("ORBIT_KB")}
     closed = closed_slugs(hub)
-    lines, bad = [], []
+    lines, bad, recs = [], [], []
     if closed is None:
         lines.append("(the ledger flow/flow.db cannot be read: no KB is marked closed)")
     for label, slug, d in kbs:
@@ -523,8 +526,41 @@ def migration_preview(o, k, hub, plan):
         lines += ["  " + x for x in keep] or ["  (no output)"]
         if rc != 0:
             bad.append(label)
+        recs.append(preview_record(label, slug, rc, keep))
     digest = "sha256:" + hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
-    return lines, digest, bad
+    return lines, digest, bad, recs
+
+
+def preview_record(label, slug, rc, keep):
+    """preview-reducer c1: what the tool says about one KB, from the lines of its plan that the preview keeps:
+    differs (the verdicts that the new engine changes), writes (a tool step, a new question or a write is to
+    do: no 'Nothing to write.'), refused (the plan refuses or does not run)."""
+    differs = any(x.startswith("Verdicts that differ") for x in keep)
+    refused = rc != 0 or any(x.startswith(("REFUSED", "apply refuses")) for x in keep)
+    writes = not any(x.startswith("Nothing to write") for x in keep) and not refused
+    return {"label": label, "slug": slug, "differs": differs, "writes": writes, "refused": refused,
+            "changes": differs or writes or refused}
+
+
+def preview_summary(recs, nlines):
+    """preview-reducer c1, c2: the counts that the tool computes with no model, then what the summary leaves out.
+    The digest that the human confirms is the digest of the full preview, not of this summary."""
+    n = len(recs)
+    diff = [r for r in recs if r["differs"]]
+    writes = [r for r in recs if r["writes"]]
+    refused = [r for r in recs if r["refused"]]
+    changed = [r for r in recs if r["changes"]]
+    quiet = n - len(changed)
+    out = [f"summary (computed by the tool, no model): {n} spec KBs; verdicts differ: {len(diff)}; "
+           f"new open items or writes: {len(writes)}; plan refused: {len(refused)}; nothing to write: {n - len(writes) - len(refused)}.",
+           f"KBs with nothing to change: {quiet} of {n}." if quiet else "Every KB changes.",
+           "KBs that change: " + (", ".join(r["slug"] for r in changed) if changed else "none") + ".",
+           f"Full preview below ({nlines} lines): it names every spec KB, closed ones too, with the declared changes and the "
+           "reach of each. This summary leaves those out. The preview digest below is the digest of the full preview.",
+           "preview summary: " + json.dumps({"kbs": n, "verdicts_differ": len(diff), "writes": len(writes),
+                                             "refused": len(refused), "unchanged": quiet,
+                                             "changed": [r["slug"] for r in changed]}, sort_keys=True)]
+    return out
 
 
 def cmd_upgrade(o, edition=None):
@@ -577,8 +613,10 @@ def cmd_upgrade(o, edition=None):
         print(line)
     pv = migration_preview(o, k, hub, plan)
     if pv:
-        lines, digest, bad = pv
+        lines, digest, bad, recs = pv
         print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
+        for x in preview_summary(recs, len(lines)):
+            print(x)
         for x in lines:
             print(x)
         print(f"preview digest: {digest}")
@@ -587,7 +625,7 @@ def cmd_upgrade(o, edition=None):
             print(f"show the preview to the human; then: hubkit.py upgrade --hub HUB --yes --seen-migrations {pv[1]}")
         return
     if pv:
-        lines, digest, bad = pv
+        lines, digest, bad, recs = pv
         if bad:
             die(1, "refused: the migration plan of " + ", ".join(bad) + " names a change outside the declared reach, or does"
                    " not run; nothing was copied. Fix the migration of the kit (or the KB), then upgrade again")

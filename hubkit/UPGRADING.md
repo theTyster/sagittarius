@@ -16,6 +16,13 @@ Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" f
    still working: stop and ask. Every session that writes the hub is idle.
 2. **Read the plan.** `python3 "$KIT"/tools/hubkit.py upgrade --hub "$HUB"` (a dry run). Read every
    release section below between the hub's version (`.hub-template.json`) and the kit's version.
+   The dry run opens with a summary that the tool computes with no model (preview-reducer): how many spec
+   KBs, how many get a verdict that differs, how many get new open items or writes, the slugs of the KBs
+   that change, and a line `preview summary: {...}` for a program. The full preview follows, and the
+   `--seen-migrations` digest is the digest of the full preview, not of the summary. Read the summary
+   first; read the block of each KB that changes.
+   No model reads the preview (preview-reducer c5): the summary is the tool's own counts.
+
 3. **Apply.** `python3 "$KIT"/tools/hubkit.py upgrade --hub "$HUB" --yes`. It replaces the engine
    files the hub did not change, adds new files, and lists each changed engine file as `pending`.
 4. **Merge each pending file by intent.** For each one, find the release section that names it.
