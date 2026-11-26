@@ -1865,7 +1865,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(KbItems, Ts11),
+    vote_void_derived(Dir, KbItems, Ts11a), vote_changed_derived(Dir, KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), append([Ts11a, Ts11b, Ts11c, Ts11d], Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2039,8 +2039,10 @@ reopen_derived(_, []).
 % attestation follows in kb.pl (it belongs to an earlier orbit: after a return to discovery,
 % a new round of votes is needed), and for each vote V that comes after a discovery_end(E) of a
 % human approval of the ticket when no back follows E (the orbit was closed when V came).
-vote_void_derived(KbItems, Facts) :-
+vote_void_derived(KbItems, Facts) :- vote_void_derived(none, KbItems, Facts).
+vote_void_derived(Dir, KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    vote_changed_derived(Dir, KbItems, Ch),
     findall(T, kb_term(KbItems, T), Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_void(V),
@@ -2052,8 +2054,122 @@ vote_void_derived(KbItems, Facts) :-
                   \+ ( member(B2, Mid), is_back(B2) )
               ) ),
             Fs0),
+    findall(vote_void(V), ( member(vote_changed(V), Ch) ), Fs1),
+    append(Fs0, Fs1, Fs2), sort(Fs2, Facts).
+vote_void_derived(_, _, []).
+
+% vote_changed_derived(+KbItems, -Facts) (vote-start c6): vote_changed(V) for each vote V that a record
+% of the specification follows in kb.pl (see vote_spec_changed/3). Such a vote is void as well, and the
+% gate says hold until a vote of the human in a new round (the rule gate(hold) of the discovery module).
+vote_changed_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
+    findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
+    findall(vote_changed(V),
+            ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
+              \+ vote_carry_subject(Ts0, Sv),
+              \+ ( member(B, After), is_back(B) ),
+              vote_spec_changed(Ts, Tks, Pv, After) ),
+            Fs0),
     sort(Fs0, Facts).
-vote_void_derived(_, []).
+vote_changed_derived(_, _, []).
+
+% vote_epoch_mask(+Dir, +Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): the terms ABOVE the term
+% vote_epoch(_) in kb.pl, which the migration or the first write of this orbit-kb puts there, are from before the
+% upgrade: a record of the specification among them is not a change that takes a vote back. Its number is kept for
+% the reader and not used: the place is the edge.
+% With no vote_epoch/1, a KB that an orbit-kb before 0.11.0 made (its Made by line) is wholly from before the
+% upgrade (review H-0245): a frozen KB, which the migration does not write, keeps its old reading. The first
+% write of this orbit-kb to such a KB with a vote of the human writes vote_epoch(N) first (epoch_lines/2), so
+% what it adds counts from then on.
+vote_epoch_mask(Dir, Ts, Ts1) :-
+    (   nth1(IM, Ts, TM), nonvar(TM), TM = vote_epoch(_) -> E is IM - 1      % its place, not its count: a withdraw or strike above it cannot move the edge (review H-0250)
+    ;   kb_made_before_reset(Dir) -> length(Ts, E)
+    ;   E = 0
+    ),
+    (   E > 0 -> findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1) ; Ts1 = Ts ), !.
+
+kb_made_before_reset(Dir) :-
+    Dir \== none, atom(Dir), directory_file_path(Dir, 'kb.pl', F), exists_file(F),
+    catch(mig_made_by(F, V), _, fail),
+    ( V == none -> true ; version_parts(V, P), P @< [0, 11, 0] ).
+
+% epoch_lines(+KbFile, +Lines0, -Lines): the line vote_epoch(N) before the first lines that this orbit-kb adds
+% to a KB made before 0.11.0 that holds a vote of the human and no vote_epoch/1 (N: its terms so far).
+epoch_lines(File, Lines0, [L]) :-
+    \+ ( member(L0, Lines0), sub_string(L0, 0, _, _, "vote_epoch(") ),
+    file_base_name(File, 'kb.pl'), exists_file(File),
+    catch(read_source_file(kb, File, KbItems), _, fail),
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, vote_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    file_directory_name(File, Dir), kb_made_before_reset(Dir),
+    findall(T, kb_term(KbItems, T), Ts), length(Ts, N),
+    clause_line(vote_epoch(N), [], L), !.
+epoch_lines(_, _, []).
+
+% vote_epoch_needed_derived(+Dir, +KbItems, -Facts): vote_epoch_needed(N) when the KB has a vote of the
+% human, no vote_epoch/1, and was made by an orbit-kb older than the one that brings the reset rule
+% (0.11.0): N is the number of its terms now. The migration m_0_11_0_vote_epoch writes vote_epoch(N).
+vote_epoch_needed_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, vote_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    directory_file_path(Dir, 'kb.pl', KbFile), exists_file(KbFile),
+    catch(mig_made_by(KbFile, V), _, V = none),
+    (   V == none -> true ; version_parts(V, P), P @< [0, 11, 0] ),
+    !, findall(T, kb_term(KbItems, T), Ts), length(Ts, N), Facts = [vote_epoch_needed(N)].
+vote_epoch_needed_derived(_, _, []).
+
+% vote_spec_changed(+Ts, +Tks, +After) (vote-start c6, Ty r2): a record of the specification
+% (goal, hypothesis, claim, check, example, a retirement attestation, supersedes, struck) follows the vote in kb.pl,
+% and no valid discovery_end (the human approved the ticket while gate(go) held) follows the vote: a
+% closed discovery keeps the record of its vote, and build changes the specification after it.
+% A note, a run, a finding or an answer is no part of the specification: the vote stays.
+vote_spec_changed(Ts, Tks, Pv, After) :-
+    \+ ( member(E, After), nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A) ),
+    append(_, [C|After2], After), spec_change(C),
+    \+ vote_carried(C, Pv, After2), !.
+
+% vote_carried(+Change, +VotePred, +AfterChange) (vote-start c11, Ty r4): the human voted on this change
+% himself: a vote of the human that comes after it, names the record (its id, or the claim of an
+% example or check), and has the choice of the standing vote. Then the change joins his vote.
+vote_carried(C, vote(_, Ch), After2) :-
+    spec_ids(C, Ids),
+    member(V2, After2), nonvar(V2), V2 = attest(_, Ty2, S2, vote(_, Ch2), human, _), Ty2 == vote,
+    Ch2 == Ch, memberchk(S2, Ids), !.
+
+% vote_carry_subject(+Ts, +S): S is the id of a record of the specification: a vote that names it is a
+% vote on that record (a carry vote), not a vote on the ticket; it is no round of votes (vote_carry/1).
+vote_carry_subject(Ts, S) :- atom(S), member(C, Ts), spec_change(C), spec_ids(C, Ids), memberchk(S, Ids), !.
+
+spec_ids(claim(C, _, _), [C]).
+spec_ids(example(C, _), [C]).
+spec_ids(check(K, C), [K, C]).
+spec_ids(hypothesis(H, _, _, _), [H]).
+spec_ids(hypothesis(H, _, _), [H]).
+spec_ids(goal(G, _, _, _), [G]).
+spec_ids(supersedes(N, _), [N]).
+spec_ids(attest(_, retirement, H, _, _, _), [H]).
+spec_ids(struck(_, I, _, _), [I]).
+
+% vote_carry_derived(+KbItems, -Facts): vote_carry(V) for each vote V that names a record of the specification.
+vote_carry_derived(KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts),
+    findall(vote_carry(V), ( member(X, Ts), nonvar(X), X = attest(V, Ty, S, _, _, _), Ty == vote, ground(V), vote_carry_subject(Ts, S) ), Fs0),
+    sort(Fs0, Facts).
+vote_carry_derived(_, []).
+spec_change(C) :- nonvar(C), C = attest(_, retirement, _, _, _, _), !.
+spec_change(C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
+spec_change_pi(goal, 4).
+spec_change_pi(hypothesis, 3).
+spec_change_pi(hypothesis, 4).
+spec_change_pi(claim, 3).
+spec_change_pi(check, 2).
+spec_change_pi(example, 2).
+spec_change_pi(supersedes, 2).
+spec_change_pi(struck, 4).
 
 is_back(B) :- nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back.
 valid_end(Ts, Tks, A) :-
@@ -3326,6 +3442,9 @@ protected_pi(project_rests_on/2).
 protected_pi(discovery_reopened/1).
 protected_pi(discovery_run_after/2).
 protected_pi(vote_void/1).
+protected_pi(vote_changed/1).
+protected_pi(vote_carry/1).
+protected_pi(vote_epoch_needed/1).
 protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
@@ -5128,7 +5247,8 @@ cmd_uses(Dir, _, _) :-
 % (upgrade_lines/2).
 append_lines(File, Lines0) :-
     (   Lines0 \== [], catch(upgrade_lines(File, ULs), _, ULs = []) -> true ; ULs = [] ),
-    append(ULs, Lines0, Lines),
+    (   Lines0 \== [], catch(epoch_lines(File, Lines0, ELs), _, ELs = []) -> true ; ELs = [] ),
+    append([ULs, ELs, Lines0], Lines),
     (   exists_file(File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         ( ( S == "" ; sub_string(S, _, 1, 0, "\n") ) -> Pre = "" ; Pre = "\n" )
@@ -5448,6 +5568,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
+        ;   nonvar(T), T = vote_epoch(_)
+        ->  fmt(M, "Argument ~w: vote_epoch/1 is written by orbit-kb only (the migration m_0_11_0_vote_epoch, or the first write to a KB made before 0.11.0). add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = discovery_end(_)
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
@@ -7944,8 +8066,155 @@ desk_records_html(Eng, Acts, Html) :-
         ),
         desk_judgments_html(Eng, G.id, JsH),
         (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_judge_forms(HD, K, G.id, FH) ; FH = "" ),
-        dk_cat([GoalH, HsH, JsH, FH], Html)
+        (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_vote_forms(HD, K, Eng, VtH) ; VtH = "" ),
+        (   Acts = acts(HD, K), \+ desk_kb_frozen(HD, K) -> desk_ticket_html(HD, K, Eng, TkH) ; TkH = "" ),
+        dk_cat([GoalH, HsH, JsH, VtH, TkH, FH], Html)
     ).
+
+% desk_ticket_html(+HD, +K, +Eng, -Html) (vote-start c9, c10): after the GO of a ticket (the gate is go, or
+% the orbit is closed), the sheet shows the text of the ticket, as a page, with Approve: a form that
+% names the sha256 digest of the text shown. An approval of the human that names the digest of the text
+% as it is now ends the need; after the text changes, the old approval is stale (stale/1), the page shows
+% the new text and Approve again.
+desk_ticket_html(HD, K, Eng, Html) :-
+    (   dk_all(Eng, [TK], ticket(TK), [TK1|_]),
+        ( dk_true(Eng, gate(go)) ; dk_true(Eng, discovery_closed) ),
+        desk_ticket_file(Eng, K.dir, TK1, Abs),
+        exists_file(Abs), catch(sha256_file(Abs, Dig), _, fail),
+        size_file(Abs, Sz), Sz < 200000,
+        catch(read_file_to_string(Abs, Txt, [encoding(utf8)]), _, fail)
+    ->  desk_md_html(Txt, MdH), esc(Dig, DigH), esc(TK1, TKH),
+        dk_all(Eng, [Pd, At], attest(_, approval, TK1, Pd, human, At), Aps),
+        (   member([digest(Dig), At1], Aps)
+        ->  dk_day_time(At1, AT), dk_f("<p class=\"small\">You approved this text (<span class=\"ref\">~w</span>, ~w).</p>", [DigH, AT], ApH), FormH = ""
+        ;   ( Aps == [] -> Why = "" ; Why = "<p class=\"small loud\">Your earlier approval names an older text: it is stale. Approve this text as it is now.</p>" ),
+            serve_conf(token, Tok), dk_f("approve:~w", [K.dir], It),
+            desk_hidden([token-Tok, hub-HD.path, item-It, intent-approve, digest-Dig], HH),
+            dk_f("<form class=\"approve\" method=\"post\" action=\"/review\" data-review data-approve>~w~w<button class=\"btn\" type=\"submit\">Approve this text</button> <span class=\"small quiet\">it names the digest <span class=\"ref\">~w</span></span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, Why, DigH], FormH),
+            ApH = ""
+        ),
+        dk_f("<div class=\"ticket\" data-ticket=\"~w\"><h4>The ticket</h4><div class=\"tickettext\">~w</div>~w~w</div>", [TKH, MdH, ApH, FormH], Html)
+    ;   Html = ""
+    ).
+
+% the file of the ticket: the path of its subject record, in the KB folder
+desk_ticket_file(Eng, Dir, TK, Abs) :-
+    dk_all(Eng, [P], subject(TK, P, _), Ps), Ps \== [], last(Ps, P1),
+    atom_string(P1A, P1),
+    (   is_absolute_file_name(P1A) -> Abs = P1A ; directory_file_path(Dir, P1A, Abs) ).
+
+% desk_md_html(+Text, -Html): a plain page from the text of a ticket: headings, bullets, code blocks and
+% paragraphs, each escaped. It is no full Markdown.
+desk_md_html(Text, Html) :-
+    split_string(Text, "\n", "\r", Ls), desk_md_blocks(Ls, Bs), dk_cat(Bs, Html).
+desk_md_blocks([], []).
+desk_md_blocks([L|Rs], Bs) :-
+    (   sub_string(L, 0, 3, _, "```")
+    ->  desk_md_until_fence(Rs, Code, Rest), atomic_list_concat(Code, '\n', CT), esc(CT, CH),
+        dk_f("<pre>~w</pre>", [CH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ;   split_string(L, "", " \t", [""]) -> desk_md_blocks(Rs, Bs)
+    ;   sub_string(L, 0, _, _, "#")
+    ->  string_concat("#", _, L), split_string(L, "#", " ", Ps), last(Ps, T0), desk_md_inline(T0, TH),
+        dk_f("<h5>~w</h5>", [TH], B), Bs = [B|Bs1], desk_md_blocks(Rs, Bs1)
+    ;   desk_md_bullet(L, _)
+    ->  desk_md_take_bullets([L|Rs], Items, Rest), findall(X, ( member(I, Items), desk_md_inline(I, IH), dk_f("<li>~w</li>", [IH], X) ), Xs), dk_cat(Xs, XsH),
+        dk_f("<ul>~w</ul>", [XsH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ;   desk_md_take_para([L|Rs], Para, Rest), atomic_list_concat(Para, ' ', PT), desk_md_inline(PT, PH),
+        dk_f("<p>~w</p>", [PH], B), Bs = [B|Bs1], desk_md_blocks(Rest, Bs1)
+    ).
+% desk_md_inline(+Text, -Html): the text escaped; **bold** and `code` pairs become <strong> and <code>.
+desk_md_inline(Text, Html) :-
+    atomic_list_concat(Bs, '**', Text), length(Bs, N), N mod 2 =:= 1, !,     % an odd number of parts: every ** has its pair
+    desk_md_alt(Bs, strong, Hs), atomic_list_concat(Hs, '', Html).
+desk_md_inline(Text, Html) :- desk_md_code(Text, Html).
+desk_md_alt([], _, []).
+desk_md_alt([B|Bs], Mode, [H|Hs]) :-
+    (   Mode == strong -> desk_md_code(B, H) ; desk_md_code(B, H0), format(atom(H), "<strong>~w</strong>", [H0]) ),
+    ( Bs == [] -> Hs = [] ; ( Mode == strong -> M1 = bold ; M1 = strong ), desk_md_alt(Bs, M1, Hs) ).
+desk_md_code(T, H) :-
+    atomic_list_concat(Cs, '`', T),
+    desk_md_alt2(Cs, plain, Hs), atomic_list_concat(Hs, '', H).
+desk_md_alt2([], _, []).
+desk_md_alt2([C|Cs], Mode, [H|Hs]) :-
+    esc(C, E), ( Mode == plain -> H = E ; format(atom(H), "<code>~w</code>", [E]) ),
+    ( Cs == [] -> Hs = [] ; ( Mode == plain -> M1 = code ; M1 = plain ), desk_md_alt2(Cs, M1, Hs) ).
+desk_md_until_fence([], [], []).
+desk_md_until_fence([L|Rs], Code, Rest) :-
+    (   sub_string(L, 0, 3, _, "```") -> Code = [], Rest = Rs
+    ;   Code = [L|C1], desk_md_until_fence(Rs, C1, Rest)
+    ).
+desk_md_bullet(L, T) :- split_string(L, "", " \t", [L1]), ( sub_string(L1, 0, _, _, "- ") ; sub_string(L1, 0, _, _, "* ") ), sub_string(L1, 2, _, 0, T).
+desk_md_take_bullets([L|Rs], [T|Ts], Rest) :- desk_md_bullet(L, T), !, desk_md_take_bullets(Rs, Ts, Rest).
+desk_md_take_bullets(Rest, [], Rest).
+desk_md_take_para([L|Rs], [L1|Ps], Rest) :-
+    split_string(L, "", " \t", [L1]), L1 \== "", \+ sub_string(L1, 0, 1, _, "#"), \+ sub_string(L1, 0, 3, _, "```"), \+ desk_md_bullet(L1, _), !,
+    desk_md_take_para(Rs, Ps, Rest).
+desk_md_take_para(Rest, [], Rest).
+
+% desk_vote_forms(+HD, +K, +Eng, -Html) (vote-start c1, c3, c6): while the discovery of a spec KB is
+% open, its sheet always has the Vote form (GO, NO-GO, HOLD) and a link to the report (the layers of
+% the sheet). It says what blocks readiness, what the vote stands for (a vote that a change of the
+% specification voided, with what changed), and, while the KB is not ready, has Bring to a vote:
+% a letter to the holder. The vote is Ty's own record: the review writes it as his.
+desk_vote_forms(HD, K, Eng, Html) :-
+    (   \+ dk_true(Eng, discovery_open) -> Html = ""
+    ;   serve_conf(token, Tok), A = K.anchor,
+        dk_f("vote:~w", [K.dir], It), dk_f("callvote:~w", [K.dir], CIt),
+        dk_all(Eng, [X], ready_blocker(X), Bs0), sort(Bs0, Bs),
+        findall(L, ( member(B, Bs), desk_blocker_words(B, W), esc(W, WH), dk_f("<li>~w</li>", [WH], L) ), BLs), dk_cat(BLs, BLT),
+        (   Bs == [] -> BlH = "<p class=\"small quiet\">Discovery is ready: nothing blocks the vote.</p>"
+        ;   dk_f("<p class=\"small\">Not ready: what blocks it (a GO is recorded, but wins the gate only when this is clear):</p><ul class=\"blockers\">~w</ul>", [BLT], BlH)
+        ),
+        dk_all(Eng, [VC, VR], ( vote_cast(human, VR, VC), vote_round(VR) ), Hv),
+        dk_all(Eng, [VA, VR2, VC2], ( attest(VA, vote, _, vote(VR2, VC2), human, _), vote_void(VA) ), Vv),
+        (   Hv = [[HC, HR]|_]
+        ->  dk_f("<p class=\"small\">Your vote counts: <b>~w</b> (round ~w). A change of a goal, hypothesis, claim, check or example takes it back.</p>", [HC, HR], StH)
+        ;   Vv = [[_, VR3, VC3]|_]
+        ->  desk_vote_changes(K.dir, Chg), esc_list_li(Chg, ChH),
+            dk_f("<p class=\"small loud\">Your vote of round ~w (~w) no longer counts: it stays in the KB. Changed since your vote:</p><ul class=\"changed\">~w</ul>", [VR3, VC3, ChH], StH)
+        ;   StH = "<p class=\"small quiet\">You have not voted.</p>"
+        ),
+        desk_hidden([token-Tok, hub-HD.path, item-It, intent-vote], HH),
+        dk_f("<form class=\"vote\" method=\"post\" action=\"/review\" data-review data-vote>~w<h4>Vote on this ticket</h4>~w~w<label><input type=\"radio\" name=\"choice\" value=\"go\"> GO</label> <label><input type=\"radio\" name=\"choice\" value=\"no_go\"> NO-GO</label> <label><input type=\"radio\" name=\"choice\" value=\"hold\"> HOLD</label> <textarea name=\"text\" aria-label=\"Your words\" placeholder=\"Your words (optional).\"></textarea> <button class=\"btn\" type=\"submit\">Review and record</button> <a href=\"#report-~w\">Read the report: the goal, the hypotheses, the claims and their checks</a> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [HH, StH, BlH, A], VoteF),
+        (   Bs == [] -> CallF = ""
+        ;   (   desk_holder(HD, K, H1, _), H1 \== none -> atom_string(H1, To)
+            ;   catch(desk_kb_recipient(HD, K, H0), _, fail) -> atom_string(H0, To) ; To = "" ),
+            desk_hidden([token-Tok, hub-HD.path, item-CIt, intent-'call-vote', to-To], CH),
+            dk_f("<form class=\"callvote\" method=\"post\" action=\"/review\" data-review data-callvote>~w<button class=\"btn\" type=\"submit\">Bring to a vote</button> <span class=\"small quiet\">asks the holder of this KB to clear what blocks it and bring the report</span> <span class=\"formmsg\" role=\"status\" aria-live=\"polite\"></span></form>", [CH], CallF)
+        ),
+        dk_cat([VoteF, CallF], Html)
+    ).
+
+esc_list_li(Ls, Html) :-
+    findall(L, ( member(X, Ls), esc(X, XH), dk_f("<li>~w</li>", [XH], L) ), Ds), dk_cat(Ds, Html).
+
+desk_blocker_words(question_waits(Q), W) :- !, dk_f("question ~w waits for you", [Q], W).
+desk_blocker_words(refuted(C), W) :- !, dk_f("claim ~w is refuted", [C], W).
+desk_blocker_words(no_example(C), W) :- !, dk_f("claim ~w has no example", [C], W).
+desk_blocker_words(no_falsifier(C), W) :- !, dk_f("claim ~w has no case that would show it false", [C], W).
+desk_blocker_words(untouched(H), W) :- !, dk_f("hypothesis ~w was never put to the system", [H], W).
+desk_blocker_words(unasked_finding(F), W) :- !, dk_f("finding ~w was not asked about", [F], W).
+desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W).
+
+% desk_vote_changes(+Dir, -Lines): the records of the specification that follow the last vote of the
+% human in kb.pl (the same set that voids the vote: spec_change/1), in words.
+desk_vote_changes(Dir, Lines) :-
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
+            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
+                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts0, Sv2) )
+            ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
+            ;   Lines = []
+            ) ), _, Lines = ["(the list of changes could not be read: the KB file did not load)"]).
+
+desk_change_words(claim(C, _, _), W) :- dk_f("claim ~w added", [C], W).
+desk_change_words(check(K, C), W) :- dk_f("check ~w added to ~w", [K, C], W).
+desk_change_words(example(C, _), W) :- dk_f("an example of ~w added", [C], W).
+desk_change_words(hypothesis(H, _, _, _), W) :- dk_f("hypothesis ~w added", [H], W).
+desk_change_words(hypothesis(H, _, _), W) :- dk_f("hypothesis ~w added", [H], W).
+desk_change_words(goal(G, _, _, _), W) :- dk_f("goal ~w added", [G], W).
+desk_change_words(supersedes(N, O), W) :- dk_f("~w replaces ~w", [N, O], W).
+desk_change_words(attest(_, retirement, H, _, _, _), W) :- dk_f("hypothesis ~w retired", [H], W).
+desk_change_words(struck(K, I, _, _), W) :- dk_f("~w of ~w struck", [K, I], W).
 
 desk_premises_html(Ps, None, Mode, Html) :-
     (   Ps \== []
@@ -8920,7 +9189,8 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
         desk_kb_blockers(KB, Eng, Bl),
         ( Bl == [] -> BlH = "" ; findall(L, ( member(B, Bl), esc(B, BH0), dk_f("<li>~w</li>", [BH0], L) ), BLs), dk_cat(BLs, BLT),
                                   dk_f("<h3>Also open</h3><ul>~w</ul>", [BLT], BlH) ),
-        dk_cat([VH, HypH], GoalB), dk_cat([OH, CsH2, OutH, BlH], ClaimB),
+        dk_f("<span class=\"reportanchor\" id=\"report-~w\"></span>", [A], RepA),
+        dk_cat([VH, HypH], GoalB), dk_cat([RepA, OH, CsH2, OutH, BlH], ClaimB),
         desk_count_sub(HypH, "data-hyp=\"", NHyp)
     ;   View == waits -> GoalB = VH, ClaimB = OH, NHyp = none
     ;   GoalB = "", ClaimB = "", NHyp = none
@@ -9520,6 +9790,9 @@ desk_plan(Form, P) :-
     ;   string_concat("judge:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_judge(HD, K, Choice, Text, P0)
     ;   string_concat("kbreq:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_kbreq(HD, K, Intent, Text, P0)
     ;   string_concat("rec:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_rec(HD, K, Intent, Form, P0)
+    ;   string_concat("vote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_vote(HD, K, Choice, Text, P0)
+    ;   string_concat("callvote:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), desk_plan_callvote(HD, K, Text, P0)
+    ;   string_concat("approve:", DS, It) -> desk_plan_dir(HDs, DS, K, HD), ( serve_field(Form, digest, Dg) -> true ; Dg = "" ), desk_plan_approve(HD, K, Dg, Text, P0)
     ;   string_concat("fix:", R, It) -> desk_plan_fix(HDs, HD, R, Text, P0)
     ;   string_concat("proj:", R, It) -> desk_plan_proj(HDs, HD, R, Text, P0)
     ;   throw(desk_refused(400, "The form names no item. Reload the page."))
@@ -9873,6 +10146,83 @@ desk_plan_judge(HD, K, Choice, Text, P) :-
     desk_lt(To, answer, About, Item, LT, L1),
     P = plan{title:Title, sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, judgment, G, Pred, NFs)]}.
 
+% ---- the vote of the human, at any time (vote-start c1, c8): the Desk writes it as his own record,
+% attest(ID, vote, REQUEST, vote(ROUND, go|no_go|hold), human, TIME). A GO on a KB that is not ready
+% is recorded, and wins the gate only when the blockers are gone (the engine rule gate_allowed/1).
+desk_plan_vote(HD, K, Choice, Text, P) :-
+    (   memberchk(Choice, ["go", "no_go", "hold"]) -> true ; throw(desk_refused(400, "Choose GO, NO-GO or HOLD.")) ),
+    desk_engine(K.dir, _, Eng),
+    (   dk_true(Eng, discovery_open) -> true
+    ;   dk_f("The discovery of the KB ~w is closed: it takes no vote. Reload the page.", [K.label], M), throw(desk_refused(409, M))
+    ),
+    (   dk_all(Eng, [Rq], request(Rq, _), [Rq1|_]) -> true ; throw(desk_refused(409, "The KB has no request to vote on.")) ),
+    desk_vote_round(Eng, R),
+    atom_string(CA, Choice),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
+    dk_f("the vote on the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "vote", Item),
+    ( Text == "" -> WT = "", NFs = [] ; dk_f("\n\nHis words: ~w", [Text], WT), desk_words_note(Rq1, Text, NF), NFs = [NF] ),
+    (   dk_all(Eng, [X], ready_blocker(X), Bs), Bs \== []
+    ->  Gate = " The KB is not ready, so a GO is recorded but does not win the gate until what blocks it is clear."
+    ;   Gate = ""
+    ),
+    dk_f("Ty votes ~w (round ~w) on the KB ~w (~w).~w~w\n\nThe Desk recorded his vote in the KB (attest vote ~w, by human), or in its answers.pending, which your next write applies.",
+         [Choice, R, K.label, K.dir, Gate, WT, Rq1], LT),
+    dk_f("The KB ~w: your vote ~w in round ~w (attest vote ~w, by human).~w", [K.label, Choice, R, Rq1, Gate], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Your vote", sub:About, letters:[L1], records:[R1], effects:[kb_attest(K.dir, vote, Rq1, vote(R, CA), NFs)]}.
+
+% desk_vote_round(+Eng, -R): the round of a new vote of the human. With no vote that counts: one
+% after every round written (a voided vote leaves its round to the past); else the round of the
+% votes that count, or the next one when the human already voted in it.
+desk_vote_round(Eng, R) :-
+    dk_all(Eng, [A, Rn, W], attest(A, vote, _, vote(Rn, _), W, _), All),
+    dk_all(Eng, [VA], vote_void(VA), Vs),
+    findall(Rn, member([_, Rn, _], All), Rns), ( Rns == [] -> MaxAll = 0 ; max_list(Rns, MaxAll) ),
+    findall(Rn-W, ( member([A, Rn, W], All), \+ memberchk(A, Vs) ), Valid),
+    (   Valid == [] -> R is MaxAll + 1
+    ;   findall(Rn, member(Rn-_, Valid), VRs), max_list(VRs, MaxV),
+        (   memberchk(MaxV-human, Valid) -> R is MaxV + 1 ; R = MaxV )
+    ).
+
+% ---- the approval of the ticket (vote-start c9, c10): the Desk records Ty's approval for the digest of the text
+% that the sheet showed. If the text changed since, nothing is written: the page is stale.
+desk_plan_approve(HD, K, Dg, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   dk_all(Eng, [TK], ticket(TK), [TK1|_]), ( dk_true(Eng, gate(go)) ; dk_true(Eng, discovery_closed) ), desk_ticket_file(Eng, K.dir, TK1, Abs), exists_file(Abs)
+    ->  true
+    ;   dk_f("The KB ~w has no ticket text to approve now. Reload the page.", [K.label], M0), throw(desk_refused(409, M0))
+    ),
+    sha256_file(Abs, Now),
+    (   atom_string(Now, DgS), Dg == DgS -> true
+    ;   dk_f("The ticket text of the KB ~w changed since you looked at it. Nothing is approved. Reload the page and read it again.", [K.label], M1), throw(desk_refused(409, M1))
+    ),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
+    dk_f("the approval of the ticket of the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "approve", Item),
+    ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+    dk_f("Ty approves the ticket ~w of the KB ~w (~w) as it stands: its digest is ~w.~w\n\nThe Desk recorded his approval in the KB (attest approval ~w digest, by human). It ends the discovery orbit when the gate is go.", [TK1, K.label, K.dir, Dg, WT, TK1], LT),
+    dk_f("The KB ~w: your approval of the ticket ~w for the digest ~w (attest approval, by human).", [K.label, TK1, Dg], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Your approval", sub:About, letters:[L1], records:[R1], effects:[kb_approve(K.dir, TK1, Abs, Dg)]}.
+
+% ---- Bring to a vote (vote-start c3): a letter to the holder of a KB that is not ready. Nothing is written.
+desk_plan_callvote(HD, K, Text, P) :-
+    desk_engine(K.dir, _, Eng),
+    (   dk_true(Eng, discovery_open), dk_all(Eng, [X], ready_blocker(X), Bs), Bs \== [] -> true
+    ;   dk_f("The KB ~w is ready or closed: Bring to a vote has nothing to ask. Reload the page.", [K.label], M), throw(desk_refused(409, M))
+    ),
+    findall(W, ( member(B, Bs), desk_blocker_words(B, W) ), Ws), dk_join(Ws, "; ", WsT),
+    ( catch(desk_kb_recipient(HD, K, To), _, fail) -> true ; To = none ),
+    desk_holder(HD, K, H0, _), ( H0 \== none, desk_live(HD, H0) -> Who = "the holder of the KB" ; Who = "the keeper, because no live session holds the KB" ),
+    dk_f("the vote of the KB ~w", [K.label], About),
+    desk_item_json(HD, K, kb, "vote", Item),
+    ( Text == "" -> WT = "" ; dk_f("\n\nHis words: ~w", [Text], WT) ),
+    dk_f("Ty calls for the vote of the KB ~w (~w): clear what blocks it and bring the report. What blocks it: ~w.~w", [K.label, K.dir, WsT, WT], LT),
+    dk_f("The ledger: a letter to ~w (~w) about the KB ~w. The KB is not changed.", [To, Who, K.label], R1),
+    desk_lt(To, answer, About, Item, LT, L1),
+    P = plan{title:"Bring to a vote", sub:About, letters:[L1], records:[R1], effects:[none]}.
+
 desk_words_note(X, Text, note(X, T)) :-
     utc_now(Now), format(atom(T), "Ty, from the Desk, ~w: ~w", [Now, Text]).
 
@@ -10223,6 +10573,23 @@ desk_effect(kb_crud(Dir, Args), R) :-
         ;   split_string(Err, "", " \n", [E1]),
             format(string(M), "Nothing was written. orbit-kb said: ~w", [E1]),
             R = refused(409, M)
+        )
+    ;   R = refused(409, "Another session holds the writer lock of this KB now. Nothing was written. Try again in a minute.")
+    ).
+desk_effect(kb_approve(Dir, TK, Abs, Dg), R) :-
+    serve_conf(writer, W), serve_conf(script, Script),
+    lock_state(Dir, LS),
+    (   ( LS == none ; LS = held(W, _) )
+    ->  (   catch(sha256_file(Abs, Now), _, fail), atom_string(Now, NS), atom_string(Dg, DS), NS == DS
+        ->  format(atom(Pred), "digest('~w')", [Dg]),
+            serve_child(Script, W, ['--dir', Dir, subject, TK, Abs], E0, Err0),
+            (   E0 == 0 -> serve_child(Script, W, ['--dir', Dir, attest, approval, TK, Pred, '--by', human], Exit, Err) ; Exit = E0, Err = Err0 ),
+            ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+            (   Exit == 0 -> R = ok
+            ;   split_string(Err, "", " \n", [E1]), format(string(M), "Nothing was approved. orbit-kb said: ~w", [E1]), R = refused(409, M)
+            )
+        ;   ( LS == none -> serve_child(Script, W, ['--dir', Dir, release], _, _) ; true ),
+            R = refused(409, "The ticket text changed after the review. Nothing is approved. Reload the page and read it again.")
         )
     ;   R = refused(409, "Another session holds the writer lock of this KB now. Nothing was written. Try again in a minute.")
     ).
@@ -12206,7 +12573,9 @@ discovery_end_diags(KB, Items, KbFile, Diags) :-
     findall(diag('ED12', KbFile, L, M),
             ( member(it(kb, _, L, T, _, _), KbItems), nonvar(T), T = discovery_end(A), atom(A),
               once(( member(it(kb, _, LA, TA, _, _), KbItems), nonvar(TA), TA = attest(A, approval, _, _, human, _) )),
-              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre0),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP2, TP2, _, _), nonvar(TP2), TP2 = vote_epoch(_), LP2 > LA ), EpochItems),
+              append(Pre0, EpochItems, Pre),     % vote_epoch(N): the changes from before the upgrade do not take the vote back (c13)
               \+ go_before(Dir, LibItems, Pre),
               fmt(M, "This discovery_end names approval ~w, but no GO came before that approval: in the KB before it, the discovery orbit was not open, or gate(go) or the artifacts' go did not hold. orbit-kb attest approval writes discovery_end only after a GO. Remove the line, or vote and approve again.", [A]) ),
             Diags).

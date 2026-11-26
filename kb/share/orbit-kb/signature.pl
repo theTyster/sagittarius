@@ -128,6 +128,7 @@ signature(discovery_evidence/2).
 signature(discovery_gate_agreed/0).
 signature(discovery_has_example/1).
 signature(discovery_has_outcome/0).
+signature(discovery_human_vote_changed/0).
 signature(discovery_hypothesis_touched/1).
 signature(discovery_is_finding/1).
 signature(discovery_is_hypothesis/1).
@@ -408,7 +409,11 @@ signature(verdict_not_independent/2).
 signature(verdict_stale/2).
 signature(verification_recorded/0).
 signature(visual/1).
+signature(vote_carry/1).
 signature(vote_cast/3).
+signature(vote_changed/1).
+signature(vote_epoch/1).
+signature(vote_epoch_needed/1).
 signature(vote_round/1).
 signature(vote_void/1).
 signature(waiver_lapsed/1).
