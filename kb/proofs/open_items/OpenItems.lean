@@ -32,6 +32,13 @@ Abstractions (what the model leaves out):
 * The text of each line, its order, and the other lines that block nothing (a stale approval, a
   contested claim, a pending answer) are `info`: they can only make "Nothing is open" rarer.
 * `stale_pin_open/1` (c_k_c_2) is a list of pins: the model does not compute it.
+* `change_unvoted(X)` (vote-start c6, c17): a goal, hypothesis or claim X that changed after the vote of the
+  human and waits for his vote is one more kind of `blocking(X)`.
+* `check_changed(K)` (vote-start c14, c15, c17) is one more kind of `blocking(X)`: a check K whose
+  check record came after the vote of the human (also after the approval of the ticket), or that
+  ran by another command since, and that no valid confirmation of another pane and no vote of the
+  human on K carried. The model does not compute it (the model `kb/proofs/gate_ready` holds the
+  rule); like every kind, it is an item of `KB.blocking`, and `show open` names it.
 
 Limits (the review of K-C and K-D, item 10): the theorem is weaker than the claim in two ways.
 * It assumes `Links`. If a covered kind printed by its own query ever missed an answer of
@@ -488,7 +495,13 @@ def examples : List (String × KB) :=
     ("no_example", discKB { readyDisc with noExample := ["c2"] }),
     ("preserve_fails", discKB { readyDisc with preserveFailing := ["t2"] }),
     ("ready", discKB readyDisc),
-    ("closed", { discKB { readyDisc with noExample := ["c7"] } with closed := true }),
+    -- the human approved the ticket, then the build added the claim c7 with no example and its
+    -- check t7: the closed orbit names no blocker of readiness; the claim that waits for the vote of
+    -- the human and the check that nobody confirmed block (vote-start c17; before c17: "Nothing is open")
+    ("closed",
+      { discKB { readyDisc with noExample := ["c7"] } with
+        closed := true
+        blocking := [⟨"change_unvoted", "c7"⟩, ⟨"check_changed", "t7"⟩] }),
     ("stale_pin", { emptyKB with stalePins := ["pf2"] }) ]
 
 #eval examples.length

@@ -21,8 +21,20 @@
 #       keeps the edge; strike, erase and replace of the marker itself are refused, by an agent and by the human
 #   VS12 c5, c6 (review H-0274, the gather of kb-crud and vote-start): a strike or replace of a note and a strike
 #       of a run keep the vote; a strike of a claim takes it back; a vote of Ty that names the struck claim carries it
-#   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
-#       a vote after a valid approval of the ticket (closed discovery) is not taken back
+#   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote
+#       (a rerun by the same command: c16, which supersedes c7); c17 (supersedes the exception a27): after a valid
+#       approval of the ticket a change of build takes the vote back, and a vote of the human on it carries it
+#   VS13 c14, c16: a run records run_input (the command, outside paths as <outside>, digests of the KB files it names);
+#       a rerun by the same command on another outside tree keeps the gate; another command, or a changed script (run
+#       or not), opens it and show open names check_changed; add refuses run_input typed by hand
+#   VS14 c15: a confirmation (attest confirmation K 'check_change(T)') by the role and session of the run that changed
+#       the check does not close the gate; another pane's does; a later change opens it again; a vote of the human on K
+#       closes it (it records the check as it is then)
+#   VS15 c17: after the approval, a replaced claim opens the gate until the human votes on it (a confirmation does not
+#       stand in); a check that build adds opens it until another pane confirms it
+#   VS16 c17 with c13: a KB made before 0.13.0 keeps its gate (no marker: wholly old; the migration
+#       m_0_13_0_approval_epoch writes approval_epoch(N)); a change after the upgrade counts; add, strike and erase of
+#       approval_epoch are refused
 QS_LIB_ONLY=1
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/test_question_server.sh" "$@"
 
@@ -125,7 +137,7 @@ t_VS4() {  # c6, c7: a change after the vote takes it back and the sheet says wh
     vs_hub "$T/h"; srvd --hub "$T/h" || return; page_ok || return
     local tok vt="$T/h/specs/vt"; tok=$(pg dtoken "$T/page.html")
     gate_is "$vt" go "the fixture vt"
-    wr build --dir "$vt" add "note(c1, 'A note.')" "finding(f9, trace('A trace.'), system)"; wr build --dir "$vt" run k1 -- true; wr build --dir "$vt" release
+    wr build --dir "$vt" add "note(c1, 'A note.')" "finding(f9, trace('A trace.'), system)"; wr build --dir "$vt" run k1 -- false; wr build --dir "$vt" release   # c16: a rerun by the same command
     gate_is "$vt" go "the gate after a note, a finding and a run"
     wr build --dir "$vt" add "check(k2, c1)" "checks_that(k2, 'a second check')" || note "the check was refused: $(snip "$err")"; wr build --dir "$vt" release
     gate_is "$vt" hold "the gate after a new check: the vote is taken back, the gate says hold"
@@ -159,7 +171,7 @@ t_VS5() {  # c6: the engine rule alone, kind by kind; a vote after a valid appro
     for ch in note run finding answer; do d="$T/k-$ch"; vs_kb "$d" voted || return
         case $ch in
         note)    wr build --dir "$d" add "note(c1, 'A note.')" ;;
-        run)     wr build --dir "$d" run k1 -- true ;;
+        run)     wr build --dir "$d" run k1 -- false ;;   # c16: the same command as before the vote
         finding) wr build --dir "$d" add "finding(f9, trace('A trace.'), system)" ;;
         answer)  wr build --dir "$d" add "question(q9, hy1, 'A dormant question?')" "option(q9, 'A', 'a')" "assumed(q9, 'A')" && wr build --dir "$d" add "answer(q9, 'A', agent)" ;;
         esac || { note "the record ($ch) was refused: $(snip "$err")"; continue; }
@@ -169,12 +181,15 @@ t_VS5() {  # c6: the engine rule alone, kind by kind; a vote after a valid appro
     d="$T/e-again"; vs_kb "$d" voted; wr build --dir "$d" add "example(c1, 'Another case.')"
     wr build --dir "$d" attest vote r1 'vote(2, go)'; wr build --dir "$d" attest vote r1 'vote(2, go)' --by human; wr build --dir "$d" release
     gate_is "$d" go "a vote of round 2 after the change"
-    # a closed discovery (the human approved the ticket while the gate was go) keeps its vote when build changes the specification
+    # c17 (supersedes a27): a closed discovery (the human approved the ticket while the gate was go) does not keep its vote when
+    # build changes the specification; a vote of the human on the changed claim carries the change
     d="$T/e-closed"; vs_kb "$d" voted; echo "the ticket" > "$d/ticket.txt"
     wr build --dir "$d" subject tk ticket.txt; wr build --dir "$d" add "ticket(tk)"; wr build --dir "$d" attest approval tk 'digest(current)' --by human || note "setup: the approval was refused: $(snip "$err")"
     q "$d" discovery_closed; [ "$rc" = 0 ] || note "setup: the discovery is not closed"
     wr build --dir "$d" add "example(c1, 'A case that build adds after the approval.')" "check(k5, c1)" "checks_that(k5, 'a build check')"; wr build --dir "$d" release
-    gate_is "$d" go "the vote of a closed discovery after a change of build"
+    gate_not "$d" go "c17: after the approval, an example and a check that build adds take the vote back"
+    wr build --dir "$d" attest vote c1 'vote(1, go)' --by human; wr build --dir "$d" release
+    gate_is "$d" go "c17: a vote of the human on c1 carries the example and the check of c1"
 }
 t_VS6() {  # c9, c10: after the GO the sheet shows the ticket text and Approve with its digest; the approval is recorded; a changed text makes it stale
     vs_hub "$T/h"; vs_holder x vt; local vt="$T/h/specs/vt" tok dg dg2 lt
@@ -359,6 +374,83 @@ t_VS12() {  # c5, c6 (review H-0274): kb-crud records of a note or a run keep th
     wr build --dir "$d" attest vote c2 'vote(2, go)' --by human; wr build --dir "$d" release
     gate_is "$d" go "a vote of the human that names the struck claim c2 carries it (c11)"
 }
-for n in 1 2 2b 3 4 5 6 7 8 9 10 11 12; do run_one VS$n; done
+
+# ---- vote-start c14 to c17 (0.13.0)
+wrin() { ( cd "$2" && ORBIT_KB_WRITER=$1 ORBIT_KB_ROLE=$1 XDG_CACHE_HOME="$T/.cache" timeout "$TMO" "$OKB" "${@:3}" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+vs_script_kb() {  # vs_script_kb DIR: a voted KB whose check k1 is checks/k1.sh, run before the votes as sh checks/k1.sh OUTSIDE
+    local d=$1; wr build init "$d" --request "a request" --uses discovery || { note "setup: no KB"; return 1; }
+    mkdir -p "$d/checks" "$T/treeA" "$T/treeB"; printf '#!/bin/sh\ntest -d "$1" && exit 1\n' > "$d/checks/k1.sh"
+    wr build --dir "$d" add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" \
+        "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)" || { note "setup: facts refused: $(snip "$err")"; return 1; }
+    wrin build "$d" run k1 -- sh checks/k1.sh "$T/treeA"; wr build --dir "$d" add "discovery_evidence(k1, system)"
+    wr build --dir "$d" attest vote r1 'vote(1, go)'; wr build --dir "$d" attest vote r1 'vote(1, go)' --by human || { note "setup: the human vote was refused"; return 1; }
+    wr build --dir "$d" release; gate_is "$d" go "the fixture $d"; }
+t_VS13() {  # c14, c16
+    local d="$T/c13a"; vs_script_kb "$d" || return
+    grep -q "^run_input(a[0-9]*, 'sh kb:checks/k1.sh <outside>', 'checks/k1.sh=sha256:[0-9a-f]\{64\}')" "$d/kb.pl" || note "the run wrote no run_input with the outside path as <outside>: $(grep '^run_input' "$d/kb.pl" | head -1)"
+    wrin review "$d" run k1 -- sh checks/k1.sh "$T/treeB"; wr review --dir "$d" release
+    gate_is "$d" go "c16: a rerun by the same command on another outside tree"
+    wrin build "$d" run k1 -- true; wr build --dir "$d" release; gate_not "$d" go "c14: a run of k1 with another command (true)"
+    wr build --dir "$d" show open; grep -q "check_changed k1" <<<"$out" || note "show open does not name check_changed k1: $(snip "$out")"
+    d="$T/c13b"; vs_script_kb "$d" || return; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k1.sh"
+    gate_not "$d" go "c14: a changed script that nobody ran"
+    d="$T/c13c"; vs_script_kb "$d" || return; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k1.sh"; wrin build "$d" run k1 -- sh checks/k1.sh "$T/treeA"; wr build --dir "$d" release
+    gate_not "$d" go "c14: a changed script run again by the same command"
+    wr build --dir "$d" add "run_input(a1, 'x', 'y')"; [ "$rc" != 0 ] || note "add took run_input typed by hand"
+}
+t_VS14() {  # c15
+    local d="$T/c14"; vs_script_kb "$d" || return; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k1.sh"
+    wrin discovery "$d" run k1 -- sh checks/k1.sh "$T/treeA"; gate_not "$d" go "the changed and run check opens the gate"
+    wrin discovery "$d" attest confirmation k1 'check_change(ok)' --as discovery; wr discovery --dir "$d" release
+    gate_not "$d" go "c15: the role and session that changed the check cannot confirm it"
+    wrin review "$d" attest confirmation k1 "check_change('it still tests c1')" --as review || note "the confirmation of review was refused: $(snip "$err")"; wr review --dir "$d" release
+    gate_is "$d" go "c15: the confirmation of another pane closes it"
+    printf '# again\n' >> "$d/checks/k1.sh"; gate_not "$d" go "c15: a later change of the script opens it again"
+    wr build --dir "$d" attest vote k1 'vote(1, go)' --by human; wr build --dir "$d" release
+    gate_is "$d" go "c15: a vote of the human on k1 closes it (it records the check as it is then)"
+}
+vs_approve() { echo "the ticket" > "$1/ticket.txt"; wr build --dir "$1" subject tk ticket.txt; wr build --dir "$1" add "ticket(tk)"
+    wr build --dir "$1" attest approval tk 'digest(current)' --by human || note "setup: the approval was refused: $(snip "$err")"; wr build --dir "$1" release
+    q "$1" discovery_closed; [ "$rc" = 0 ] || note "setup: the approval closed no orbit"; gate_is "$1" go "the approved fixture"; }
+t_VS15() {  # c17
+    local d="$T/c15a"; vs_script_kb "$d" || return; vs_approve "$d"
+    wr build --dir "$d" add "claim(c2, introduce, 'A weaker claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'x')" "predicts(hy1, c2)" "supersedes(c2, c1)"
+    wrin build "$d" run k2 -- false; wr build --dir "$d" release; gate_not "$d" go "c17: a replaced claim after the approval"
+    wrin review "$d" attest confirmation k2 'check_change(ok)' --as review; wr review --dir "$d" release
+    gate_not "$d" go "c17: a confirmation does not stand in for the vote of the human on a claim"
+    wr build --dir "$d" attest vote c2 'vote(1, go)' --by human; wr build --dir "$d" release; gate_is "$d" go "c17: his vote on c2 closes it"
+    d="$T/c15b"; vs_script_kb "$d" || return; vs_approve "$d"; printf '#!/bin/sh\nexit 1\n' > "$d/checks/k2.sh"
+    wrin build "$d" add "check(k2, c1)" "checks_that(k2, 'a second check of c1')"; wrin build "$d" run k2 -- sh checks/k2.sh; wr build --dir "$d" release
+    gate_not "$d" go "c17: a check that build adds after the approval"
+    wrin build "$d" attest confirmation k2 'check_change(ok)' --as build; wr build --dir "$d" release; gate_not "$d" go "c17: build cannot confirm its own check"
+    wrin review "$d" attest confirmation k2 'check_change(ok)' --as review; wr review --dir "$d" release; gate_is "$d" go "c17: the confirmation of review closes it, with no vote of the human"
+}
+t_VS16() {  # c17 with c13: the edge of the upgrade to 0.13.0
+    local OLD; OLD=$(old_tool_at v0.12.0) || { SKIPPED=1; return; }; [ -x "$OLD" ] || { SKIPPED=1; return; }
+    local d="$T/c16" pl dg
+    ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
+    oldw() { ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; }
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
+    echo "the ticket" > "$d/ticket.txt"; oldw subject tk ticket.txt; oldw add "ticket(tk)"; oldw attest approval tk 'digest(current)' --by human
+    oldw add "example(c1, 'An example that build adds after the approval, before the upgrade.')"; oldw release
+    gate_is "$d" go "a KB of 0.12.0 with a change after the approval, before any migration (wholly from before the upgrade)"
+    q "$d" 'approval_epoch_needed(_)'; [ "$rc" = 0 ] || note "the KB made before 0.13.0 does not ask for approval_epoch"
+    wr build --dir "$d" migrate plan --old "$OLD"; pl=$out; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$pl" | tail -1)
+    [ -n "$dg" ] || { note "migrate plan gave no digest: $(snip "$pl")"; return; }
+    wr build --dir "$d" migrate apply --seen "$dg" --old "$OLD" || note "migrate apply: $(snip "$err")"; wr build --dir "$d" release
+    grep -q "^approval_epoch(" "$d/kb.pl" || note "the migration wrote no approval_epoch"
+    gate_is "$d" go "after the migration the old change after the approval takes no vote back"
+    wr build --dir "$d" add "approval_epoch(3)"; [ "$rc" != 0 ] || note "add took approval_epoch typed by hand"
+    wr build --dir "$d" strike 'approval_epoch(_)#1' --why x; [ "$rc" != 0 ] || note "strike of approval_epoch was not refused"
+    wr build --dir "$d" erase 'approval_epoch(_)#1' --why x; [ "$rc" != 0 ] || note "erase of approval_epoch was not refused"; wr build --dir "$d" release
+    wr build --dir "$d" add "example(c1, 'An example that build adds after the upgrade.')"; wr build --dir "$d" release
+    gate_not "$d" go "c17: a change after the approval and after the upgrade takes the vote back"
+}
+old_tool_at() {  # old_tool_at TAG: the kb/ of that tag, from git, with its own library
+    local r; r=$(cd "$here/../.." && git rev-parse --show-toplevel 2>/dev/null) || return 1
+    if [ ! -x "$T/old-$1/kb/bin/orbit-kb" ]; then mkdir -p "$T/old-$1" && git -C "$r" archive "$1" kb | tar -x -C "$T/old-$1" 2>/dev/null || return 1; fi
+    echo "$T/old-$1/kb/bin/orbit-kb"; }
+for n in 1 2 2b 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
