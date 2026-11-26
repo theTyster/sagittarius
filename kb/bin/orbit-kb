@@ -5456,17 +5456,18 @@ serve_act(review, Form) :-
     ).
 serve_act(send, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
-    ;   desk_send_form(Form, R),
+    ;   ( serve_field(Form, sendid, Sid), desk_send_id_ok(Sid) -> true ; Sid = "" ),
+        with_mutex(desk_send, desk_send_once(Sid, Form, R)),
         (   R = ok(Anchor), serve_field(Form, inplace, "1")
         ->  % r10 c21: the page updates in place: no redirect, no document; the page script takes this answer
             serve_frame_headers(FH0), desk_done_words(Form, Anchor, Said0),
             ( serve_field(Form, intent, I1) -> true ; I1 = "answer" ), ( serve_field(Form, item, It1) -> true ; It1 = "" ),
-            ( memberchk(I1, ["answer", "close", "park"]), It1 \== "new" -> Leaves = true ; Leaves = false ),
+            % whether the card leaves is not said here: the page reads the server's own render again (H-0259)
             ( I1 == "answer", string_concat("ask:", _, It1), Anchor \== '' -> Ans = true ; Ans = false ),
             format("Status: 200~n~wContent-type: application/json; charset=UTF-8~nCache-Control: no-store~n~n", [FH0]),
             set_stream(current_output, encoding(utf8)),
             atom_string(AnchorS, Anchor),
-            json_write_dict(current_output, _{ok: true, said: Said0, did: AnchorS, ans: Ans, leaves: Leaves}, [width(0)])
+            json_write_dict(current_output, _{ok: true, said: Said0, did: AnchorS, ans: Ans}, [width(0)])
         ;   R = ok(Anchor) -> serve_frame_headers(FH),
             ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]), Sep = "&" ; Back = "/", Sep = "?" ),
             (   serve_field(Form, view, VW), memberchk(VW, ["waits", "questions", "answered", "everything"])
@@ -9245,6 +9246,20 @@ desk_done_words(Form, _Anchor, Text) :-
     ;   Name = ""
     ),
     (   Name == "" -> Text = W ; format(string(Text), "~w: ~w", [Name, W]) ).
+
+% H-0259 (q11, assumed: one Send, one letter): the page gives each review a send id. A second /send with
+% the same id (a lost answer sent again, two presses) gets the first result and writes nothing. The ids are
+% kept in memory, the last 500; a restart forgets them (its new token refuses an old review anyway).
+:- dynamic desk_sent_id/2.
+desk_send_id_ok(S) :- string_length(S, L), L >= 8, L =< 64, string_codes(S, Cs),
+    forall(member(C, Cs), ( code_type(C, alnum) ; C =:= 0'- ; C =:= 0'_ )).
+desk_send_once("", Form, R) :- !, desk_send_form(Form, R).
+desk_send_once(Sid, _, R) :- desk_sent_id(Sid, R0), !, R = R0.
+desk_send_once(Sid, Form, R) :-
+    desk_send_form(Form, R),
+    assertz(desk_sent_id(Sid, R)),
+    aggregate_all(count, desk_sent_id(_, _), N),
+    ( N > 500, once(retract(desk_sent_id(_, _))) -> true ; true ).
 
 desk_send_form(Form, R) :-
     catch(( desk_plan(Form, Plan), desk_execute(Form, Plan, R) ),

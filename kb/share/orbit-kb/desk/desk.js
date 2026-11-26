@@ -20,7 +20,7 @@
   var lastKey = 'desk-last:' + (document.body.getAttribute('data-tab') || '');
   function lastRead() { try { var o = JSON.parse(localStorage.getItem(lastKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
   var thisView = document.body.getAttribute('data-view') || '';
-  var deskDone = null, reviewCard = null;
+  var deskDone = null;
   function runDone() { var f = deskDone; deskDone = null; if (f) f(); }
   var qs = new URLSearchParams(location.search);
   if (!qs.has('view') && !location.hash && !qs.has('did')) {
@@ -32,11 +32,17 @@
     }
   }
   try { localStorage.setItem(lastKey, JSON.stringify({view: thisView, boot: bootId})); } catch (e) { /* no storage: nothing is kept */ }
-  // c21: the Send of the review posts in the background and the page changes in place: no document is loaded, the
-  // card folds away, the line of what was done stands where it was, and the counts are read again. Without fetch, or
-  // when the server refuses, the form posts as before (the server's own page says why).
+  // c21, c18, c6 (H-0259): the Send of the review posts in the background (fetch, inplace=1, a send id of its
+  // own review). After the server took it, the page reads the server's own render of the same address and puts its
+  // body in place of the old one: the page is the page of a reload by construction (counts, cards, folds, notes).
+  // No document is loaded. A card that is not in the new render folds away first (330 ms); the line of what was
+  // done then stands in the flow of the page at the place of the card, and what follows it stands where the card
+  // stood. The state of each Send is its own form (the card, the view, the send id): no global card.
+  // A Send whose answer is lost is never posted again blind: the page reads the render again and the review says
+  // what happened; a press of Send again carries the same send id, and the server writes a letter for an id once.
   function nowLine(res) {
     var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
+    line.style.margin = '0 0 8px'; line.style.padding = '6px 12px'; line.style.maxWidth = 'none';
     line.appendChild(document.createTextNode((res.said || 'Done') + '. '));
     if (res.ans && res.did) {
       var lq = new URLSearchParams(location.search); lq.delete('did'); lq.delete('said'); lq.delete('ans'); lq.set('view', 'answered');
@@ -46,63 +52,183 @@
     return line;
   }
   function fadeOut(line, ms) {
-    var x = document.createElement('button'); x.type = 'button'; x.className = 'linkb'; x.textContent = '\u00d7'; x.setAttribute('aria-label', 'Dismiss this line'); x.style.marginLeft = '12px';
+    var x = document.createElement('button'); x.type = 'button'; x.className = 'linkb'; x.textContent = '×'; x.setAttribute('aria-label', 'Dismiss this line'); x.style.marginLeft = '12px';
     x.addEventListener('click', function () { if (line.parentNode) line.parentNode.removeChild(line); });
     line.appendChild(x);
     setTimeout(function () { line.style.transition = 'opacity 400ms'; line.style.opacity = '0'; setTimeout(function () { if (line.parentNode) line.parentNode.removeChild(line); }, 450); }, ms);
   }
-  function refreshCounts() {   // the views row and the lanes of the band: read again from the server
-    fetch(location.pathname + location.search, {credentials: 'same-origin', headers: {'X-Desk-Fragment': '1'}}).then(function (r) { return r.text(); }).then(function (t) {
-      var d = new DOMParser().parseFromString(t, 'text/html');
-      ['nav.views', 'nav.lanes'].forEach(function (sel) {
-        var o = document.querySelector(sel), n = d.querySelector(sel);
-        if (o && n) o.innerHTML = n.innerHTML;
-      });
-    }).catch(function () { /* the counts stay as they were until the next load */ });
+  function onPage(el) { return el && !el.closest('dialog') && !el.closest('aside'); }
+  function shown(el) {   // rendered: a closed fold keeps the boxes of what it holds in Chrome, so the size alone does not say it
+    if (el.checkVisibility) return el.checkVisibility();
+    return el.getBoundingClientRect().height > 0;
   }
-  function applyInPlace(res) {
-    var dlg2 = document.getElementById('review'); if (dlg2 && dlg2.open) dlg2.close();
-    try { sessionStorage.removeItem('desk-done-place'); } catch (e) { /* none */ }
-    var line = nowLine(res), card = reviewCard && document.body.contains(reviewCard) ? reviewCard : null, band = document.querySelector('header.top');
-    var bandH = band ? Math.max(0, band.getBoundingClientRect().bottom) : 0;
-    if (card && res.leaves) {
-      var r = card.getBoundingClientRect(), top = r.top + scrollY;
-      line.style.cssText = 'position:absolute;z-index:6;margin:0;left:' + Math.round(r.left + scrollX) + 'px;width:' + Math.round(r.width) + 'px;top:' + Math.round(top) + 'px;opacity:0;transition:opacity 250ms';
-      document.body.appendChild(line);
-      requestAnimationFrame(function () { line.style.opacity = '1'; });
-      card.style.overflow = 'hidden'; card.style.height = r.height + 'px'; card.style.boxSizing = 'border-box';
-      card.style.transition = 'height 330ms ease-out, margin 330ms ease-out, padding 330ms ease-out, opacity 330ms ease-out, border-width 330ms';
-      requestAnimationFrame(function () { requestAnimationFrame(function () {
-        card.style.height = '0px'; card.style.marginTop = '0'; card.style.marginBottom = '0'; card.style.paddingTop = '0'; card.style.paddingBottom = '0'; card.style.opacity = '0'; card.style.borderWidth = '0';
-      }); });
-      setTimeout(function () {
-        if (card.parentNode) card.parentNode.removeChild(card);
-        var lr = line.getBoundingClientRect();
-        if (lr.bottom < bandH + 4 || lr.top > innerHeight - 20) line.scrollIntoView({block: 'center'});   // the page got shorter: the line is off the screen
-      }, 380);
-      fadeOut(line, 60000);
-    } else if (card) {
-      card.parentNode.insertBefore(line, card);
-      var nat = line.offsetHeight; line.style.height = '0px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
-      requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = nat + 'px'; }); });
-      setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
-      fadeOut(line, 60000);
-    } else {
-      line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0';
-      document.body.appendChild(line); fadeOut(line, 60000);
+  function byId(id) {   // the element with this id in the page (not in a dialog, not in the rails); a shown one first
+    if (!id) return null;
+    var es = document.querySelectorAll('[id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'), first = null;
+    for (var i = 0; i < es.length; i++) if (onPage(es[i])) { if (shown(es[i])) return es[i]; if (!first) first = es[i]; }
+    return first;
+  }
+  function inDoc(d, id) {
+    var es = d.querySelectorAll('[id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    for (var i = 0; i < es.length; i++) if (!es[i].closest('dialog') && !es[i].closest('aside')) return true;
+    return false;
+  }
+  function places() { return Array.prototype.filter.call(document.querySelectorAll('main [id^="item-"], main details[id]'), function (e) { return onPage(e); }); }
+  function bandBottom() { var band = document.querySelector('header.top'); return band && /^(sticky|fixed)$/.test(getComputedStyle(band).position) ? Math.max(0, band.getBoundingClientRect().bottom) : 0; }
+  function freshPage() {
+    return fetch(location.pathname + location.search, {credentials: 'same-origin', cache: 'no-store'}).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function (t) { return new DOMParser().parseFromString(t, 'text/html'); });
+  }
+  function typed(skip) {   // what Ty typed in the other forms and the server may not hold yet (a draft is saved 0.5 s after typing)
+    var o = {};
+    document.querySelectorAll('form[data-draft-key]').forEach(function (f) {
+      if (!onPage(f) && !f.closest('#newreq')) return;
+      if (skip && f.closest('[id="' + skip + '"]')) return;
+      var v = []; f.querySelectorAll('textarea, input[type=radio], input[type=checkbox], input[type=text], input[type=date], select').forEach(function (e) { v.push(e.type === 'radio' || e.type === 'checkbox' ? e.checked : e.value); });
+      o[f.getAttribute('data-draft-key')] = v;
+    });
+    return o;
+  }
+  function retype(o) {
+    document.querySelectorAll('form[data-draft-key]').forEach(function (f) {
+      var v = o[f.getAttribute('data-draft-key')]; if (!v) return;
+      var es = f.querySelectorAll('textarea, input[type=radio], input[type=checkbox], input[type=text], input[type=date], select');
+      if (es.length !== v.length) return;
+      es.forEach(function (e, i) { if (e.type === 'radio' || e.type === 'checkbox') e.checked = v[i]; else e.value = v[i]; });
+    });
+  }
+  function swapBody(d, skip) {   // the body of the server's render in place of the old one; the scripts and the review stay
+    var keep = function (n) { return n.nodeType === 1 && (n.tagName === 'SCRIPT' || n.id === 'review'); };
+    var was = typed(skip);
+    var rv = document.getElementById('review'), oldNr = document.getElementById('newreq');
+    if (oldNr && oldNr.open) oldNr.close();
+    if (skip === '#newreq') delete was[oldNr ? (oldNr.querySelector('form[data-draft-key]') || {getAttribute: function () { return ''; }}).getAttribute('data-draft-key') : ''];
+    clearTimeout(stTimer); if (!restoring) stSave(); restoring = true;
+    Array.prototype.slice.call(document.body.childNodes).forEach(function (n) { if (!keep(n)) document.body.removeChild(n); });
+    Array.prototype.slice.call(d.body.childNodes).forEach(function (n) { if (!keep(n)) document.body.insertBefore(document.adoptNode(n), rv); });
+    ['data-token', 'data-tab', 'data-view'].forEach(function (k) { var v = d.body.getAttribute(k); if (v !== null) document.body.setAttribute(k, v); });
+    tok = document.body.getAttribute('data-token');
+    if (d.title) document.title = d.title;
+    bindDom();
+    retype(was);
+    var st = stRead();   // the folds as Ty left them, as a reload puts them back
+    if (st && st.open) foldList().forEach(function (f) { var k = f.getAttribute('data-fid'); if (Object.prototype.hasOwnProperty.call(st.open, k)) f.open = !!st.open[k]; });
+    setBand();
+  }
+  function settle() { setTimeout(function () { restoring = false; stSave(); }, 50); }
+  function holdY(y) {   // scroll to y; a page that got too short for it gets room at its end (c18: what follows stands where the card stood)
+    y = Math.max(0, Math.round(y));
+    for (var k = 0; k < 2; k++) {
+      window.scrollTo(0, y);
+      var miss = y - Math.round(scrollY);
+      if (miss <= 1) return;
+      var sp = document.createElement('div'); sp.className = 'deskroom'; sp.setAttribute('aria-hidden', 'true'); sp.style.height = miss + 'px';
+      (document.querySelector('main') || document.body).appendChild(sp);
     }
-    reviewCard = null;
-    refreshCounts();
+    window.scrollTo(0, y);
+  }
+  function putLine(line, at) {   // the line in the flow at the place of the card; what follows it stands where the card stood
+    var ref = null, i, e;
+    if (at.stays && (e = byId(at.card)) && shown(e)) { e.parentNode.insertBefore(line, e); ref = e; }
+    for (i = 0; !line.parentNode && i < at.after.length; i++) {   // the first place that followed the card and is on the page now,
+      e = byId(at.after[i]);                                         // when it stood right below the card (else the card was the last of its list)
+      if (e && shown(e)) { if (!(at.after[i] in at.gap) || at.gap[at.after[i]] <= 40) { e.parentNode.insertBefore(line, e); ref = e; } break; }
+    }
+    for (i = 0; !line.parentNode && i < at.before.length; i++) {   // else after the last place that stood before it
+      e = byId(at.before[i]);
+      if (e && shown(e)) e.parentNode.insertBefore(line, e.nextSibling);
+    }
+    if (line.parentNode && !shown(line)) { line.parentNode.removeChild(line); ref = null; }
+    if (ref) {   // the line stands 10 px above what follows it, whatever gap the list has
+      var gp = ref.getBoundingClientRect().top - line.getBoundingClientRect().bottom;
+      if (gp > 10) line.style.marginBottom = Math.round(8 - (gp - 10)) + 'px';
+    }
+    var bandH = bandBottom();
+    if (!line.parentNode) {   // nothing of the list is left on the page: a note under the band
+      line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0';
+      document.body.appendChild(line); window.scrollTo(0, at.y); return;
+    }
+    if (ref) holdY(scrollY + ref.getBoundingClientRect().top - at.top);
+    else holdY(scrollY + line.getBoundingClientRect().bottom + 8 - at.top);
+    var lr = line.getBoundingClientRect();
+    if (lr.top < bandH + 4) window.scrollTo(0, Math.max(0, Math.round(scrollY + lr.top - bandH - 8)));
+    else if (lr.bottom > innerHeight - 4) line.scrollIntoView({block: 'center'});
+  }
+  function sendPlace(sf) {   // where the card of this Send stands now, and the order of the places of the page around it
+    var card = byId(sf.getAttribute('data-card')), y = Math.round(scrollY);
+    if (!card || !shown(card)) return {card: '', y: y};
+    var r = card.getBoundingClientRect(), before = [], after = [], seen = {}, gap = {};
+    places().forEach(function (e) {
+      if (e === card || card.contains(e) || e.contains(card) || seen[e.id]) return;
+      seen[e.id] = 1;
+      if (card.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING) { after.push(e.id); if (shown(e) && !(e.id in gap)) gap[e.id] = Math.round(e.getBoundingClientRect().top - r.bottom); }
+      else before.push(e.id);
+    });
+    return {card: card.id, y: y, top: Math.round(r.top), after: after, before: before.reverse(), gap: gap};
+  }
+  function afterSend(sf, res) {
+    var dlg2 = document.getElementById('review');
+    if (dlg2 && dlg2.open && dlg2.contains(sf)) dlg2.close();   // only the review of this Send; another may be open now
+    var at = sendPlace(sf), line = nowLine(res);
+    freshPage().then(function (d) {
+      var card = at.card ? byId(at.card) : null;
+      at.stays = !!(card && inDoc(d, at.card));
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return new Promise(function (done) {
+        if (!card || at.stays || reduce) return done(d);
+        var r = card.getBoundingClientRect();   // the card folds away; the cards below move up into its place
+        card.style.overflow = 'hidden'; card.style.height = r.height + 'px'; card.style.boxSizing = 'border-box';
+        card.style.transition = 'height 330ms ease-out, margin 330ms ease-out, padding 330ms ease-out, opacity 330ms ease-out, border-width 330ms';
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+          card.style.height = '0px'; card.style.marginTop = '0'; card.style.marginBottom = '0'; card.style.paddingTop = '0'; card.style.paddingBottom = '0'; card.style.opacity = '0'; card.style.borderWidth = '0';
+        }); });
+        setTimeout(function () { done(d); }, 360);
+      });
+    }).then(function (d) {
+      swapBody(d, at.card || (sf.getAttribute('data-newreq') ? '#newreq' : ''));
+      if (at.card) putLine(line, at);
+      else { window.scrollTo(0, at.y); var bandH = bandBottom(); line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0'; document.body.appendChild(line); }
+      fadeOut(line, 60000);
+      settle();
+    }).catch(function () {   // sent, but the page could not be read again: say so; a reload shows it
+      var bandH = bandBottom(); line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0';
+      line.appendChild(document.createTextNode(' The page could not be read again: reload it to see the change.'));
+      document.body.appendChild(line); fadeOut(line, 60000);
+    });
+  }
+  function sendTrouble(sf, msg) {   // nothing is posted again; the review says what happened, and Send may be pressed again (same send id)
+    var b = sf.querySelector('button.go'); if (b) { b.disabled = false; b.removeAttribute('aria-busy'); }
+    var m = sf.querySelector('.sendmsg');
+    if (!m) { m = document.createElement('p'); m.className = 'sendmsg formmsg'; m.setAttribute('role', 'alert'); sf.appendChild(m); }
+    m.textContent = msg;
   }
   document.addEventListener('submit', function (e) {
     var f = e.target;
     if (!f || !f.getAttribute || f.getAttribute('action') !== '/send' || !f.closest || !f.closest('#review') || !window.fetch || !window.FormData) return;
     e.preventDefault();
-    var b = new URLSearchParams(new FormData(f)); b.set('inplace', '1'); b.set('view', thisView);
-    fetch('/send', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: b.toString()}).then(function (r) {
-      if (!r.ok) { f.setAttribute('data-plain', '1'); f.submit(); return null; }
-      return r.json();
-    }).then(function (res) { if (res) applyInPlace(res); }).catch(function () { f.submit(); });
+    var b = f.querySelector('button.go');
+    if (f.getAttribute('data-busy') === '1') return;   // one Send at a time from one review
+    f.setAttribute('data-busy', '1'); if (b) { b.disabled = true; b.setAttribute('aria-busy', 'true'); }
+    var body = new URLSearchParams(new FormData(f)); body.set('inplace', '1'); body.set('view', f.getAttribute('data-view') || thisView);
+    body.set('sendid', f.getAttribute('data-sendid') || '');
+    fetch('/send', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body.toString()}).then(function (r) {
+      if (r.ok) return r.json().then(function (res) { afterSend(f, res); });
+      return r.text().then(function (t) {   // the server answered and refused: its own words, nothing posted again
+        f.removeAttribute('data-busy');
+        var d = new DOMParser().parseFromString(t, 'text/html'), w = d.body ? d.body.textContent.replace(/\s+/g, ' ').trim() : '';
+        sendTrouble(f, 'The Desk did not take this Send (HTTP ' + r.status + '): ' + (w || 'no reason given') + '. Nothing was sent again.');
+      });
+    }).catch(function () {   // no answer: the Send may or may not have reached the Desk; read the page again, post nothing
+      f.removeAttribute('data-busy');
+      freshPage().then(function (d) {
+        var at = sendPlace(f); swapBody(d, ''); window.scrollTo(0, at.y); settle();
+        sendTrouble(f, 'The answer of the Desk was lost. The page now shows what the Desk holds. If the item is still there, Send again: the Desk takes this Send once.');
+      }).catch(function () {
+        sendTrouble(f, 'The Desk server does not answer. This Send may not have reached it. Start the Desk again, then press Send: the Desk takes this Send once.');
+      });
+    });
   }, true);
   document.addEventListener('submit', function (e) {
     var f = e.target;
@@ -199,10 +325,13 @@
       track(f, r.ok, r.ok ? 'Draft saved' : 'Draft NOT saved (HTTP ' + r.status + ')');
     }).catch(function () { track(f, false, 'Draft NOT saved: the Desk server does not answer'); });
   }
-  document.querySelectorAll('form[data-draft-key]').forEach(function (f) {
-    var t;
-    f.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { save(f); }, 500); });
-    f.addEventListener('change', function () { clearTimeout(t); t = setTimeout(function () { save(f); }, 200); });
+  // one listener for the whole page (H-0259: the body of the page can be put in place again after a Send)
+  ['input', 'change'].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      var f = e.target && e.target.closest ? e.target.closest('form[data-draft-key]') : null;
+      if (!f) return;
+      clearTimeout(f.__draftT); f.__draftT = setTimeout(function () { save(f); }, ev === 'input' ? 500 : 200);
+    });
   });
   // 3. Navigation (c29, c30, c31): a link to an item opens every fold around it and shows it below the
   //    sticky band; so does an anchor in the address. Expand all and Collapse all set every fold.
@@ -246,7 +375,7 @@
   function foldList() {
     return Array.prototype.filter.call(document.querySelectorAll('details'), function (d) { return !d.closest('dialog'); });
   }
-  (function () {
+  function assignFids() {
     var used = {};
     foldList().forEach(function (d) {
       var base;
@@ -259,7 +388,7 @@
       var n = used[base] = (used[base] || 0) + 1;
       d.setAttribute('data-fid', n > 1 ? base + '~' + n : base);
     });
-  })();
+  }
   // c3: a pair in each lane and each KB sheet that holds a fold. A pair sets only the folds inside
   // its own section, and leaves the section itself as it is. The rails get none.
   function foldsIn(sec, open) {
@@ -285,8 +414,13 @@
     });
     sum.appendChild(wrap);
   }
-  document.querySelectorAll('details.lane, details.store, details.group').forEach(function (d) { addPair(d, false); });
-  document.querySelectorAll('details.sheet.kbsec, details.layer').forEach(function (d) { addPair(d, true); });
+  // what each new body of the page needs (at the load, and after a Send put the server's render in place)
+  function bindDom() {
+    assignFids();
+    document.querySelectorAll('details.lane, details.store, details.group').forEach(function (d) { addPair(d, false); });
+    document.querySelectorAll('details.sheet.kbsec, details.layer').forEach(function (d) { addPair(d, true); });
+  }
+  bindDom();
   // c4: what Ty left, kept in this browser for this address (tab and filter): which folds are open,
   // and the scroll place. A fold that the page shows for the first time takes the state of the
   // server. An entry for a fold that is gone is dropped (the entry is made again from the page).
@@ -327,26 +461,33 @@
   });
   if (document.readyState === 'complete') setTimeout(function () { restoring = false; stSave(); runDone(); }, 350);
   if (location.hash) { if (!reveal(hashId())) toEverything(hashId()); else window.addEventListener('load', function () { reveal(hashId()); }); }
-  document.querySelectorAll('[data-folds]').forEach(function (b) {
-    b.addEventListener('click', function () {
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-folds], [data-newreq], #newreq [data-close]') : null;
+    if (!b) return;
+    var nr = document.getElementById('newreq');
+    if (b.hasAttribute('data-folds')) {
       var open = b.getAttribute('data-folds') === 'open';
       document.querySelectorAll('details').forEach(function (d) { if (!d.closest('dialog')) d.open = open; });
-    });
-  });
-  var nr = document.getElementById('newreq');
-  document.querySelectorAll('[data-newreq]').forEach(function (b) {
-    b.addEventListener('click', function () {
+    } else if (b.hasAttribute('data-newreq')) {
       if (!nr) return;
       nr.showModal();
       var t = nr.querySelector('textarea');
       if (t) t.focus();
-    });
+    } else { e.preventDefault(); if (nr) nr.close(); }
   });
-  if (nr) nr.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); nr.close(); }); });
   var dlg = document.getElementById('review');
   var body = dlg ? dlg.querySelector('.dlgbody') : null;
-  function openReview(html) {
+  function openReview(html, f) {
     body.innerHTML = html;
+    var sf = body.querySelector('form[action="/send"]');
+    if (sf) {   // H-0259: the state of this Send is its own form: the card, the view, and a send id that the server takes once
+      var card = f && f.closest ? f.closest('[id^="item-"]') : null;
+      var sid = ''; try { var a = new Uint8Array(12); crypto.getRandomValues(a); for (var i = 0; i < a.length; i++) sid += ('0' + a[i].toString(16)).slice(-2); } catch (x) { sid = String(Date.now()) + String(Math.random()).slice(2, 12); }
+      sf.setAttribute('data-card', card && onPage(card) ? card.id : '');
+      if (f && f.closest && f.closest('#newreq')) sf.setAttribute('data-newreq', '1');
+      sf.setAttribute('data-view', thisView);
+      sf.setAttribute('data-sendid', sid);
+    }
     var c = body.querySelector('[data-cancel]');
     if (c) c.addEventListener('click', function (e) { e.preventDefault(); dlg.close(); });
     dlg.showModal();
@@ -368,26 +509,26 @@
     if (f.getAttribute('data-judge') === 'case' && ta && !ta.value.trim()) return 'Write the case first.';
     return '';
   }
-  document.querySelectorAll('form[data-judge]').forEach(function (f) {
-    f.addEventListener('input', function () { var m = f.querySelector('.formmsg'); if (m) m.textContent = ''; });
+  document.addEventListener('input', function (e) {
+    var f = e.target && e.target.closest ? e.target.closest('form[data-judge]') : null;
+    if (f) { var m = f.querySelector('.formmsg'); if (m) m.textContent = ''; }
   });
-  document.querySelectorAll('form[data-review]').forEach(function (f) {
-    f.addEventListener('submit', function (e) {
+  document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || !f.matches || !f.matches('form[data-review]')) return;
       var miss = judgeMissing(f), m = f.querySelector('.formmsg');
       if (m) m.textContent = miss;
       if (miss) { e.preventDefault(); return; }
       if (!dlg || !window.fetch) return;            // no dialog: the form posts to /review as a page
       e.preventDefault();
       try {
-        reviewCard = f.closest('[id^="item-"]');   // the card of the item (c21: the send updates the page in place)
-        var pc = reviewCard || f, pr = pc.getBoundingClientRect();
+        var pc = f.closest('[id^="item-"]') || f, pr = pc.getBoundingClientRect();
         sessionStorage.setItem('desk-done-place', JSON.stringify({top: Math.round(pr.top), h: Math.round(pr.height), y: Math.round(scrollY), view: thisView}));
       } catch (e) { /* no storage: the line takes the default place */ }
       post('/review', fields(f), {'X-Desk-Fragment': '1'}).then(function (r) {
-        return r.text().then(function (t) { openReview(t); });
+        return r.text().then(function (t) { openReview(t, f); });
       }).catch(function () {
-        openReview('<div class="review"><div class="dh"><h2>The Desk server does not answer</h2><p>Nothing was sent. Start the Desk again, then reload the page.</p></div><div class="df"><button class="btn" data-cancel>Close</button></div></div>');
+        openReview('<div class="review"><div class="dh"><h2>The Desk server does not answer</h2><p>Nothing was sent. Start the Desk again, then reload the page.</p></div><div class="df"><button class="btn" data-cancel>Close</button></div></div>', f);
       });
-    });
   });
 })();

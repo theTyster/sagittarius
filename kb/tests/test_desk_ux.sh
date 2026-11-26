@@ -85,7 +85,10 @@ for w in $WANT; do
   case $w in
   k13) echo "== k13 (c3): a pair of buttons in each lane and sheet"; browse "$U" k13 && report "$D/br.json" ;;
   k14) echo "== k14 (c4): the folds and the place kept after a reload"; browse "$U" k14 && report "$D/br.json" ;;
-  r10) echo "== r10 (c18 to c20): the view and the place after an action, the last view, a cold load"; browse "$U" r10 && report "$D/br.json" ;;
+  r10) echo "== r10 (c18 to c23, H-0259): the view and the place after an action, the last view, a cold load, the Send in place"; browse "$U" r10 && report "$D/br.json"
+    # H-0259: the scenario posted one Send twice with the same send id (text dedup-probe-text): one letter
+    nd=$(cat "$SET"/*/flow/desk/letters.jsonl 2>/dev/null | grep -c 'dedup-probe-text')
+    if [ "$nd" = 1 ]; then check "H-0259: one send id posted twice writes one letter" ok; else check "H-0259: one send id posted twice writes one letter" fail "$nd letters with the probe text"; fi ;;
   k15)
     echo "== k15 (c5): New requirement"
     browse "$U" k15a && report "$D/br.json"
