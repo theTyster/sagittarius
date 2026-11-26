@@ -4371,17 +4371,24 @@ crud_human_record_plain(T) :-
     \+ T = by_human(_, _), \+ T = actor(_, _, _), T =.. [_|As], memberchk(human, As), !.
 
 % crud_human_record(+Items, +Fact): the request, a fact with the argument human, or a fact with a by_human line.
-crud_human_record(_, T) :- crud_human_record_plain(T), !.
-crud_human_record(Items, T) :-
-    nonvar(T), compound(T), member(it(kb, _, _, M, _, _), Items), nonvar(M), M = by_human(T2, _), T2 =@= T, !.
+crud_human_record(_, _, T) :- crud_human_record_plain(T), !.
+crud_human_record(Items, L, T) :-
+    nonvar(T), compound(T), functor(T, K, _), arg(1, T, I), atom(I),
+    findall(L0, ( member(it(kb, _, L0, T0, _, _), Items), nonvar(T0), compound(T0), functor(T0, K, _), arg(1, T0, A0), A0 == I ), Ls),
+    nth1(N, Ls, L),
+    member(it(kb, _, _, M, _, _), Items), nonvar(M), M = by_human(at(K2, I2, N2), _), K2 == K, I2 == I, N2 == N, !.
 
 % crud_pane_owner(+Items, +Target, -Pane) (kb-crud c8): Target is a run or a verdict (an attestation) that another pane
 % recorded: its actor/3 names a role that is not the role of this command (--as ROLE, or ORBIT_KB_ROLE).
+% When the role is unknown on either side, the writer (the session) decides: another session is another pane.
 crud_pane_owner(Items, Target, Pane) :-
     atom(Target),
     member(it(kb, _, _, A, _, _), Items), nonvar(A), A = attest(Target, _, _, _, _, _), !,
-    member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(Target, Pane, _),
-    Pane \== unknown, actor_role(Me), Me \== Pane, !.
+    member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(Target, R, S), !,
+    actor_role(Me), actor_session(MS),
+    (   R \== unknown, Me \== unknown -> R \== Me, Pane = R
+    ;   S \== unknown, S \== MS -> ( R \== unknown -> Pane = R ; fmt(PT, "of the session ~w", [S]), atom_string(Pane, PT) )
+    ).
 
 crud_guard(KB, LTs, Target, By, Opts) :-
     kb_items(KB, Items),
@@ -4389,7 +4396,7 @@ crud_guard(KB, LTs, Target, By, Opts) :-
     ->  reject(["--disclose is empty.", "Fix: say what the human said and where, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
     ;   true
     ),
-    (   By == agent, member(_-T, LTs), crud_human_record(Items, T), \+ memberchk('--disclose'-_, Opts)
+    (   By == agent, member(LT-T, LTs), crud_human_record(Items, LT, T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
         fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
         reject([M, "Fix: add --disclose TEXT, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
@@ -4486,10 +4493,7 @@ cmd_erase(KB, Args, Code) :-
     crud_guard(KB, LTs, Target, By, Opts),
     crud_erase_refs(KB, Target, LTs),
     utc_now(Now), kb_file(KB, KbFile),
-    kb_items(KB, KItems),
-    findall(ML-MT, ( member(_-T0, LTs), member(it(kb, _, ML, MT, _, _), KItems), nonvar(MT), MT = by_human(T2, _), T2 =@= T0 ), MLTs),
-    append(LTs, MLTs, LTs2),
-    kb_lines_without(KbFile, LTs2, Out00),
+    kb_lines_without(KbFile, LTs, Out00),
     crud_fix_struck(Target, Out00, Out0),
     clause_line(erased(Target, By, Now, Why), [], L1),
     crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
@@ -4527,12 +4531,15 @@ crud_fix_struck(Target, Text0, Text) :-
     atomic_list_concat(Ls, '\n', Text).
 
 crud_fix_struck_line(Target, LS, Acc0, Acc) :-
-    (   sub_string(LS, 0, _, _, "struck("),
+    (   ( sub_string(LS, 0, _, _, "struck(") ; sub_string(LS, 0, _, _, "by_human(") ),
         catch(term_string(T, LS, [module(orbit_ops)]), _, fail),
-        T = struck(at(K, I, M), By, At, Why)
+        ( T = struck(at(K, I, M), By, At, Why)
+        ; T = by_human(at(K, I, M), At) )
     ->  (   Target = at(K, I, N)
         ->  (   M == N -> Acc = Acc0
-            ;   M > N -> M1 is M - 1, clause_line(struck(at(K, I, M1), By, At, Why), [], L1), Acc = [L1|Acc0]
+            ;   M > N -> M1 is M - 1,
+                ( T = struck(_, _, _, _) -> T1 = struck(at(K, I, M1), By, At, Why) ; T1 = by_human(at(K, I, M1), At) ),
+                clause_line(T1, [], L1), Acc = [L1|Acc0]
             ;   Acc = [LS|Acc0]
             )
         ;   atom(Target), Target == I -> Acc = Acc0
@@ -4885,6 +4892,11 @@ cmd_add(KB, Args, Code) :-
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
+    (   member(it(_, _, _, BT, _, _), NewItems), nonvar(BT), BT = by_human(_, _)
+    ->  reject(["by_human/2 is the mark of a fact that a human wrote. orbit-kb writes it, never add: it is not typed by hand.",
+                "Fix: the human writes the fact with orbit-kb add 'FACT' --by human (or on the Desk)."] >> fix_lines)
+    ;   true
+    ),
     check_words_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
@@ -4903,7 +4915,7 @@ cmd_add(KB, Args, Code) :-
     retire_gate(KB, NewItems),
     utc_now(Now),
     add_lines(NewItems, FUs, Doc, By, Now, [], Lines0),
-    human_mark_lines(By, NewItems, Now, MarkLs),     % kb-crud c9: a fact that a human writes carries his mark
+    human_mark_lines(By, KI, NewItems, Now, MarkLs),     % kb-crud c9: a fact that a human writes carries his mark
     append(Lines0, MarkLs, Lines),
     apply_redoc(KbFile, Redoc),                  % T40 c8
     append_lines(KbFile, Lines),
@@ -4923,13 +4935,27 @@ cmd_add(KB, Args, Code) :-
     ),
     Code = 0.
 
-% human_mark_lines(+By, +NewItems, +Time, -Lines) (kb-crud c9): after the facts that a human writes, one
-% by_human(Fact, Time) for each fact that does not carry the human already (an argument human, or the request).
-human_mark_lines(human, NewItems, Now, Lines) :- !,
-    findall(L, ( member(it(_, _, _, T, _, _), NewItems), pos_fact(T), \+ crud_human_record_plain(T),
-                 functor(T, N, _), \+ memberchk(N, [by_human, struck, struck_disclosure, erased, replaced, actor, first_use]),
-                 clause_line(by_human(T, Now), [], L) ), Lines).
-human_mark_lines(_, _, _, []).
+% human_mark_lines(+By, +KBItems, +NewItems, +Time, -Lines) (kb-crud c9): after the facts that a human writes, one
+% by_human(at(KIND, ITEM, N), Time) for each fact that does not carry the human already (an argument human, or the
+% request): the address of that fact (the Nth fact of its kind on its item, in the order of kb.pl), not its text, so
+% an agent's copy of the same words is not the human's. An erase moves the marks behind it as it moves the strikes.
+human_mark_lines(human, KI, NewItems, Now, Lines) :- !,
+    foldl(human_mark_line(KI, Now), NewItems, []-[], _-Ls0),
+    reverse(Ls0, Lines).
+human_mark_lines(_, _, _, _, []).
+
+human_mark_line(KI, Now, it(_, _, _, T, _, _), Seen0-Ls0, Seen-Ls) :-
+    (   pos_fact(T), compound(T), \+ crud_human_record_plain(T), arg(1, T, I), atom(I),
+        functor(T, K, _), \+ memberchk(K, [by_human, struck, struck_disclosure, erased, replaced, actor, first_use])
+    ->  aggregate_all(count, ( member(it(kb, _, _, T0, _, _), KI), nonvar(T0), compound(T0), functor(T0, K, _), arg(1, T0, A0), A0 == I ), C0),
+        aggregate_all(count, ( member(K2-I2, Seen0), K2 == K, I2 == I ), C1),
+        N is C0 + C1 + 1,
+        clause_line(by_human(at(K, I, N), Now), [], L),
+        Seen = [K-I|Seen0], Ls = [L|Ls0]
+    ;   pos_fact(T), compound(T), arg(1, T, I), atom(I), functor(T, K, _)
+    ->  Seen = [K-I|Seen0], Ls = Ls0
+    ;   Seen = Seen0, Ls = Ls0
+    ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.

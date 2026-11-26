@@ -196,7 +196,7 @@ decl(fact, erased(term, by, time, text),
      'A record that was added by mistake left kb.pl: its id or address, who erased it, when, and why. Its text is only in git.',
      'record @(1) was erased by @(2) at @(3): @(4)').
 decl(fact, by_human(term, time),
-     'A human wrote the fact (with --by human, or a form of the Desk): the fact itself and the time. A fact with the argument human, and the request, need no such line. An agent changes a fact of the human only with a disclosure.',
+     'A human wrote the fact (with --by human, or a form of the Desk): its address at(KIND, ITEM, N) (the Nth fact of that kind on that item, in the order of kb.pl) and the time. orbit-kb writes it; add refuses it. A fact with the argument human, and the request, need no such line. An agent changes a fact of the human only with a disclosure.',
      'the fact @(1) was written by a human at @(2)').
 decl(fact, replaced(term, by, time, text),
      'The item (by its id) was replaced by another item that supersedes it: who replaced it, when, and why. orbit-kb replace writes it beside supersedes/2, so the reason is a record and not only a message.',

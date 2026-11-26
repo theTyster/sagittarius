@@ -237,9 +237,9 @@ def t_human_mark():
     """H-0220 c9: a fact that a human writes carries his mark; an agent changes it only with a disclosure."""
     d = fixture()
     code, out = run(d, "add", "note(g1, 'NOTE-H words of the human')", "--by", "human")
-    ck("add --by human writes the note and a by_human line", code == 0 and "by_human(note(g1, 'NOTE-H words of the human')" in text(d), text(d)[-300:])
+    ck("add --by human writes the note and a by_human line with its address, not its text", code == 0 and "by_human(at(note, g1, 1)" in text(d) and "by_human(note(" not in text(d), text(d)[-300:])
     code, out = run(d, "add", "note(g1, 'NOTE-A words of an agent')")
-    ck("a note of an agent has no mark", code == 0 and "by_human(note(g1, 'NOTE-A" not in text(d))
+    ck("a note of an agent has no mark", code == 0 and "by_human(at(note, g1, 2)" not in text(d))
     before = text(d)
     code, out = run(d, "strike", "note(g1)#1", "--why", "p")
     ck("an agent's strike of the human's note with no disclosure is refused, nothing written", code != 0 and text(d) == before, out)
@@ -249,12 +249,51 @@ def t_human_mark():
     ck("an agent's erase of the human's note with no disclosure is refused", code != 0, out)
     code, out = run(d, "erase", "note(g1)#1", "--why", "p", "--disclose", "Ty withdrew it in the chat")
     ck("with a disclosure the erase is accepted, and the mark leaves with the note", code == 0 and "NOTE-H" not in text(d).replace("struck_disclosure", "") or ("by_human(note(g1, 'NOTE-H" not in text(d)), out)
-    ck("no by_human line of the erased note remains", "by_human(note(g1, 'NOTE-H" not in text(d), text(d)[-300:])
+    ck("no by_human line of the erased note remains, and its words are gone", "by_human(at(note, g1" not in text(d) and "NOTE-H" not in text(d).replace("Ty withdrew", ""), text(d)[-300:])
     ck("lint has no error", lint_clean(d)[0], lint_clean(d)[1][-300:])
     d2 = fixture(["claim(c9, introduce, 'x')", "cites(c9, 'r')", "example(c9, 'e')"])
     code, out = run(d2, "add", "question(q9, g1, 'a human question?')", "option(q9, 'A', 'a')", "--by", "human")
     ck("a question the human adds is marked, and an agent cannot replace it with no disclosure",
        code == 0 and run(d2, "replace", "q9", "question(q10, g1, 'mine')")[0] != 0)
+
+
+def t_human_mark_edges():
+    """H-0242: the mark is the address, so an agent's copy of the same words is not the human's; an erase before it moves it;
+    add refuses a mark typed by hand."""
+    d = fixture()
+    run(d, "add", "note(g1, 'agent first')")
+    run(d, "add", "note(g1, 'same words')", "--by", "human")
+    run(d, "add", "note(g1, 'same words')")
+    ck("the human's note is #2, the agent's copy #3 is not marked", "by_human(at(note, g1, 2)" in text(d) and "by_human(at(note, g1, 3)" not in text(d), text(d)[-300:])
+    ck("an agent may strike its own copy with the same words", run(d, "strike", "note(g1)#3", "--why", "dup")[0] == 0)
+    ck("an agent erases its first note", run(d, "erase", "note(g1)#1", "--why", "mistake")[0] == 0)
+    ck("the mark moved with the note: now at #1", "by_human(at(note, g1, 1)" in text(d) and "by_human(at(note, g1, 2)" not in text(d), text(d)[-300:])
+    before = text(d)
+    code, out = run(d, "strike", "note(g1)#1", "--why", "p")
+    ck("the human's note (now #1) is still refused to an agent with no disclosure", code != 0 and text(d) == before, out)
+    code, out = run(d, "add", "by_human(at(note, g1, 2), '2026-11-26T00:00:00Z')")
+    ck("add refuses a by_human mark typed by hand", code != 0 and "by_human(at(note, g1, 2), '2026-11-26" not in text(d), out)
+    code, out = run(d, "add", "by_human(at(note, g1, 2), '2026-11-26T00:00:00Z')", "--by", "human")
+    ck("also with --by human", code != 0, out)
+
+
+def t_other_session():
+    """H-0242 c8: a run recorded with no role: another session (writer) is another pane."""
+    d = fixture()
+    run(d, "release")
+    e1 = dict(ENV, ORBIT_KB_WRITER="session-of-build"); e1.pop("ORBIT_KB_ROLE", None)
+    subprocess.run([OK, "--dir", d, "run", "k1", "--", "false"], capture_output=True, text=True, env=e1)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=e1)
+    rid = re.search(r"attest\((a\d+), test_result, k1", text(d)).group(1)
+    ck("the run has the role unknown", "actor(%s, unknown, 'session-of-build')" % rid in text(d), text(d)[-200:])
+    e2 = dict(ENV, ORBIT_KB_WRITER="review", ORBIT_KB_ROLE="review")
+    t0 = text(d)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=e1)
+    r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "flaky"], capture_output=True, text=True, env=e2)
+    ck("another writer strikes it with no disclosure: refused, nothing written", r.returncode != 0 and text(d) == t0, r.stdout + r.stderr)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=e2)
+    r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "flaky"], capture_output=True, text=True, env=e1)
+    ck("the same session strikes its own run", r.returncode == 0, r.stdout + r.stderr)
 
 
 def t_other_pane():
