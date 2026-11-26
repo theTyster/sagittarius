@@ -118,6 +118,11 @@ decl(fact, measurement_premise(id, ref(check), text),
 decl(fact, known_when(ref(check), text),
      'What was known when the claim and the assessment rule of the check were chosen.',
      'for check @(1), this was known when the claim and the rule were chosen: @(2)').
+% 0.12.0 (vote-start c14 to c16, hy2): what a run read, so that a change of the check after the vote of the
+% human is seen. orbit-kb writes it; add refuses it typed by hand.
+decl(fact, run_input(ref(attest), text, text),
+     'What a run of a check read: the command (a path outside the KB directory written <outside>, a file of the KB written kb:PATH) and the sha256 of each file of the KB that the command names (PATH=sha256:HEX, sorted, joined by a space). orbit-kb run writes it with each test result; a vote of the human on a check writes it for the check as it is at that vote.',
+     'run @(1) ran @(2) on @(3)').
 decl(fact, unresolved_because(ref(attest), text),
      'What the run could not decide. orbit-kb run writes it with each unresolved test result.',
      'run @(1) is unresolved because @(2)').
@@ -473,6 +478,7 @@ decl(rule, question_waived(ref(question)),
 decl(rule, any_to_ask,
      'At least one question must be asked now.',
      'some question must be asked now').
+decl(rule, approval_epoch_needed(int), 'The KB has a vote of the human, has no approval_epoch/1 and was made before 0.13.0: the migration writes approval_epoch(N), N the number of its terms now. orbit-kb computes it when it reads the KB.', 'the KB needs approval_epoch(@(1))').
 decl(rule, vote_epoch_needed(int), 'The KB has a vote of the human, has no vote_epoch/1 and was made before 0.11.0: the migration writes vote_epoch(N), N the number of its terms now. orbit-kb computes it when it reads the KB.', 'the KB needs vote_epoch(@(1))').
 decl(rule, stale(ref(attest)),
      'The approval names a digest that differs from the current digest of its subject.',
@@ -608,9 +614,9 @@ attest_type(location,
             [human, agent],
             'Where the conflict of a run (the subject, a test_result attestation) lies, with the evidence: in the build, in the measurement, in a premise, in a hypothesis, or in a claim of the goal.').
 attest_type(confirmation,
-            confirms(text),
+            alt([confirms(text), check_change(text)]),
             [human, agent],
-            'A pane that did not build, or the human, confirms a location (the subject, a location attestation).').
+            'A pane that did not build, or the human, confirms a location (the subject, a location attestation: confirms). check_change: a pane that did not make the change of a check (the subject) after the vote of the human confirms that the check still tests its claim (vote-start c15); it counts only from another role and another session than the run that recorded the change.').
 attest_type(judgment,
             alt([case(text, oneof([wanted, not_wanted])), satisfied, not_satisfied, accepts(ref(claim))]),
             [human],

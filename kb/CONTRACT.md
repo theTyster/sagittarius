@@ -580,7 +580,7 @@ discovery module reserves must not appear in the core or the build module:
 
 - Facts: `budget/2`, `lap_done/1` (D40: `model/2`, `model_run/3`, `encodes/2` and the attestation type `model_result` are core now),
   `property/3` (D31 B5; D42: `derived_from/2` is core now), `finding/3`, `reason/3`,
-  `raised_by/2`, `discovery_evidence/2`, `vote_epoch/1` (vote-start c13: written by orbit-kb only, by the migration m_0_11_0_vote_epoch or the first write to a KB made before 0.11.0; add refuses it, and strike, replace and erase refuse it, since its place in kb.pl is the edge of the votes).
+  `raised_by/2`, `discovery_evidence/2`, `vote_epoch/1` (vote-start c13: written by orbit-kb only, by the migration m_0_11_0_vote_epoch or the first write to a KB made before 0.11.0; add refuses it, and strike, replace and erase refuse it, since its place in kb.pl is the edge of the votes). `approval_epoch/1` (vote-start c17 with c13, 0.13.0: the same, by the migration m_0_13_0_approval_epoch or the first write to a KB made before 0.13.0; a change above it that follows a valid approval takes no vote back).
 - Gates: `discovery_ready/0` (clean) and `discovery_decide/0` (ready, or the
   budget is spent).
 - Rules: every name that starts with `model_` (for example `model_mutation/4`,
@@ -594,7 +594,7 @@ discovery module reserves must not appear in the core or the build module:
 - The vote (D14): `vote_cast/3`, `vote_round/1`, `human_vote/1`, `agent_vote/1`,
   `artifact_vote/1`, `gate/1`, `gate_split/0`, `gate_allowed/1` (D33 R5).
 - Readiness (D32 O2): `ready_blocker/1`, `any_ready_blocker/0`.
-- The orbit (D30 H4): `discovery_end/1` (a fact that only `attest approval` writes), `discovery_reopened/1`, `discovery_closed/0`, `discovery_open/0`, `discovery_end_valid/1` (H9) (also under the `discovery_*` helpers), and `vote_void/1` (H5).
+- The orbit (D30 H4): `discovery_end/1` (a fact that only `attest approval` writes), `discovery_reopened/1`, `discovery_closed/0`, `discovery_open/0`, `discovery_end_valid/1` (H9) (also under the `discovery_*` helpers), and `vote_void/1` (H5). vote-start 0.13.0 (c14 to c17): the computed `check_changed/1` (a check that changed after the vote of the human, or was added after it, and no valid confirmation `check_change` or vote of the human carried it) and `change_unvoted/1` (a goal, hypothesis or claim that took the vote back and waits for his vote) block by name.
 - Attestation types: `reproduction`, `model_result`, `decision`, `vote`, `back` (D30 H4).
   (Calibration is a `model_result` shape, not a type.)
 - Lint codes: `WD1`–`WD10` and `ED1`–`ED12` (D41: ED12 is computed by the CLI).

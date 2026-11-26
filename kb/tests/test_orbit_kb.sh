@@ -1609,7 +1609,10 @@ t_HY6() { hy_build "$T/b"; oadd "hypothesis(h1, feature, '$DARK')" >/dev/null
           okb --dir "$K" uses build >/dev/null
           oadd "hypothesis(h2, defect, 'The amount and the tier decide the points, for members only.')" "supersedes(h2, h1)"; rc_is 0
           okb --dir "$K" lint; out_hasnt '^WD7' "after the GO, a restated hypothesis needs no system result"
-          is_true 'discovery_ready' "the restatement does not change readiness"; is_true 'gate(go)' "nor the outcome of the vote"
+          is_true 'discovery_ready' "the restatement does not change readiness"
+          # vote-start c17 (0.13.0, supersedes the exception a27): a restated hypothesis after the approval takes the GO back until the human votes on it
+          is_false 'gate(go)' "c17: the restated hypothesis takes the GO back"
+          okb --dir "$K" attest vote h2 'vote(1, go)' --by human >/dev/null; is_true 'gate(go)' "c17: the vote of the human on h2 restores it"
           okb --dir "$K" show open; out_hasnt 'not ready'
           okb --dir "$K" report; printf '%s\n' "$(rp_sec Open)" | grep -q 'not ready' && note "the report shows the closed orbit as not ready"; true; }
 t_HY7() { hy_go "$T/d"; okb --dir "$K" uses build >/dev/null
@@ -1662,10 +1665,13 @@ t_HY10() { kb_init "$T/d" discovery; K=$T/d   # finding 2: no closure while not 
           okb --dir "$K" lint; out_has '^WD7 h1' "WD7 h1 stays"
           okb --dir "$K" show open; out_hasnt 'Nothing is open'
           okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): hold' || note "the round keeps the artifacts' hold: [$(rp_sec Vote)]"
-          # a closed orbit keeps the record of its round: the artifacts' go stays, whatever the build adds
-          hy_closed "$T/c"; oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" >/dev/null
+          # a closed orbit keeps the record of its round: the artifacts' go stays when the build adds what is no part of the specification
+          hy_closed "$T/c"; oadd "note(c1, 'A note of the build.')" >/dev/null
           is_set 'artifact_vote(V)' 'V = go' "after closure the round keeps the artifacts' vote"
-          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): go' || note "the report keeps the round: [$(rp_sec Vote)]"; }
+          okb --dir "$K" report; rp_sec Vote | grep -q 'Formal artifacts (0.24): go' || note "the report keeps the round: [$(rp_sec Vote)]"
+          # vote-start c17 (0.13.0, supersedes a27): a claim that the build adds after closure takes the GO back
+          oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" >/dev/null
+          is_false 'gate(go)' "c17: a claim after closure takes the GO back"; }
 t_HY11() { hy_disc "$T/d"   # finding 3: a stale approval of the ticket does not close the orbit
           okb --dir "$K" attest vote r1 'vote(1, go)' >/dev/null; okb --dir "$K" attest vote r1 'vote(1, go)' --by human >/dev/null
           printf '# ticket\n' > "$K/ticket.md"; okb --dir "$K" subject tk "$K/ticket.md" >/dev/null; oadd "ticket(tk)" >/dev/null
@@ -1857,6 +1863,9 @@ EOF
           # 0.8.0 D67 (scientific-method-overhaul c17): a ticket goal that contradicts a project goal
           op_project "$T/pg" human; K=$T/pg/sp
           oadd "goal(g9, feature, human, 'A goal that contradicts.')" "no_premises(g9)" "contradicts(g9, project(pg1))" >/dev/null; op_named blocking ""
+          # 0.13.0 (vote-start c14, c15, c17): a check added after the approval, not confirmed, blocks by name
+          hy_go "$T/cc"; oadd "check(t7, c1)" "checks_that(t7, 'a check added after the approval')" >/dev/null; op_named blocking ""
+          hy_go "$T/cu"; oadd "claim(c7, introduce, 'A claim added after the approval.')" "cites(c7, 'Test request')" >/dev/null; op_named blocking ""
           # 0.8.0 (D57 to D61; scientific-method-overhaul c7, c9, c10, c16, c39, c42): the kinds of stage 2
           kb_new "$T/s2" <<'EOF'
 uses([build]).
@@ -2007,11 +2016,11 @@ OP5 under_never_ran: under c1 | check_unrun k1
 OP5 no_example: not_ready no_example c2
 OP5 preserve_fails: not_ready preserve_failing t2
 OP5 ready: Nothing is open
-OP5 closed: Nothing is open
+OP5 closed: change_unvoted c7 | check_changed t7
 OP5 stale_pin: stale_pin pf2'
 RD6_TABLE='RD6 not_ready_votes: refused=[1] gate=hold closed=false
 RD6 ready_then_new_hypothesis: refused=[] gate=hold closed=false
-RD6 approved_then_build: refused=[] gate=go closed=true
+RD6 approved_then_build: refused=[] gate=hold closed=true
 RD6 approved_then_back: refused=[] gate=none closed=false
 RD6 stale_approval: refused=[] gate=go closed=false
 RD6 vote_after_closure: refused=[4] gate=go closed=true'
@@ -2180,10 +2189,12 @@ t_RD5() { kb_init "$T/n" discovery; K=$T/n; oadd "hypothesis(h1, defect, 'The am
           is_false 'gate_split' "a GO that cannot win is not a split vote"
           printf 'attest(v9, vote, r1, vote(1, go), agent, %s).\n' "'2026-11-12T10:00:00Z'" >> "$K/kb.pl"
           is_set 'gate(V)' 'V = hold' "an agent GO written by hand does not win either"
-          # after the human approved the ticket, a later change of the build does not take the GO back
+          # vote-start c17 (0.13.0, supersedes a27): after the human approved the ticket, a claim and a check that the build adds take
+          # the GO back until the human votes on the claim (his vote on c7 carries its check t7)
           hy_go "$T/a"; okb --dir "$K" uses build >/dev/null
           oadd "claim(c7, introduce, 'A refund takes the points back.')" "cites(c7, 'Test request')" "check(t7, c7)" "checks_that(t7, 'the check t7 tests the claim')" >/dev/null
-          is_set 'gate(V)' 'V = go' "the approved GO stays"
+          is_set 'gate(V)' 'V = hold' "c17: the change after the approval takes the GO back"
+          okb --dir "$K" attest vote c7 'vote(1, go)' --by human >/dev/null; is_set 'gate(V)' 'V = go' "c17: the vote of the human on c7 restores it"
           okb --dir "$K" attest back h1 "back('The human cannot say what the hypothesis changes to.')" >/dev/null
           is_false 'discovery_ready' "after a return to discovery, readiness is asked again"
           is_false 'gate(V)' "and the votes of the earlier orbit do not count (D30 H5): a new round is needed"; }

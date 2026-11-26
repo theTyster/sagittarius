@@ -1865,7 +1865,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(Dir, KbItems, Ts11a), vote_changed_derived(Dir, KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), append([Ts11a, Ts11b, Ts11c, Ts11d], Ts11),
+    vote_void_derived(Dir, KbItems, Ts11a), vote_changed_derived(Dir, KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), check_changed_derived(Dir, KbItems, Ts11e), approval_epoch_needed_derived(Dir, KbItems, Ts11f), append([Ts11a, Ts11b, Ts11c, Ts11d, Ts11e, Ts11f], Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2066,13 +2066,148 @@ vote_changed_derived(Dir, KbItems, Facts) :-
     findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_changed(V),
-            ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
+            ( append(Pre, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
               \+ vote_carry_subject(Ts0, Sv),
               \+ ( member(B, After), is_back(B) ),
-              vote_spec_changed(Ts, Tks, Pv, After) ),
+              length(Pre, IV0), IV is IV0 + 1, approval_edge(Dir, Ts, E2),
+              (   vote_spec_changed(Ts, Tks, Pv, IV, E2)
+              ->  true
+              ;   check_changed_since(Dir, Ts0, IV, _, _)
+              ) ),
             Fs0),
     sort(Fs0, Facts).
 vote_changed_derived(_, _, []).
+
+% ---- vote-start c14 to c17 (0.13.0, hy2): the content of a check is under the vote of the human
+% run_input(A, Cmd, Files) is what a run read (orbit-kb run) or the check as it was at a vote of the human
+% on it (attest vote --by human). A check changed since the vote at place IV of Ts when the newest record of
+% it differs from its baseline (another command, other digests), or a file of its newest record has another
+% digest now (run or not). The baseline is the newest record before the vote, or before the latest valid
+% confirmation of the check (check_change), or the record of the latest vote of the human on the check. A
+% check with no record before the vote (a KB from before 0.13.0, or a check not run before it) takes its first record
+% after the vote as the baseline: that first run cannot count as another command, a later one can.
+check_changed_since(Dir, Ts, IV, K, Why) :-
+    setof(K0, C0^( member(T, Ts), nonvar(T), T = check(K0, C0), atom(K0) ), Ks), member(K, Ks),
+    check_records(Ts, K, Rs), Rs \== [],
+    check_baseline(Ts, IV, K, Rs, RB),
+    last(Rs, RN),
+    (   RN \== RB, \+ same_run_input(RN, RB) -> RN = rec(_, A, _, _), Why = run(A)
+    ;   RN = rec(_, _, _, Fs), run_input_file_changed(Dir, Fs, F) -> Why = file(F)
+    ), !.
+
+% check_records(+Ts, +K, -Rs): rec(Place, Attest, Cmd, Files) for each run_input/3 of check K, in the order of kb.pl.
+check_records(Ts, K, Rs) :-
+    findall(rec(I, A, C, F), ( nth1(I, Ts, T), nonvar(T), T = run_input(A, C, F),
+                               once(( member(At, Ts), nonvar(At), At = attest(A0, _, K0, _, _, _), A0 == A )), K0 == K ), Rs).
+
+% check_baseline(+Ts, +IV, +K, +Rs, -RB): the record that the vote at IV, or a later vote of the human on K, or a
+% later valid confirmation of K, accepted. Fails when that record does not exist.
+check_baseline(Ts, IV, K, Rs, RB) :-
+    findall(I-E, ( nth1(I, Ts, T), I > IV, nonvar(T),
+                   (   T = attest(VA, vote, K0, vote(_, _), human, _), K0 == K, E = vote(VA)
+                   ;   T = attest(CA, confirmation, K0, check_change(_), _, _), K0 == K,
+                       valid_check_confirm(Ts, I, CA, K), E = conf
+                   ) ), Es),
+    (   Es == [] -> ( rec_before(Rs, IV, RB) -> true ; Rs = [RB|_] )   % no record before the vote (a KB from before 0.13.0, or a check not run before it): its first record after the vote is the baseline
+    ;   last(Es, IE-E),
+        (   E = vote(VA), member(R, Rs), R = rec(_, VA0, _, _), VA0 == VA -> RB = R
+        ;   rec_before(Rs, IE, RB)
+        )
+    ).
+
+rec_before(Rs, Lim, R) :- findall(R0, ( member(R0, Rs), R0 = rec(I, _, _, _), I < Lim ), Bs), last(Bs, R).
+
+same_run_input(rec(_, _, C, F), rec(_, _, C2, F2)) :- C == C2, F == F2.
+
+% run_input_entry(+E, -F, -H): an entry PATH=sha256:HEX, cut at its last "=sha256:" (a PATH may hold "=": review f23).
+run_input_entry(E, F, H) :-
+    findall(B, sub_string(E, B, _, _, "=sha256:"), Bs), last(Bs, B),
+    sub_string(E, 0, B, _, F), B1 is B + 1, sub_string(E, B1, _, 0, H).
+
+% run_input_file_changed(+Dir, +Files, -F): a file of the record has another digest now, or is gone.
+run_input_file_changed(Dir, Files, F) :-
+    Dir \== none, split_string(Files, " ", "", Es), member(E, Es), E \== "",
+    run_input_entry(E, F, H0),
+    directory_file_path(Dir, F, Abs),
+    (   exists_file(Abs), run_input_sha(Abs, H), atom_string(H, H0) -> fail ; true ), !.
+
+% valid_check_confirm(+Ts, +IC, +CA, +K) (c15): the confirmation CA at place IC counts when another role and another
+% session made it than the run that recorded the newest record of K before it. A check with no record cannot be
+% confirmed: it is run first (the runner is the one who changed it, as far as the KB can tell).
+valid_check_confirm(Ts, IC, CA, K) :-
+    check_records(Ts, K, Rs), rec_before(Rs, IC, rec(_, RA, _, _)),
+    once(( member(X, Ts), nonvar(X), X = actor(CA0, Rc, Sc), CA0 == CA )),
+    once(( member(Y, Ts), nonvar(Y), Y = actor(RA0, Rr, Sr), RA0 == RA )),
+    Rc \== unknown,                                  % a session that names no role is not another role (review f23)
+    Rc \== Rr, Sc \== Sr.
+
+% check_changed_derived(+Dir, +KbItems, -Facts): check_changed(K) for each check K that changed since the newest
+% vote of the human on the ticket (c14), or whose check record came after that vote and no valid confirmation and
+% no vote of the human on it carried it (c15, c17). It blocks by name (discovery module).
+check_changed_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
+    findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
+    (   findall(IV, ( nth1(IV, Ts, X), nonvar(X), X = attest(_, vote, Sv, _, human, _), \+ vote_carry_subject(Ts0, Sv) ), IVs),
+        last(IVs, IV)
+    ->  findall(check_changed(K),
+                (   check_changed_since(Dir, Ts0, IV, K, _)
+                ;   nth1(IV, Ts, attest(_, _, _, Pv, _, _)), approval_edge(Dir, Ts, E2),
+                    findall(Tk, ( member(Tt, Ts), nonvar(Tt), Tt = ticket(Tk) ), Tks),
+                    vote_change_counts(Ts, Tks, Pv, IV, E2, C), nonvar(C), C = check(K, _), atom(K)
+                ), Fs0),
+        % change_unvoted(X): a goal, hypothesis or claim (or its example, supersedes, strike) that took the vote back and
+        % that no vote of the human carried yet; X is the record it names (show open review gap of the Lean model, 0.13.0)
+        findall(change_unvoted(X),
+                (   nth1(IV, Ts, attest(_, _, _, Pv2, _, _)), approval_edge(Dir, Ts, E2b),
+                    findall(Tk2, ( member(Tt2, Ts), nonvar(Tt2), Tt2 = ticket(Tk2) ), Tks2),
+                    vote_change_counts(Ts, Tks2, Pv2, IV, E2b, C2), \+ ( nonvar(C2), C2 = check(_, _) ),
+                    spec_ids(C2, [X|_]), atom(X)
+                ), Fs1),
+        append(Fs0, Fs1, Fs2), sort(Fs2, Facts)
+    ;   Facts = []
+    ).
+check_changed_derived(_, _, []).
+
+% vote_carried_check(+Ts, +C, +After2) (c15, c17): a check record C (check(K, _)) is carried by a valid confirmation
+% of K that follows it: checks need another pane. A goal, hypothesis or claim is carried only by a vote of the human.
+vote_carried_check(Ts, C, After2) :-
+    nonvar(C), C = check(K, _), atom(K),
+    member(Cf, After2), nonvar(Cf), Cf = attest(CA, confirmation, K0, check_change(_), _, _), K0 == K,
+    once(nth1(IC, Ts, Cf)), valid_check_confirm(Ts, IC, CA, K), !.
+
+% run_input_text(+Dir, +Cmd, -CmdText, -FilesText) (hy2): the command with each path outside the KB directory written
+% <outside> and each path inside it written kb:PATH (a NAME=VALUE word keeps its NAME=), and PATH=sha256:HEX for each
+% file of the KB that the command names, sorted and joined by a space. A word with a space in it is kept as it is.
+run_input_text(Dir0, Cmd, CmdText, FilesText) :-
+    absolute_file_name(Dir0, Dir), working_directory(Cwd, Cwd),
+    maplist(run_input_word(Dir, Cwd), Cmd, Ws, FLs),
+    atomic_list_concat(Ws, ' ', CT0), split_string(CT0, "\n\r", "", CPs), atomic_list_concat(CPs, ' ', CmdText),
+    append(FLs, Fs0), sort(Fs0, Fs),
+    findall(E, ( member(Rel-Abs, Fs), run_input_sha(Abs, H), format(atom(E), "~w=~w", [Rel, H]) ), Es),
+    atomic_list_concat(Es, ' ', FilesText).
+
+run_input_word(Dir, Cwd, W0, W, Fs) :-
+    atom(W0), \+ sub_atom(W0, _, _, _, ' '),
+    (   sub_atom(W0, B, 1, _, '='), B > 0, sub_atom(W0, 0, B, _, Nm), atom_codes(Nm, [C1|Cs]),
+        code_type(C1, csymf), forall(member(C, Cs), code_type(C, csym))
+    ->  atom_concat(Nm, '=', Pre), B1 is B + 1, sub_atom(W0, B1, _, 0, V)
+    ;   Pre = '', V = W0
+    ),
+    V \== '',
+    ( sub_atom(V, _, _, _, '/') -> Sl = true ; Sl = false ),
+    catch(absolute_file_name(V, Abs, [relative_to(Cwd)]), _, fail),
+    ( Sl == true ; exists_file(Abs) ), !,
+    (   atom_concat(Dir, '/', DirS), atom_concat(DirS, Rel, Abs), Rel \== ''
+    ->  atomic_list_concat([Pre, 'kb:', Rel], W), ( exists_file(Abs) -> Fs = [Rel-Abs] ; Fs = [] )
+    ;   Sl == true -> atom_concat(Pre, '<outside>', W), Fs = []
+    ;   W = W0, Fs = []
+    ).
+run_input_word(_, _, W, W, []).
+
+run_input_sha(Abs, Digest) :-
+    setup_call_cleanup(open(Abs, read, S, [type(binary)]), read_string(S, _, Bytes), close(S)),
+    use_module(library(sha)), sha:sha_hash(Bytes, H, [algorithm(sha256), encoding(octet)]), sha:hash_atom(H, Hex),
+    atom_concat('sha256:', Hex, Digest).
 
 % vote_epoch_mask(+Dir, +Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): the terms ABOVE the term
 % vote_epoch(_) in kb.pl, which the migration or the first write of this orbit-kb puts there, are from before the
@@ -2096,7 +2231,23 @@ kb_made_before_reset(Dir) :-
 
 % epoch_lines(+KbFile, +Lines0, -Lines): the line vote_epoch(N) before the first lines that this orbit-kb adds
 % to a KB made before 0.11.0 that holds a vote of the human and no vote_epoch/1 (N: its terms so far).
-epoch_lines(File, Lines0, [L]) :-
+epoch_lines(File, Lines0, Ls) :-
+    findall(L, ( epoch_line(File, Lines0, L) ; approval_epoch_line(File, Lines0, L) ), Ls).
+
+% approval_epoch_line(+KbFile, +Lines0, -L) (vote-start c17 with c13): approval_epoch(N) before the first lines that this
+% orbit-kb adds to a KB made before 0.13.0 that holds a vote of the human and no approval_epoch/1.
+approval_epoch_line(File, Lines0, L) :-
+    \+ ( member(L0, Lines0), sub_string(L0, 0, _, _, "approval_epoch(") ),
+    file_base_name(File, 'kb.pl'), exists_file(File),
+    catch(read_source_file(kb, File, KbItems), _, fail),
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, approval_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    file_directory_name(File, Dir), kb_made_before(Dir, [0, 13, 0]),
+    findall(T, kb_term(KbItems, T), Ts), length(Ts, N),
+    clause_line(approval_epoch(N), [], L), !.
+
+epoch_line(File, Lines0, L) :-
     \+ ( member(L0, Lines0), sub_string(L0, 0, _, _, "vote_epoch(") ),
     file_base_name(File, 'kb.pl'), exists_file(File),
     catch(read_source_file(kb, File, KbItems), _, fail),
@@ -2106,7 +2257,6 @@ epoch_lines(File, Lines0, [L]) :-
     file_directory_name(File, Dir), kb_made_before_reset(Dir),
     findall(T, kb_term(KbItems, T), Ts), length(Ts, N),
     clause_line(vote_epoch(N), [], L), !.
-epoch_lines(_, _, []).
 
 % vote_epoch_needed_derived(+Dir, +KbItems, -Facts): vote_epoch_needed(N) when the KB has a vote of the
 % human, no vote_epoch/1, and was made by an orbit-kb older than the one that brings the reset rule
@@ -2126,10 +2276,46 @@ vote_epoch_needed_derived(_, _, []).
 % and no valid discovery_end (the human approved the ticket while gate(go) held) follows the vote: a
 % closed discovery keeps the record of its vote, and build changes the specification after it.
 % A note, a run, a finding or an answer is no part of the specification: the vote stays.
-vote_spec_changed(Ts, Tks, Pv, After) :-
-    \+ ( member(E, After), nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A) ),
-    append(_, [C|After2], After), spec_change(Ts, C),
-    \+ vote_carried(C, Pv, After2), !.
+% c17 (Ty, q9: "Claims need my vote; checks need another pane"): the approval of the ticket is no exception, for the
+% changes from the upgrade to 0.13.0 on (approval_edge/3, as c13 for 0.11.0): a change above the edge that follows a
+% valid discovery_end keeps the old reading (a27) and takes no vote back.
+vote_spec_changed(Ts, Tks, Pv, IV, E2) :-
+    vote_change_counts(Ts, Tks, Pv, IV, E2, _), !.
+
+% vote_change_counts(+Ts, +Tks, +Pv, +IV, +E2, -C): C, a change of the specification after the vote at place IV, takes
+% that vote back: no vote of the human on it, no valid confirmation of it (a check), and not an old change after the
+% approval (above the edge E2).
+vote_change_counts(Ts, Tks, Pv, IV, E2, C) :-
+    nth1(IC, Ts, C), IC > IV, spec_change(Ts, C),
+    \+ old_after_end(Ts, Tks, E2, IV, IC),
+    length(Pre, IC), append(Pre, After2, Ts),
+    \+ vote_carried(C, Pv, After2), \+ vote_carried_check(Ts, C, After2).
+
+old_after_end(Ts, Tks, E2, IV, IC) :-
+    IC =< E2, nth1(J, Ts, E), J > IV, J < IC, nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A), !.
+
+% approval_edge(+Dir, +Ts, -E2) (vote-start c17 with c13): the terms above approval_epoch(_) are from before 0.13.0;
+% a KB that an orbit-kb before 0.13.0 made and that has no marker is wholly from before (a frozen KB keeps its reading).
+approval_edge(Dir, Ts, E2) :-
+    (   nth1(IM, Ts, TM), nonvar(TM), TM = approval_epoch(_) -> E2 is IM - 1
+    ;   kb_made_before(Dir, [0, 13, 0]) -> length(Ts, E2)
+    ;   E2 = 0
+    ), !.
+
+kb_made_before(Dir, P0) :-
+    Dir \== none, atom(Dir), directory_file_path(Dir, 'kb.pl', F), exists_file(F),
+    catch(mig_made_by(F, V), _, fail),
+    ( V == none -> true ; version_parts(V, P), P @< P0 ).
+
+% approval_epoch_needed_derived(+Dir, +KbItems, -Facts): approval_epoch_needed(N) for a KB with a vote of the human,
+% no approval_epoch/1, made by an orbit-kb before 0.13.0; the migration m_0_13_0_approval_epoch writes approval_epoch(N).
+approval_epoch_needed_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, approval_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    kb_made_before(Dir, [0, 13, 0]),
+    !, findall(T, kb_term(KbItems, T), Ts), length(Ts, N), Facts = [approval_epoch_needed(N)].
+approval_epoch_needed_derived(_, _, []).
 
 % vote_carried(+Change, +VotePred, +AfterChange) (vote-start c11, Ty r4): the human voted on this change
 % himself: a vote of the human that comes after it, names the record (its id, or the claim of an
@@ -3460,8 +3646,11 @@ protected_pi(discovery_reopened/1).
 protected_pi(discovery_run_after/2).
 protected_pi(vote_void/1).
 protected_pi(vote_changed/1).
+protected_pi(check_changed/1).
+protected_pi(change_unvoted/1).
 protected_pi(vote_carry/1).
 protected_pi(vote_epoch_needed/1).
+protected_pi(approval_epoch_needed/1).
 protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
@@ -4821,10 +5010,11 @@ crud_guard(KB, LTs, Target, By, Opts) :-
     ->  term_text(BT, BTT),
         fmt(M, "~w is a record of strike, replace or erase (~w). It is permanent: it is not struck, replaced or erased.", [Target, BTT]),
         reject([M])
-    ;   member(_-ET, LTs), nonvar(ET), ET = vote_epoch(_)
+    ;   member(_-ET, LTs), nonvar(ET), ( ET = vote_epoch(_) ; ET = approval_epoch(_) )
     % vote-start c6, c13: the place of vote_epoch is the edge of the votes. An erase would let the next write put a new
     % marker below a change made after the upgrade, and the vote of the human would count over it again.
-    ->  fmt(M, "~w is the marker vote_epoch/1: orbit-kb writes it (the migration m_0_11_0_vote_epoch, or the first write to a KB made before 0.11.0), and its place in kb.pl is the edge of the votes. It is not struck, replaced or erased.", [Target]),
+    ->  functor(ET, EN, _),
+        fmt(M, "~w is the marker ~w/1: orbit-kb writes it (a migration, or the first write to a KB made before the release that brings it), and its place in kb.pl is the edge of the votes. It is not struck, replaced or erased.", [Target, EN]),
         reject([M])
     ;   By == agent, member(LT-T, LTs), crud_human_record(Items, LT, T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
@@ -5330,6 +5520,11 @@ cmd_add(KB, Args, Code) :-
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
     model_run_gate(NewItems),
+    (   member(it(_, _, _, RT, _, _), NewItems), nonvar(RT), RT = run_input(_, _, _)
+    ->  reject(["run_input/3 is what a run of a check read. orbit-kb run writes it (and attest vote --by human on a check); it is not typed by hand.",
+                "Fix: run the check: orbit-kb run CHECK -- CMD."] >> fix_lines)
+    ;   true
+    ),
     (   member(it(_, _, _, BT, _, _), NewItems), nonvar(BT), BT = by_human(_, _)
     ->  reject(["by_human/2 is the mark of a fact that a human wrote. orbit-kb writes it, never add: it is not typed by hand.",
                 "Fix: the human writes the fact with orbit-kb add 'FACT' --by human (or on the Desk)."] >> fix_lines)
@@ -5635,6 +5830,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
         ;   nonvar(T), T = vote_epoch(_)
         ->  fmt(M, "Argument ~w: vote_epoch/1 is written by orbit-kb only (the migration m_0_11_0_vote_epoch, or the first write to a KB made before 0.11.0). add refuses it.", [I]), R = err(M)
+        ;   nonvar(T), T = approval_epoch(_)
+        ->  fmt(M, "Argument ~w: approval_epoch/1 is written by orbit-kb only (the migration m_0_13_0_approval_epoch, or the first write to a KB made before 0.13.0). add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = discovery_end(_)
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
@@ -5972,6 +6169,8 @@ view_kind_label(burn_open, "Claim that needs a proof or a formal statement").
 view_kind_label(flare_open, "Claim that needs an approved demo").
 view_kind_label(no_claim, "No current claim").
 view_kind_label(check_failing, "Check that failed").
+view_kind_label(check_changed, "Check that changed after the vote").
+view_kind_label(change_unvoted, "Change that waits for the vote of the human").
 view_kind_label(check_unrun, "Check that never ran").
 view_kind_label(waiver_lapsed, "Waiver that lapsed").
 view_kind_label(project_kb_unclean, "Project KB that does not load clean").
@@ -8310,11 +8509,19 @@ desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W
 % human in kb.pl (the same set that voids the vote: spec_change/1), in words.
 desk_vote_changes(Dir, Lines) :-
     catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
-            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
+            (   append(Pre, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
                 \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts0, Sv2) )
-            ->  findall(L, ( append(_, [C|After2], After), spec_change(Ts0, C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
+            ->  length(Pre, IV0), IV is IV0 + 1, approval_edge(Dir, Ts, E2),
+                findall(Tk, ( member(Tt, Ts), nonvar(Tt), Tt = ticket(Tk) ), Tks),
+                findall(L, ( vote_change_counts(Ts, Tks, Pv, IV, E2, C), desk_change_words(C, L) ), Lines1),
+                findall(L, ( check_changed_since(Dir, Ts0, IV, K, Why), desk_check_change_words(K, Why, L) ), Lines2),
+                append(Lines1, Lines2, Lines0), list_to_set(Lines0, Lines)
             ;   Lines = []
             ) ), _, Lines = ["(the list of changes could not be read: the KB file did not load)"]).
+
+desk_check_change_words(K, run(A), W) :- !, dk_f("check ~w was run by another command, or on changed files (~w)", [K, A], W).
+desk_check_change_words(K, file(F), W) :- !, dk_f("check ~w: its file ~w changed since its last run", [K, F], W).
+desk_check_change_words(K, _, W) :- dk_f("check ~w changed", [K], W).
 
 desk_change_words(claim(C, _, _), W) :- dk_f("claim ~w added", [C], W).
 desk_change_words(check(K, C), W) :- dk_f("check ~w added to ~w", [K, C], W).
@@ -11181,7 +11388,9 @@ cmd_attest(KB, Args, Code) :-
     back_check(KB, Items, Type, Subject),
     log_check(KB, Items, Type, Subject, Pred),
     rests_on_lines(Opts, Items, Type, Id, RLines0),
-    end_lines(KB, Items, Type, Subject, By, Id, Pred, ELines),
+    end_lines(KB, Items, Type, Subject, By, Id, Pred, ELines0),
+    vote_input_lines(KB, Items, Type, Subject, By, Id, SLines),
+    append(ELines0, SLines, ELines),
     append(RLines0, ELines, RLines),
     clause_line(T, [], Line),
     actor_line(Id, ALine),
@@ -11189,6 +11398,20 @@ cmd_attest(KB, Args, Code) :-
     append_lines(KbFile, [Line, ALine|RLines]),
     forall(member(L, [Line, ALine|RLines]), format("~w~n", [L])),
     Code = 0.
+
+% vote_input_lines(+KB, +Items, +Type, +Subject, +By, +Id, -Lines) (vote-start c15): a vote of the human on a check
+% writes run_input(Id, Cmd, Files) for the check as it is now: the command of its newest record, and the digests of
+% the files of that record now. Then his vote closes a changed check, and a later change opens it again.
+vote_input_lines(KB, Items, vote, K, human, Id, [L]) :-
+    findall(T, kb_term(Items, T), Ts), memberchk(check(K, _), Ts),
+    check_records(Ts, K, Rs), last(Rs, rec(_, _, Cmd, Files)), !,
+    kb_dir(KB, Dir),
+    split_string(Files, " ", "", Es),
+    findall(E2, ( member(E, Es), E \== "", run_input_entry(E, F, _),
+                  directory_file_path(Dir, F, Abs), exists_file(Abs), run_input_sha(Abs, H), format(atom(E2), "~w=~w", [F, H]) ), E2s),
+    atomic_list_concat(E2s, ' ', Files2),
+    clause_line(run_input(Id, Cmd, Files2), [], L).
+vote_input_lines(_, _, _, _, _, _, []).
 
 % end_lines(+KB, +Items, +Type, +Subject, +By, +Id, +Pred, -Lines) (D30 H4, H6, H7): a human approval of the
 % ticket (ticket(Subject)) in a KB that uses discovery ends the discovery orbit when the orbit
@@ -11540,6 +11763,7 @@ cmd_run(KB, Args, Code) :-
     ;   true
     ),
     kb_dir(KB, Dir),
+    run_input_text(Dir, Cmd, InCmd, InFiles),     % vote-start hy2: what the run reads, before it starts
     directory_file_path(Dir, runs, RunsDir),
     make_directory_path(RunsDir),
     runs_tmp(RunsDir, TmpOut, OS),
@@ -11565,7 +11789,7 @@ cmd_run(KB, Args, Code) :-
     atomic_list_concat(CmdParts, ' ', CmdText),
     read_file_to_string(TmpOut, Output, [encoding(utf8)]),
     run_result(St, EC, TimeOut, Expect, Output, Result, Why),
-    with_kb_lock(Dir, record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, RunN, Log)),
+    with_kb_lock(Dir, record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, InCmd-InFiles, RunN, Log)),
     format("run ~w ~w ~w (exit ~w) log=~w~n", [RunN, Check, Result, EC, Log]),
     (   Result == unresolved
     ->  format("Unresolved: ~w. The verdict fulfils nothing and defeats nothing; the claim stays open.~n", [Why]),
@@ -11673,7 +11897,7 @@ run_interrupted(P, Sig) :-
 % N is 1 more than the highest run number in a test_result and in a log
 % name in runs/ (an orphan log from a killed run is never overwritten).
 % Files that start with a dot (the runs/.tmp-* files) do not count.
-record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, RunN, Log) :-
+record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, InCmd-InFiles, RunN, Log) :-
     kb_dir(KB, Dir),
     recheck_writer(Dir),
     kb_lib(KB, Lib),
@@ -11701,11 +11925,12 @@ record_run(KB, Check, Result, Why, EC, Now, CmdText, Output, RunN, Log) :-
     Att = attest(Id, test_result, Check, result(Check, RunN, Result), script, Now),
     clause_line(Att, [], Line),
     actor_line(Id, ALine),
+    clause_line(run_input(Id, InCmd, InFiles), [], ILine),
     kb_file(KB2, KbFile),
     % 0.8.0 (D55): an unresolved run says what could not be decided.
     (   Result == unresolved
-    ->  clause_line(unresolved_because(Id, Why), [], WLine), Lines = [Line, ALine, WLine]
-    ;   Lines = [Line, ALine]
+    ->  clause_line(unresolved_because(Id, Why), [], WLine), Lines = [Line, ALine, ILine, WLine]
+    ;   Lines = [Line, ALine, ILine]
     ),
     append_lines(KbFile, Lines).
 
@@ -13768,6 +13993,10 @@ blocking_line(_, Eng, burn_open(C), S) :- !,
 blocking_line(_, Eng, flare_open(C), S) :- !,
     item_text(Eng, C, T), fmt(S, "- flare_open ~w: claim ~w needs a human to approve a demo: ~w", [C, C, T]).
 blocking_line(_, _, no_claim, "- no_claim: no claim is current. Add a claim. The work is not done without one.") :- !.
+blocking_line(_, _Eng, change_unvoted(X), S) :- !,
+    fmt(S, "- change_unvoted ~w: ~w changed after the vote of the human, so his vote does not win the gate; a confirmation of a pane does not stand in. The human votes on it: orbit-kb attest vote ~w 'vote(N, go)' --by human (or a new round of votes).", [X, X, X]).
+blocking_line(_, _Eng, check_changed(K), S) :- !,
+    fmt(S, "- check_changed ~w: check ~w changed after the vote of the human (another command, a changed script, or a new check), so his vote does not win the gate. A pane that did not make the change confirms it: orbit-kb attest confirmation ~w \"check_change('WHY IT STILL TESTS ITS CLAIM')\" --as ROLE (after a run of the check as it is now); or the human votes on ~w.", [K, K, K, K]).
 blocking_line(_, Eng, check_failing(K), S) :- !,
     item_text(Eng, K, T), fmt(S, "- check_failing ~w: check ~w did not pass its last run: ~w", [K, K, T]).
 blocking_line(_, Eng, check_unrun(K), S) :- !,

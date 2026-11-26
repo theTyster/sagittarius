@@ -97,7 +97,10 @@ decl(rule, discovery_closed, 'The human approved the ticket after a GO (discover
 decl(rule, discovery_end_valid(ref(attest)), 'The discovery_end record names a human approval of the ticket subject (lint ED11 names one that does not).', 'approval @(1) is a human approval of the ticket').
 decl(rule, vote_void(ref(attest)), 'The vote does not count: a return to discovery (back) follows it in kb.pl, so it belongs to an earlier orbit, or it came after the discovery orbit closed. orbit-kb computes it when it reads the KB (D30 H5, H8).', 'vote @(1) does not count').
 decl(rule, vote_changed(ref(attest)), 'A record of the specification (a goal, hypothesis, claim, check or example added or replaced, a retirement) follows the vote in kb.pl, and the discovery orbit was not closed by the approval of the human: the vote is void, and the gate says hold until the human votes in a new round. orbit-kb computes it when it reads the KB (vote-start c6).', 'vote @(1) was taken back by a change').
+decl(rule, change_unvoted(ref), 'A goal, hypothesis or claim (or its example, supersedes or strike) changed after the vote of the human and took that vote back, and no vote of the human on it carried it yet (vote-start c6, c17). orbit-kb computes it when it reads the KB.', '@(1) changed after the vote and waits for the vote of the human').
+decl(rule, check_changed(ref(check)), 'The check changed after the vote of the human: a run by another command, or a file of the KB that its command names has another digest (run or not), and no pane that did not make the change confirmed it, and the human did not vote on the check since. The vote is void (vote_changed/1). orbit-kb computes it when it reads the KB (vote-start c14, c15).', 'check @(1) changed after the vote').
 decl(rule, vote_carry(ref(attest)), 'A vote that names a record of the specification (a claim, hypothesis, goal, check or retirement), not the request: it is a vote of the human on that change, and no round of votes. It keeps a vote that a change would take back (vote-start c11). orbit-kb computes it when it reads the KB.', 'vote @(1) is a vote on one change').
+decl(fact, approval_epoch(int), 'The first N terms of this KB are from before the upgrade to 0.13.0, where the approval of the ticket stopped being an exception (vote-start c17): a change among them that follows a valid approval takes no vote back. The migration m_0_13_0_approval_epoch writes it.', 'the first @(1) terms are from before 0.13.0').
 decl(fact, vote_epoch(int), 'The first N terms of this KB are from before the upgrade to the rule that a change of the specification takes a vote back: a change among them does not (vote-start c13). The migration m_0_11_0_vote_epoch writes it.', 'the first @(1) terms are from before the upgrade').
 decl(rule, discovery_open, 'The discovery orbit is open: from the start of the KB until the human approves the ticket after a GO, and again after a return to discovery (a back attestation).', 'the discovery orbit is open').
 decl(rule, discovery_disproof_filed(ref(claim)), 'A disproof attestation refutes the claim.', 'a disproof of claim @(1) is filed').
@@ -419,3 +422,7 @@ lint_issue('ED11', A, 'This discovery_end does not name a human approval of the 
     discovery_end(A), not discovery_end_valid(A).
 lint_issue('ED10', A, 'Its writer has another vote in this round. Keep one vote per writer in each round. After a HOLD, vote in the next round.') :-
     discovery_vote_twin(A).
+
+% vote-start c14 (0.12.0): a check that changed after the vote of the human blocks, by name.
+blocking(check_changed(K)) :- check_changed(K).
+blocking(change_unvoted(X)) :- change_unvoted(X).

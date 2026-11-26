@@ -1519,7 +1519,9 @@
         "writer_takeover",
         "budget",
         "lap_done",
-        "vote_epoch"
+        "vote_epoch",
+        "approval_epoch",
+        "run_input"
       ]
     },
     {
