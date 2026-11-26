@@ -2363,6 +2363,52 @@ t_QS80() {  # desk-delivery c8: a letter to a session that never ran the Desk ho
     chk dcard "$T/page.html" "ask-$A" '!not reachable'
 }
 
+t_QS81() {  # desk-version-marker c1 c2 c3 c4 (H-0186; c4: Ty q1): the page shows the version of the tool the Desk runs; when the tool installed in a joined mindhole has another version it says restart, with both versions; when equal, no restart
+    desk_hub "$T/h"; local run vf="$T/h/.claude/orbit-kb/share/orbit-kb/VERSION" txt
+    run=$("$OKB" version | awk '{print $NF}'); [ -n "$run" ] || { note "setup: no tool version"; return; }
+    mkdir -p "$(dirname "$vf")"; echo "$run" > "$vf"
+    vm() { python3 -I -c 'import re,sys; t=open(sys.argv[1],encoding="utf-8").read(); t=re.sub(r"(?s)<(style|script)\b.*?</\1>"," ",t); print(re.sub(r"\s+"," ",re.sub(r"<[^>]*>"," ",t)))' "$T/page.html"; }   # the visible text, with no style and no script
+    srvd --hub "$T/h" || return; page_ok || return
+    txt=$(vm)
+    grep -q "data-desk-running=\"$run\"" "$T/page.html" || note "c1: the page has no data-desk-running=$run"
+    case "$txt" in *"Desk $run"*) ;; *) note "c1: the visible text has no 'Desk $run'";; esac
+    grep -q 'data-desk-installed="'"$run"'"' "$T/page.html" && grep -q 'data-desk-stale="false"' "$T/page.html" || note "c3: running = installed must give data-desk-installed=$run and data-desk-stale=false"
+    case "$txt" in *[Rr]estart*) note "c3: the page asks for a restart with equal versions";; esac
+    echo 99.0.0 > "$vf"   # the tool of the mindhole is upgraded; the Desk keeps running
+    page_ok || return; txt=$(vm)
+    grep -q "data-desk-running=\"$run\"" "$T/page.html" || note "c2: the running version moved with the disk"
+    grep -q 'data-desk-installed="99.0.0"' "$T/page.html" && grep -q 'data-desk-stale="true"' "$T/page.html" || note "c2: installed 99.0.0 must give data-desk-stale=true"
+    case "$txt" in *"Restart needed: running $run, installed 99.0.0"*) ;; *) note "c2: no 'Restart needed: running $run, installed 99.0.0' in: $(snip "$txt")";; esac
+    echo "$run" > "$vf"; page_ok || return; txt=$(vm)
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c3: after the install is the running version again, the page is still stale"
+    rm -f "$vf"; page_ok || return; txt=$(vm)   # no VERSION in the mindhole: the Desk cannot tell, and says so, and asks for no restart
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c2: an unknown installed version must not be stale"
+    case "$txt" in *"is unknown (no VERSION file, or no X.Y.Z in it)"*) ;; *) note "c2: an unknown installed version is not said";; esac
+    # two mindholes (review H-0195, a17): the Desk is one process for every tab, so a tab says Restart needed
+    # when ANY joined mindhole has another version installed, not only the mindholes of that tab
+    local v2="$T/h2/.claude/orbit-kb/share/orbit-kb/VERSION" pg2 want
+    desk_hub "$T/h2"; mkdir -p "$(dirname "$v2")"; echo "$run" > "$vf"; echo "$run" > "$v2"
+    kill "$SPID" 2>/dev/null; srvd --hub "$T/h" --hub "$T/h2" || return
+    echo 99.0.0 > "$v2"   # h2 differs and is AHEAD; h (the Desk's own mindhole) is current (c4: no Restart needed for another mindhole)
+    for pg2 in '/?view=everything' '/?mh=h&view=everything' '/?mh=h2&view=everything' '/?mh=all&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"The tool in h2 is ahead: it has 99.0.0 and the Desk runs $run. To fix it, upgrade the mindhole of the Desk, then restart the Desk"*) ;; *) note "c4: $pg2 does not say upgrade the Desk's mindhole and restart, for h2 (ahead): $(snip "$txt")";; esac
+        case "$txt" in *"Restart needed"*) note "c4: $pg2 says Restart needed for another mindhole";; esac
+    done
+    grep -q 'data-desk-stale="false"' "$T/page.html" || note "c4: another mindhole that differs must not make the Desk stale"
+    echo 0.0.1 > "$v2"   # h2 is BEHIND: upgrade h2, no restart
+    for pg2 in '/?view=everything' '/?mh=h2&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"The tool in h2 is behind: it has 0.0.1 and the Desk runs $run. To fix it, upgrade h2."*) ;; *) note "c4: $pg2 does not say upgrade h2 (behind): $(snip "$txt")";; esac
+        case "$txt" in *"Restart needed"*|*"then restart the Desk"*) note "c4: $pg2 asks for a restart for a mindhole that is behind";; esac
+    done
+    echo "$run" > "$v2"; echo 99.0.0 > "$vf"   # now only h differs
+    for pg2 in '/?mh=h2&view=everything' '/?mh=h&view=everything'; do
+        get "$pg2"; code_is 200 "GET $pg2" || return; txt=$(vm)
+        case "$txt" in *"Restart needed: running $run, installed 99.0.0 (h)"*) ;; *) note "c2: $pg2 does not say Restart needed for h (it differs)";; esac
+    done
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2376,6 +2422,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 80); do run_one QS$n; done
+for n in $(seq 1 81); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

@@ -5354,11 +5354,16 @@ cmd_serve(Dirs0, Args, Code) :-
     (   memberchk('--owner'-Ow, Opts) -> OwnOpt = ['--owner'-Ow] ; OwnOpt = [] ),
     (   Hubs = [Hub|_] -> HubOpt = some(Hub) ; HubOpt = none ),
     serve_token(Token),
+    tool_version_text(RunVer),   % desk-version-marker: the version this process started with
+    (   Hubs = [OwnH|_] -> OwnHub = OwnH      % desk-version-marker c4: the mindhole the Desk started from
+    ;   absolute_file_name('.', Cwd0), directory_file_path(Cwd0, 'flow/flow.db', CwdDb), exists_file(CwdDb) -> serve_norm(Cwd0, OwnHub)
+    ;   OwnHub = none
+    ),
     (   getenv('ORBIT_KB_WRITER', W0), W0 \== '' -> Writer = W0 ; Writer = human ),
     orbit_script(Script),
     retractall(serve_conf(_, _)),
     forall(member(K-V, [dirs-Dirs, root-RootOpt, ledger-LedOpt, owner-OwnOpt, token-Token,
-                        writer-Writer, script-Script, hub-HubOpt, hubs-Hubs, desk-DeskMode]),
+                        writer-Writer, script-Script, hub-HubOpt, hubs-Hubs, desk-DeskMode, running-RunVer, ownhub-OwnHub]),
            assertz(serve_conf(K, V))),
     use_module(library(http/thread_httpd)),
     ( Port == 0 -> true ; BindPort = Port ),     % an unbound port: the system picks a free one
@@ -7924,7 +7929,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     NW is NA + NQ + NL,
     findall(Du, ( member(C, Cards), \+ get_dict(lane, C, parked), Du = C.due, Du \== "" ), Ds), ( Ds == [] -> FirstH = "" ; min_member(D1, Ds), dk_day(D1, DD), dk_f(" The first is due on ~w.", [DD], FirstH) ),
     ( NW == 1 -> WT = "thing waits" ; WT = "things wait" ), ( NG == 1 -> GT = "has a default" ; GT = "have a default" ),
-    dk_f("<p><strong>~w ~w on you,</strong> and ~w ~w.~w</p>", [NW, WT, NG, GT, FirstH], SumH),
+    dk_f("<p><strong>~w ~w on you,</strong> and ~w ~w.~w</p>", [NW, WT, NG, GT, FirstH], SumH0),
     % where each ledger card lives: in the sheet of the first spec KB it names, else in the Ledger section
     partition([C]>>desk_card_home(Dirs, C, _), LAs, LAk, _),
     partition([C]>>desk_card_home(Dirs, C, _), LIs, LIk, _),
@@ -7966,7 +7971,8 @@ desk_page_(Msg0, Tab0, View0, Page) :-
     (   Msg == "" -> MsgH = "" ; esc(Msg, M0), dk_f("<p class=\"banner\">~w</p>", [M0], MsgH) ),
     findall(E, ( member(HD, HDs), ( HD.err = some(M) ; \+ is_dict(HD.st), HD.st = error(M) ), esc(HD.name, NH), esc(M, MH),
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
-    dk_cat(Es, ErrH),
+    dk_cat(Es, ErrH0),
+    desk_version_marker(HDs0, VerH, StaleH), string_concat(StaleH, ErrH0, ErrH), SumH = SumH0,   % every joined mindhole, not the tab's: the Desk is one process for all tabs
     ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
     esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS),
     desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
@@ -7982,7 +7988,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <style>~w</style>
 </head>
 <body data-token=\"~w\" data-tab=\"~w\" data-view=\"~w\">
-<header class=\"top\"><h1>The Desk</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
+<header class=\"top\"><h1>The Desk~w</h1>~w<nav class=\"lanes\" aria-label=\"Stores\">~w</nav><div class=\"folds\">~w<button type=\"button\" class=\"btn small\" data-folds=\"open\">Expand all</button><button type=\"button\" class=\"btn small\" data-folds=\"close\">Collapse all</button></div></header>
 ~w
 ~w~w~w
 ~w
@@ -8001,7 +8007,7 @@ desk_page_(Msg0, Tab0, View0, Page) :-
 <script>~w</script>
 </body>
 </html>
-", [Css, TokH, TabAH, ViewS, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, LettersH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
+", [Css, TokH, TabAH, ViewS, VerH, SumH, LanesH, NrBtnH, TabsH, MsgH, ErrH, NoneH, LettersH, RailH, ViewsH, LedH, SpecH, ProjH, NrDlgH, Js]).
 
 % desk_kbs_count(+KBCs, -N): the cards of these KBs that wait on Ty: KB actions and open questions (an ask
 % for Ty is counted in the Ledger, where its row is, so that the numbers add up to the count of the top band).
@@ -8509,6 +8515,61 @@ desk_letter_do(wake, HD, Lid, R) :-
 desk_letter_do(dismiss, HD, Lid, R) :-
     desk_cmd(HD.path, [event, Lid, dismissed], _, R0),
     ( R0 == ok -> R = ok ; R0 = error(M) -> R = refused(409, M) ).
+
+% ---- desk-version-marker (2026-11-25, H-0186): the version of the Desk, and when it must restart
+
+% desk_installed_version(+Path, -V): the version of the tool installed in a mindhole, read from disk at
+% each page (its .claude/orbit-kb/share/orbit-kb/VERSION, as tool_version/1 reads it); fails when the
+% file is missing or holds no X.Y.Z. The Desk process keeps the version it started with (serve_conf
+% running): only a restart changes that one, so a difference means the Desk runs old code.
+desk_installed_version(Path, V) :-
+    atomic_list_concat([Path, '/.claude/orbit-kb/share/orbit-kb/VERSION'], F),
+    exists_file(F),
+    catch(read_file_to_string(F, S0, [encoding(utf8)]), _, fail),
+    split_string(S0, "", " \t\r\n", [S]),
+    split_string(S, ".", "", Ps), length(Ps, 3),
+    forall(member(P, Ps), ( P \== "", string_codes(P, Cs), forall(member(C, Cs), code_type(C, digit)) )),
+    atom_string(V, S).
+
+% desk_version_marker(+HDs, -MarkerHtml, -StaleHtml): the small marker in the top band (data-desk-running,
+% data-desk-installed, data-desk-stale), and, for each mindhole whose installed tool has another version,
+% the line Restart needed: running X, installed Y (MINDHOLE); for one whose version cannot be read, a quiet
+% note and no restart.
+desk_version_marker(HDs, Marker, Stale) :-
+    ( serve_conf(running, Run0) -> true ; Run0 = '(version unknown)' ),
+    atom_string(Run0, Run), esc(Run, RunH),
+    ( serve_conf(ownhub, Own0), Own0 \== none -> dk_own_path(Own0, OwnP) ; OwnP = "" ),
+    findall(N-P-V, ( member(HD, HDs), dk_str(HD.name, N), dk_str(HD.path, P),
+                     ( desk_installed_version(P, V0) -> atom_string(V0, V) ; V = "" ) ), Vs),
+    findall(N-V, ( member(N-P-V, Vs), V \== "", V \== Run, dk_own_path(P, OwnP) ), Diff),          % the Desk's own mindhole: restart
+    findall(N-V, ( member(N-P-V, Vs), V \== "", V \== Run, \+ dk_own_path(P, OwnP) ), Others),    % another mindhole: upgrade it, or ours
+    findall(N, member(N-_-"", Vs), Unk),
+    (   Diff = [_-V1|_] -> Inst = V1, StaleV = "true"
+    ;   member(_-P0-V2, Vs), V2 \== "", dk_own_path(P0, OwnP) -> Inst = V2, StaleV = "false"
+    ;   Vs = [_-_-V3|_], V3 \== "" -> Inst = V3, StaleV = "false"
+    ;   member(_-_-V4, Vs), V4 \== "" -> Inst = V4, StaleV = "false"
+    ;   Inst = "", StaleV = "false"
+    ),
+    esc(Inst, InstH),
+    dk_f("<span class=\"deskver\" data-desk-running=\"~w\" data-desk-installed=\"~w\" data-desk-stale=\"~w\" title=\"The version of the tool that this Desk process runs\">~w</span>", [RunH, InstH, StaleV, RunH], Marker),
+    findall(L, ( member(N-V, Diff), esc(N, NH), esc(V, VH),
+                 dk_f("<p class=\"banner deskstale\">Restart needed: running ~w, installed ~w (~w). The Desk keeps the version it started with; restart it to run the installed tool.</p>", [RunH, VH, NH], L) ), Ls1),
+    findall(L, ( member(N-V, Others), esc(N, NH), esc(V, VH), dk_version_older(V, Run),
+                 dk_f("<p class=\"small deskother\" data-desk-other=\"behind\">The tool in ~w is behind: it has ~w and the Desk runs ~w. To fix it, upgrade ~w.</p>", [NH, VH, RunH, NH], L) ), Ls3),
+    findall(L, ( member(N-V, Others), esc(N, NH), esc(V, VH), \+ dk_version_older(V, Run),
+                 dk_f("<p class=\"small deskother\" data-desk-other=\"ahead\">The tool in ~w is ahead: it has ~w and the Desk runs ~w. To fix it, upgrade the mindhole of the Desk, then restart the Desk, because ~w is newer.</p>", [NH, VH, RunH, NH], L) ), Ls4),
+    findall(L, ( member(N, Unk), esc(N, NH),
+                 dk_f("<p class=\"small quiet deskunknown\">The version of the tool installed in ~w is unknown (no VERSION file, or no X.Y.Z in it), so the Desk cannot tell whether it needs a restart.</p>", [NH], L) ), Ls2),
+    append([Ls1, Ls3, Ls4, Ls2], Ls), dk_cat(Ls, Stale).
+
+% dk_own_path(+P, -Norm): a mindhole path as text without a trailing slash, so that two spellings compare equal.
+dk_own_path(P, N) :- atom_string(P, S0), ( sub_string(S0, B, 1, 0, "/"), B > 0 -> sub_string(S0, 0, B, _, N) ; N = S0 ).
+
+% dk_version_older(+V, +W): version text V (X.Y.Z) is older than W; a version that is not X.Y.Z is not older.
+dk_version_older(V, W) :-
+    split_string(V, ".", "", Vp), split_string(W, ".", "", Wp),
+    maplist([S, N]>>number_string(N, S), Vp, Vn), maplist([S, N]>>number_string(N, S), Wp, Wn),
+    Vn @< Wn.
 
 desk_by_due(O, A, B) :-
     ( A.due == "" -> KA = "9999" ; KA = A.due ), ( B.due == "" -> KB = "9999" ; KB = B.due ),
