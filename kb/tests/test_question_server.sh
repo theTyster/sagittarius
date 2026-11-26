@@ -89,6 +89,12 @@ base=$(mktemp -d "${TMPDIR:-/tmp}/orbit-kb-qs.XXXXXX") || exit 2
 SPID=""
 cleanup() { [ -n "$SPID" ] && kill "$SPID" 2>/dev/null; rm -rf "$base"; }
 trap cleanup EXIT
+# the Desk guard (desk-agents q9: desk agents are on by default): no Desk or desk.py of this harness starts an
+# agent (DESK_AGENTS=off), and a fake claude is first on the PATH, so nothing here can reach the real claude
+export DESK_AGENTS=off
+mkdir -p "$base/fakebin" && printf '#!/bin/sh\necho "fake claude: a test reached claude" >&2\nexit 3\n' > "$base/fakebin/claude" && chmod +x "$base/fakebin/claude"
+export PATH="$base/fakebin:$PATH"
+[ "$(command -v claude)" = "$base/fakebin/claude" ] || { echo "setup: claude resolves outside the fake ($(command -v claude)); refusing to run"; exit 2; }
 out="" err="" rc=0 T="" URL="" CODE="" BODY=""
 
 # ---- an HTML reader (python, standard library only). Each mode prints nothing and exits 0 on

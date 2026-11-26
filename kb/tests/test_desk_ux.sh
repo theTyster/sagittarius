@@ -14,6 +14,9 @@ D=$(mktemp -d "${TMPDIR:-/tmp}/desk-ux.XXXXXX") || exit 2
 PIDS=""
 cleanup() { for p in $PIDS; do kill "$p" 2>/dev/null; done; [ "${DESK_KEEP:-}" = 1 ] && echo "kept: $D" || rm -rf "$D"; }
 trap cleanup EXIT
+# the Desk guard (desk-agents q9: desk agents are on by default): no Desk or desk.py of this harness starts an
+# agent (DESK_AGENTS=off; the cases keep the behavior of agents off, e.g. desk_stores k18)
+export DESK_AGENTS=off
 # a fake claude first on the PATH: a desk agent that a letter starts by mistake never reaches the real claude (H-0261)
 mkdir -p "$D/fakebin" && printf '#!/bin/sh\necho "fake claude: a test reached claude" >&2\nexit 3\n' > "$D/fakebin/claude" && chmod +x "$D/fakebin/claude"
 export PATH="$D/fakebin:$PATH"

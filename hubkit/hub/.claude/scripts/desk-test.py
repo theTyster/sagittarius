@@ -97,7 +97,10 @@ def env_base(extra=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith(SCRUB)}
     root = CUR["root"]
     env.update({"HOME": os.path.join(root, "home"), "DESK_STATE": os.path.join(root, "desk-state"),
-                "XDG_STATE_HOME": os.path.join(root, "xdg-state"), "XDG_CONFIG_HOME": os.path.join(root, "xdg-config")})
+                "XDG_STATE_HOME": os.path.join(root, "xdg-state"), "XDG_CONFIG_HOME": os.path.join(root, "xdg-config"),
+                # the Desk guard (desk-agents q9: agents on by default): no case starts a desk agent, so none
+                # can reach the real claude; a case that tests agents must pass its own DESK_AGENTS and a fake
+                "DESK_AGENTS": "off"})
     for k, v in (extra or {}).items():
         if v is None:
             env.pop(k, None)

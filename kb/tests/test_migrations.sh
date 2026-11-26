@@ -48,6 +48,12 @@ base=$(cd "$base" && pwd -P)
 trap 'rm -rf "$base"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# the Desk guard (desk-agents q9: desk agents are on by default): no Desk or desk.py of this harness starts an
+# agent (DESK_AGENTS=off), and a fake claude is first on the PATH, so nothing here can reach the real claude
+export DESK_AGENTS=off
+mkdir -p "$base/fakebin" && printf '#!/bin/sh\necho "fake claude: a test reached claude" >&2\nexit 3\n' > "$base/fakebin/claude" && chmod +x "$base/fakebin/claude"
+export PATH="$base/fakebin:$PATH"
+[ "$(command -v claude)" = "$base/fakebin/claude" ] || { echo "setup: claude resolves outside the fake ($(command -v claude)); refusing to run"; exit 2; }
 for v in $(compgen -e); do case $v in ORBIT_KB*|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|HUB_SESSION|HUBFLOW_*) unset "$v";; esac; done
 export ORBIT_KB_LIB="$LIB"
 

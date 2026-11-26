@@ -6,7 +6,8 @@
 #   DH3 a stopped agent: no lock, a resume command; a running agent: no resume command
 #   DH4 agent-resume starts a headless run of the same session and takes the lock again
 #   DH5 a KB held by a live lock of another writer starts no agent; the letter keeps its receiver
-#   DH6 desk agents are off until `desk.py agents on` (or DESK_AGENTS=on); DESK_AGENTS=off wins
+#   DH6 desk agents are on by default (Ty, q9): no flag and no DESK_AGENTS start an agent; `desk.py agents off`
+#       stops new starts; DESK_AGENTS=off wins; DESK_AGENTS=on wins over the off flag; `agents on` turns them on again
 #   DH7 control bytes of a letter do not reach the prompt
 #   DH8 a letter to an unknown desk agent is refused; one to a known agent goes to no session
 #   DH9 the Desk path (POST /review, /send): an answer about a KB nobody holds starts an agent; a requirement to the
@@ -45,12 +46,15 @@ h=$T/alpha
 python3 "$ROOT/hubkit/tools/hubkit.py" install --hub "$h" >/dev/null 2>&1 || { echo "setup: no hub"; exit 2; }
 ( cd "$h" && { [ -f flow/flow.db ] || python3 .claude/scripts/hubflow.py --hub "$h" init --seed flow/seed.json; } ) >/dev/null 2>&1
 K="$h/.claude/orbit-kb/bin/orbit-kb"; D="python3 $h/.claude/scripts/desk.py --hub $h"
-for s in t1 t2 t3 t4 t5 t6; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
+for s in t1 t2 t3 t4 t5 t6 t7; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
 ( cd "$h" && python3 .claude/scripts/desk.py join --name alpha ) >/dev/null 2>&1
-# DH6 (off by default)
-printf 'x' > "$T/text"; out0=$($D send --kind note --item-json '{"type": "kb", "slug": "t3", "kb": "specs/t3", "ref": "note"}' --about probe --text-file "$T/text" 2>/dev/null); sleep 0.5
-check "DH6 desk agents are off by default: no agent" '[ "$(grep -c "^START" "$FAKE_LOG")" = 0 ] && ! grep -q "\"agent\"" <<<"$out0"'
-$D agents on >/dev/null
+# DH6 (on by default: no flag, no DESK_AGENTS, no `agents on`)
+check "DH6 setup: no switch is set" '[ ! -e "$DESK_STATE/agents-on" ] && [ ! -e "$DESK_STATE/agents-off" ] && [ -z "${DESK_AGENTS+x}" ]'
+printf 'x' > "$T/text"; out0=$(FAKE_SECS=1 $D send --kind note --item-json '{"type": "kb", "slug": "t7", "kb": "specs/t7", "ref": "note"}' --about probe --text-file "$T/text" 2>/dev/null)
+i=0; while [ $i -lt 80 ] && [ "$(grep -c "^START" "$FAKE_LOG")" = 0 ]; do sleep 0.1; i=$((i+1)); done
+check "DH6 desk agents are on by default: the letter starts an agent" '[ "$(grep -c "^START" "$FAKE_LOG")" = 1 ] && grep -q "\"agent\"" <<<"$out0"'
+check "DH6 desk.py agents says on with no switch" '$D agents | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin)[\"on\"] is True else 1)"'
+i=0; while [ $i -lt 80 ] && ! grep -q "^END" "$FAKE_LOG"; do sleep 0.1; i=$((i+1)); done; sleep 0.5; : > "$FAKE_LOG"
 send() { printf '%s' "$2" > "$T/text"; $D send --kind note --item-json "$1" --about probe --text-file "$T/text" 2>>"$T/err"; }
 kbi() { printf '{"type": "kb", "slug": "%s", "kb": "specs/%s", "ref": "note"}' "$1" "$1"; }
 starts() { grep -c "^START" "$FAKE_LOG"; }
@@ -93,8 +97,13 @@ check "DH5 a KB held by another writer starts no agent" '[ "$(starts)" = "$n0" ]
 # DH6
 n0=$(starts); out=$(DESK_AGENTS=off send "$(kbi t3)" "Letter three."); sleep 0.5
 check "DH6 DESK_AGENTS=off starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
-$D agents off >/dev/null; out=$(send "$(kbi t3)" "Letter three."); sleep 0.5; $D agents on >/dev/null
-check "DH6 desk.py agents off starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
+: > "$DESK_STATE/agents-on"; $D agents off >/dev/null; out=$(send "$(kbi t3)" "Letter three."); sleep 0.5
+check "DH6 desk.py agents off starts no agent (and drops an old agents-on flag)" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ] && [ -e "$DESK_STATE/agents-off" ] && [ ! -e "$DESK_STATE/agents-on" ]'
+out=$(FAKE_SECS=1 DESK_AGENTS=on send "$(kbi t3)" "Letter three again."); waitfor '[ "$(starts)" -gt '"$n0"' ]' 80
+check "DH6 DESK_AGENTS=on wins over the off flag" '[ "$(starts)" -gt "$n0" ] && [ -n "$(field "$out" agent)" ]'
+waitfor 'grep -c "^END" "$FAKE_LOG" >/dev/null && [ "$(pgrep -fc "$T/bin/claude")" = 0 ]' 80; sleep 0.5
+$D agents on >/dev/null
+check "DH6 desk.py agents on removes the off flag" '[ ! -e "$DESK_STATE/agents-off" ]'
 # DH7
 n0=$(starts); FAKE_SECS=1 send "$(kbi t4)" "$(printf 'Bad\003byte CTLPROBE.')" >/dev/null; waitfor '[ "$(starts)" -gt '"$n0"' ]' 80
 check "DH7 no control byte in the prompt" 'grep -q CTLPROBE <<<"$(nth $((n0+1)))" && ! grep -q "\\\\u0003" <<<"$(nth $((n0+1)))"'
