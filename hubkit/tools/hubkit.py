@@ -11,7 +11,7 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                was installed, and whether this kit's version of it differs; the
                                first line names the edition, and a UAT install; the `runs` lines
                                name what the hub runs (below)
-  upgrade --hub DIR [--yes] [--seen-migrations DIGEST] [--check-summary FILE]
+  upgrade --hub DIR [--yes] [--seen-migrations DIGEST] [--check-summary FILE] [--reduce]
                                plan an upgrade to this kit's version; a dry run without --yes.
                                In a hub whose orbit-kb changes, the dry run also prints the
                                migration preview (kb-migrations c15, c19): for each spec KB, closed
@@ -23,7 +23,12 @@ usage: hubkit.py COMMAND --hub DIR [--kit DIR] [--yes]
                                The preview opens with a summary that the tool computes (spec KBs, verdicts
                                that differ, writes, the KBs that change); the digest is that of the full
                                preview. --check-summary FILE checks the summary of a reducer agent against
-                               the tool: its `N KBs change` count and its slugs (exit 1 when they differ).
+                               the tool: its COUNTS line (kbs, verdicts, writes, refused, slugs), each count
+                               and KB name in its prose; exit 1 when one differs.
+                               --reduce (dry run only, opt-in): run `claude -p` in the hub on the plans of the
+                               KBs that change, show its text, and check it as --check-summary does. A real
+                               claude -p sends those plans to a model: a paid call, and the text leaves this
+                               machine. It fails (exit 2, with the full preview) when claude is missing or fails.
   done --hub DIR PATH ...      mark pending merges as finished
   edition --hub DIR [formal] [--yes]
                                print the edition that the hub's manifest records. `edition formal`
@@ -582,43 +587,114 @@ def changed_blocks(lines, recs):
 
 
 REDUCER_PROMPT = ("You are the reducer of a migration preview. Below are the plans of the spec KBs that the upgrade changes, and of "
-                  "no other. Write a short summary for the human: which claims or verdicts change, grouped by cause. Begin with a "
-                  "line `N KBs change: slug, slug, ...` that gives the number and the slugs that you were given. Do not call a tool.\n\n")
+                  "no other. First write exactly one line in this form, with the numbers and slugs of what you were given:\n"
+                  "COUNTS kbs=N verdicts=N writes=N refused=N slugs=slug1,slug2\n"
+                  "kbs: the KBs below; verdicts: those whose verdicts differ; writes: those with a write or a new open item to do; "
+                  "refused: those whose plan is refused. Then write a short summary for the human: which claims or verdicts "
+                  "change, grouped by cause. The tool compares your COUNTS line and every count and KB name in your text with "
+                  "its own. Do not call a tool.\n\n")
+
+COUNTS_RE = re.compile(r"^COUNTS\s+kbs=(\d+)\s+verdicts=(\d+)\s+writes=(\d+)\s+refused=(\d+)\s+slugs=(\S*)\s*$")
+NUM = r"(\d+|no|zero|none|not one)"
 
 
-def reduce_run(lines, recs):
-    """preview-reducer c4: run the reducer agent of the hub (claude -p, given the changed KBs only) and return its
-    answer and the number of KBs that it was given. The agent runs here, in the mindhole of the hub; the text
-    goes to the program on the PATH and nowhere else."""
-    import subprocess, tempfile
+def _num(x):
+    return 0 if x.lower() in ("no", "zero", "none", "not one") else int(x)
+
+
+def reduce_env(hub):
+    """preview-reducer c4 (review H-0243): the reducer agent gets a minimal environment, not the caller's whole one:
+    the path, the home (where claude keeps its login), the locale, and the variables that claude needs to log in."""
+    keep = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR")
+    env = {k: v for k, v in os.environ.items() if k in keep}
+    env["PWD"] = hub
+    return env
+
+
+def reduce_run(hub, lines, recs):
+    """preview-reducer c4: run the reducer agent of the hub: `claude -p` from the PATH, in the hub folder, with a minimal
+    environment, given the plans of the changed KBs only. A real `claude -p` sends that text to a model (a paid call;
+    the text leaves this machine): --reduce is opt-in. Returns (answer, number of KBs given, error): error is a
+    sentence when the agent is missing, fails or times out, else None."""
+    import subprocess
     blocks = changed_blocks(lines, recs)
     if not blocks:
-        return None, 0
+        return None, 0, None
     text = REDUCER_PROMPT + "\n".join(x for b in blocks for x in b) + "\n"
     try:
-        r = subprocess.run(["claude", "-p"], input=text, capture_output=True, text=True, timeout=900)
+        r = subprocess.run(["claude", "-p"], input=text, capture_output=True, text=True, timeout=900,
+                           cwd=hub, env=reduce_env(hub))
+    except FileNotFoundError:
+        return None, len(blocks), "no program claude on the PATH"
+    except subprocess.TimeoutExpired:
+        return None, len(blocks), "claude -p did not answer in 900 s"
     except (OSError, subprocess.SubprocessError) as e:
-        die(1, f"the reducer agent did not run (claude -p): {e}")
+        return None, len(blocks), f"claude -p did not run: {e}"
     if r.returncode != 0:
-        die(1, f"the reducer agent failed (exit {r.returncode}): {r.stderr.strip()[:300]}")
-    return r.stdout, len(blocks)
+        return None, len(blocks), f"claude -p exited {r.returncode}: {r.stderr.strip()[:300]}"
+    return r.stdout, len(blocks), None
+
+
+def check_summary_text(text, recs):
+    """preview-reducer c4 (review H-0243): every count that a summary states must equal the tool's, and it names
+    exactly the KBs that change. The COUNTS line, when it is there, is compared field by field; the prose is read
+    too: each NUMBER + noun pair (KBs change, verdicts differ, writes, refused), a statement that nothing changes or
+    that no verdict differs, and each KB slug that it names. Returns the list of what differs."""
+    text = re.sub(r"[*`_]", "", text)
+    changed = sorted(r["slug"] for r in recs if r["changes"])
+    tool = {"kbs": len(changed), "verdicts": sum(r["differs"] for r in recs),
+            "writes": sum(r["writes"] for r in recs), "refused": sum(r["refused"] for r in recs)}
+    bad = []
+    lines = text.splitlines()
+    cl = [x for x in lines if x.strip().startswith("COUNTS")]
+    if len(cl) > 1:
+        bad.append("the summary has more than one COUNTS line")
+    counts_slugs = None
+    if cl:
+        m = COUNTS_RE.match(cl[0].strip())
+        if not m:
+            bad.append("the COUNTS line is not in the form COUNTS kbs=N verdicts=N writes=N refused=N slugs=a,b")
+        else:
+            for key, v in zip(("kbs", "verdicts", "writes", "refused"), m.groups()[:4]):
+                if int(v) != tool[key]:
+                    bad.append(f"COUNTS {key}={v}; the tool counts {tool[key]}")
+            counts_slugs = sorted(x for x in m.group(5).split(",") if x)
+            if counts_slugs != changed:
+                bad.append(f"COUNTS slugs={','.join(counts_slugs)}; the tool says {','.join(changed)} change")
+    prose = "\n".join(x for x in lines if not x.strip().startswith("COUNTS"))
+    stated = {"kbs": [], "verdicts": [], "writes": [], "refused": []}
+    pats = {"kbs": [NUM + r"\s+(?:of\s+\d+\s+)?(?:spec\s+)?KBs?\b[^.\n]*?\bchang", r"\b" + NUM + r"\s+(?:of\s+\d+\s+)?change\b"],
+            "verdicts": [NUM + r"\s+(?:KBs?\s+(?:with\s+)?)?verdicts?\s+(?:that\s+)?differ", NUM + r"\s+KBs?\s+(?:lose|gain|get|loses|gains|gets)\b[^.\n]*\bverdict",
+                         NUM + r"\s+(?:KBs?\s+(?:have|has|get|gets)\s+)?(?:a\s+)?verdicts?\s+that\s+differs?"],
+            "writes": [NUM + r"\s+(?:KBs?\s+(?:with|have|has)\s+)?(?:new\s+open\s+items\s+or\s+)?writes?\b", NUM + r"\s+KBs?\s+(?:with|have|has)\s+(?:a\s+)?new open items?"],
+            "refused": [NUM + r"\s+(?:KBs?\s+)?(?:with\s+)?(?:a\s+)?(?:plans?\s+)?(?:(?:is|are|was|were)\s+)?refused"]}
+    for key, ps in pats.items():
+        for pt in ps:
+            for mm in re.finditer(r"(?<![\w-])" + pt, prose, re.I):
+                stated[key].append(_num(mm.group(1)))
+    for key, vals in stated.items():
+        for v in sorted(set(vals)):
+            if v != tool[key]:
+                bad.append(f"the text says {v} for {key}; the tool counts {tool[key]}")
+    if tool["kbs"] and re.search(r"\bnothing\b[^.\n]*\bchanges?\b", prose, re.I):
+        bad.append(f"the text says that nothing changes; the tool says {tool['kbs']} KBs change")
+    if not cl and not stated["kbs"]:
+        bad.append("the summary does not say how many KBs change (a COUNTS line, or a line such as: 3 KBs change)")
+    named = sorted(r["slug"] for r in recs if re.search(r"(?<![\w-])" + re.escape(r["slug"]) + r"(?![\w-])", prose))
+    if counts_slugs is None and named != changed:
+        bad.append(f"the summary names {named}; the tool says {changed} change")
+    elif counts_slugs is not None and set(named) - set(changed):
+        bad.append(f"the text names {sorted(set(named) - set(changed))}, which do not change")
+    return bad
 
 
 def check_summary(path, recs):
-    """preview-reducer c4: the text that a reducer agent wrote must give the count of the tool (a line
-    'N KBs change') and name exactly the slugs that change. Returns the list of what differs."""
-    text = open(path, encoding="utf-8").read()
-    changed = sorted(r["slug"] for r in recs if r["changes"])
-    bad = []
-    m = re.search(r"\b(\d+) KBs? (?:change|changes|changed)\b", text, re.I)
-    if not m:
-        bad.append("the summary does not say how many KBs change (a line such as: 3 KBs change)")
-    elif int(m.group(1)) != len(changed):
-        bad.append(f"the summary says {m.group(1)} KBs change; the tool counts {len(changed)}")
-    named = sorted(r["slug"] for r in recs if re.search(r"(?<![\w-])" + re.escape(r["slug"]) + r"(?![\w-])", text))
-    if named != changed:
-        bad.append(f"the summary names {named}; the tool says {changed} change")
-    return bad
+    """--check-summary FILE: check_summary_text on the file. A file that cannot be read is a clean error (exit 2)."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError) as e:
+        die(2, f"--check-summary: cannot read {path}: {e.strerror if isinstance(e, OSError) else e}")
+    return check_summary_text(text, recs)
 
 
 def cmd_upgrade(o, edition=None):
@@ -669,49 +745,55 @@ def cmd_upgrade(o, edition=None):
     mods = modules_of(o["kit"])
     for line in module_lines(m.get("modules"), mods):
         print(line)
+    if o.get("reduce") and yes:
+        die(1, "--reduce is for the dry run only: show its summary to the human, then run --yes with the digest (without --reduce)")
     pv = migration_preview(o, k, hub, plan)
-    reduce_bad = False
+    fail = 0  # the dry run (and --yes with --check-summary) exits with this code after the full preview is printed
+    if not pv and (o.get("reduce") or o.get("check-summary")):
+        die(1, "no migration preview (the hub's orbit-kb does not change, or the hub has no spec KB): nothing to "
+               + ("reduce" if o.get("reduce") else "check"))
     if pv:
         lines, digest, bad, recs = pv
         print("migration preview (kb-migrations c15, c19): the new orbit-kb against the hub's, on each spec KB, closed ones too")
         for x in preview_summary(recs, len(lines)):
             print(x)
         if o.get("reduce"):
-            if yes:
-                die(1, "--reduce is for the dry run: show its summary to the human, then run --yes with the digest")
-            ans, nb = reduce_run(lines, recs)
-            if ans is None:
+            ans, nb, err = reduce_run(hub, lines, recs)
+            if err:
+                print(f"reducer agent: FAILED ({err}). Read the full preview below; the counts above are the tool's.")
+                fail = 2
+            elif ans is None:
                 print("reducer agent: no KB changes; nothing to reduce")
             else:
-                print(f"reducer agent (claude -p; given the {nb} KBs that change, and no other):")
+                print(f"reducer agent (claude -p, in the hub; given the {nb} KBs that change, and no other). Its text is shown, "
+                      "not trusted: the tool checks its counts and names.")
                 for x in ans.rstrip("\n").splitlines():
                     print("  " + x)
-                import tempfile
-                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
-                    f.write(ans); tmp = f.name
-                diffs = check_summary(tmp, recs)
-                os.unlink(tmp)
+                diffs = check_summary_text(ans, recs)
                 for x in diffs:
                     print("reducer agent check: " + x)
-                print("reducer agent check: " + ("its count and its slugs match the tool" if not diffs
+                print("reducer agent check: " + ("its counts and its KBs match the tool" if not diffs
                                                  else "it differs from the tool: do not rely on it; read the full preview"))
-                reduce_bad = bool(diffs)
+                if diffs:
+                    fail = 1
         if o.get("check-summary"):
             diffs = check_summary(o["check-summary"], recs)
             for x in diffs:
                 print("summary check: " + x)
             print("summary check: " + ("the summary matches the tool" if not diffs else "it differs from the tool"))
             if diffs:
-                die(1, "refused: the summary of the reducer agent differs from the counts of the tool")
+                fail = 1
         for x in lines:
             print(x)
         print(f"preview digest: {digest}")
     if not yes:  # dry run
         if pv:
             print(f"show the preview to the human; then: hubkit.py upgrade --hub HUB --yes --seen-migrations {pv[1]}")
-        if reduce_bad:
-            sys.exit(1)  # the agent's summary differs from the tool: the counts above are the tool's
+        if fail:
+            sys.exit(fail)  # the summary of the agent differs from the tool, or the agent did not run
         return
+    if fail:
+        die(1, "refused: the summary given with --check-summary differs from the counts of the tool; nothing was copied")
     if pv:
         lines, digest, bad, recs = pv
         if bad:
