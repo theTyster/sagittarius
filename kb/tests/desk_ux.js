@@ -768,6 +768,27 @@ async function r10() {
     const n3 = await pg.ev(`const c = document.getElementById(${JSON.stringify(p3.id)}); const n = document.querySelector('.donenote'); return {card: !!c, cardTop: c ? Math.round(c.getBoundingClientRect().top) : null, line: !!n, before: !!(n && c && n.nextElementSibling === c), lineTop: n ? Math.round(n.getBoundingClientRect().top) : null, text: n ? n.textContent : ''};`);
     check('H-0259: a note leaves its card on the page, at its place, with the line just above it', n3.card && n3.before && Math.abs(n3.cardTop - p3.top) <= 10 && /noted/.test(n3.text), JSON.stringify(n3) + ' card was at ' + p3.top);
   } else check('H-0259: a card with a note was found and its review opened', false, JSON.stringify(p3));
+  // H-0259: the state of a Send is its own review: a slow Send of one card, and the review of another card opened meanwhile;
+  // the line stands at the card that was sent (a global card would put it at the other one)
+  await pg.go(base + '/?mh=beta&view=waits');
+  const p6 = await pg.ev(`const fs = [...document.querySelectorAll('form[data-review]')].filter(f => !f.closest('dialog') && f.querySelector('input[name=intent][value=note]') && /-ask-A-/.test((f.closest('[id^="item-"]') || {id: ''}).id));
+    if (fs.length < 2) return {found: false, n: fs.length};
+    const of = window.fetch; window.fetch = (u, o) => (u === '/send' ? new Promise(r => setTimeout(r, 1500)).then(() => of(u, o)) : of(u, o));
+    const fill = f => { for (let e = f; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true; const r = f.querySelector('input[name=intent][value=note]'); r.checked = true; r.dispatchEvent(new Event('change', {bubbles: true})); const ta = f.querySelector('textarea[name=text]'); if (ta) ta.value = 'slow probe'; };
+    const x = fs[0], y = fs[1], X = x.closest('[id^="item-"]').id, Y = y.closest('[id^="item-"]').id;
+    fill(x); fill(y); x.closest('[id^="item-"]').scrollIntoView({block: 'center'}); await new Promise(r => setTimeout(r, 300));
+    x.requestSubmit(); for (let i = 0; i < 40 && !document.querySelector('#review[open] button.go'); i++) await new Promise(r => setTimeout(r, 100));
+    if (!document.querySelector('#review[open] button.go')) return {found: false, why: 'no review of X'};
+    document.querySelector('#review button.go').click(); await new Promise(r => setTimeout(r, 150));
+    document.querySelector('#review').close();
+    y.requestSubmit(); for (let i = 0; i < 40 && !document.querySelector('#review[open] button.go'); i++) await new Promise(r => setTimeout(r, 100));
+    const yOpen = !!document.querySelector('#review[open] button.go');
+    for (let i = 0; i < 60 && !document.querySelector('.donenote'); i++) await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 600));
+    const n = document.querySelector('.donenote'), nx = n && n.nextElementSibling;
+    const out = {found: true, X, Y, yOpen, line: n ? n.textContent : null, before: nx ? nx.id : null, reviewOfYStillOpen: !!document.querySelector('#review[open]')};
+    const d = document.querySelector('#review'); if (d.open) d.close(); window.fetch = of; return out;`);
+  check('H-0259: a slow Send and another review opened meanwhile: the line stands at the card that was sent, and the other review stays open', p6.found && p6.yOpen && p6.before === p6.X && p6.reviewOfYStillOpen, JSON.stringify(p6));
   // H-0259: an answer that leaves the item open (a vote GO keeps the vote card until the hypotheses are adopted): the card stays, as on a reload
   await pg.go(base + '/?mh=alpha&view=waits');
   const p5 = await pg.ev(`const c = [...document.querySelectorAll('[id^="item-"]')].filter(e => !e.closest('dialog') && !e.closest('aside') && /-vote$/.test(e.id))[0]; if (!c) return {found: false};
