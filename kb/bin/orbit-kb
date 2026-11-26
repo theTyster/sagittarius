@@ -4949,14 +4949,6 @@ cmd_add(KB, Args, Code) :-
     ->  functor(BT2, BN, BA),
         fmt(BM, "~w/~w is a record of strike, replace or erase. Only those commands write it; add does not.", [BN, BA]),
         reject([BM, "Fix: orbit-kb strike X --why TEXT, orbit-kb replace X NEW --why TEXT, or orbit-kb erase X --why TEXT (with --disclose TEXT for a record of the human or of another session)."] >> fix_lines)
-    ;   \+ nb_current(crud_internal, true),
-        member(it(_, _, _, ST, _, _), NewItems), nonvar(ST), ST = supersedes(_, SO), atomic(SO),
-        findall(SL-STT, ( member(it(kb, _, SL, STT, _, _), KI), nonvar(STT), compound(STT), arg(1, STT, SA), SA == SO ), SLTs), SLTs \== [],
-        (   crud_pane_owner(KI, SLTs, SPane) -> fmt(SWhy, "a record of the pane ~w", [SPane])
-        ;   member(SL1-ST1, SLTs), crud_human_record(KI, SL1, ST1) -> SWhy = "a record of the human"
-        )
-    ->  fmt(SM, "supersedes(_, ~w) would make ~w, ~w, stop counting with no disclosure.", [SO, SO, SWhy]),
-        reject([SM, "Fix: orbit-kb replace or strike it with --why TEXT --disclose TEXT."] >> fix_lines)
     ;   true
     ),
     check_words_gate(KI, NewItems),
@@ -4972,6 +4964,18 @@ cmd_add(KB, Args, Code) :-
     (   Problems \== []
     ->  problem_lines(Problems, NewItems, PL),
         reject(PL)
+    ;   true
+    ),
+    % kb-crud c10/c4: an agent's supersedes cannot make a record of another session, or an item that the human
+    % wrote, stop counting with no disclosure (replace still writes it, with its own guard).
+    (   By == agent, \+ nb_current(crud_internal, true),
+        member(it(_, _, _, ST, _, _), NewItems), nonvar(ST), ST = supersedes(_, SO), atomic(SO),
+        findall(SL-STT, ( member(it(kb, _, SL, STT, _, _), KI), nonvar(STT), compound(STT), arg(1, STT, SA), SA == SO ), SLTs), SLTs \== [],
+        (   crud_pane_owner(KI, SLTs, SPane) -> fmt(SWhy, "a record of the pane ~w", [SPane])
+        ;   SLTs = [SL1-ST1|_], crud_human_record(KI, SL1, ST1) -> SWhy = "a record of the human"   % the fact that made the item
+        )
+    ->  fmt(SM, "supersedes(_, ~w) would make ~w, ~w, stop counting with no disclosure.", [SO, SO, SWhy]),
+        reject([SM, "Fix: orbit-kb replace or strike it with --why TEXT --disclose TEXT."] >> fix_lines)
     ;   true
     ),
     retire_gate(KB, NewItems),
