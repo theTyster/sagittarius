@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.10.1 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.11.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.12.3 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.13.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,29 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.11.0 and MindHole Kit 0.13.0 (2026-11-25)
+
+MINOR for Sagittarius: the Desk gives letters in a new way (wake on your yes, one letter at each Stop,
+confirmation by the agent) and the page shows where each letter is. No rule of the prompt changes.
+MINOR for the kit: `desk.py` of the hub changes (a new command, `ack`, and a changed hook); the db
+schema stays 9. A stopgap that Ty asked for (desk-agents q7, 2026-11-25), so that he can test the hook
+before the desk agents of `desk-agents` replace it.
+
+- **Every letter reaches its session** (desk-delivery c2, c4, c5, c6). For a letter to an idle session
+  the Desk asks you whether to wake it; on your yes (`POST /wake`, `desk.py wake`) the line is typed
+  into its tmux pane and the agent gets the letter within a minute. Other letters come at each Stop of
+  the session, one turn end after another; a letter is given once.
+- **Acted on means confirmed** (c7). The notice reads as a letter from Ty and ends with
+  `desk.py ack LID`. A letter counts as acted on only when its agent runs that command in the turn that
+  got it. A turn that ends with no confirmation (a Stop, Ctrl+C, a crash or a compaction) shows the
+  letter as given, not acted on, in a block Letters above the layout, until you act on it (`POST
+  /dismiss`: "I have dealt with it"); it is not given again. A letter seen before the Desk kept track of
+  turns reads "given before the Desk kept track of turns", not "given, its turn has not ended yet".
+- **Not reachable** (c8). A letter to a session for which no Desk hook has ever run in its mindhole is
+  shown, on the card and in the review, as not reachable, not as sent.
+- Tests: `desk-test.py` (case_c2_batch, case_c4_busy, case_c6_settle, case_c7_ack, case_c7_old_letters)
+  and QS78 to QS80 of `kb/tests/test_question_server.sh`.
 
 ## Sagittarius 0.10.1 and MindHole Kit 0.12.3 (2026-11-25)
 

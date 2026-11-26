@@ -95,6 +95,17 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.13.0 (the Desk gives letters by wake, Stop and confirmation; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.11.0. The db schema is 9: no `hubflow.py migrate`. `desk.py`
+changes: a new command `ack LID` (the agent confirms a letter in its turn), `wake` (typed on the
+human's yes only), a changed hook (one letter at each Stop; a turn with no confirmation leaves the
+letter as given, not acted on), and `status` reports `delivery` and `wake_ask` for each letter. The
+hooks block that `desk.py hooks` prints is the same: no change to `.claude/settings.json`. The `hub-flow`
+skill names `ack`. A hub on 0.12.3 needs nothing but the upgrade. Restart the Desk after every joined
+hub is upgraded: a Desk of the new tool with a hub of the old `desk.py` shows no delivery field and
+no Letters block.
+
 ### 0.12.3 (Ratify of a relation on the Desk; db schema 9, unchanged)
 
 This release pairs with Sagittarius 0.10.1. The db schema is 9: no `hubflow.py migrate` is needed. The

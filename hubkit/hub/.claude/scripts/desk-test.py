@@ -29,10 +29,11 @@ MUTANTS = [
     ("deliver-to-non-recipient", "if x[\"id\"] not in seen and name in recipients(c, x, kbi)]", "if x[\"id\"] not in seen]"),
     ("hook-ignores-to", "return [to] if to else owners(c, letter, kbi)", "return owners(c, letter, kbi)"),
     ("delivery-cuts-text", "{letter.get('text') or ''}", "{(letter.get('text') or '')[:1000]}"),
-    ("render-differs-from-delivery", "out = delivered_text({\"about\": about, \"text\": text})",
-     "out = delivered_text({\"about\": about, \"text\": text.strip()})"),
+    ("render-differs-from-delivery", "out = notice_text(hub, [letter_block(hub, {\"about\": about, \"text\": text}, a.id)])",
+     "out = notice_text(hub, [letter_block(hub, {\"about\": about, \"text\": text.strip()}, a.id)])"),
     ("notice-drops-a-long-letter", "if held and size + add > NOTICE_MAX:", "if size + add > NOTICE_MAX:"),
-    ("notice-joins-with-one-newline", "return \"\\n\\n\".join(parts), held", "return \"\\n\".join(parts), held"),
+    ("notice-joins-with-one-newline", "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\\n\".join(blocks)",
+     "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\".join(blocks)"),
     ("wake-types-other-line", "line = wake_text(about_of(letter))", "line = wake_text(item_name(letter))"),
     ("send-to-unchecked", "    if s is None:\n        raise Bad(f\"--to", "    if False:\n        raise Bad(f\"--to"),
     ("late-unseen-threshold", "LATE_SECONDS = 24 * 3600", "LATE_SECONDS = 26 * 3600"),
@@ -52,10 +53,22 @@ MUTANTS = [
      "return f\"fix {it.get('what')}\""),
     ("kb-handoffs-unaccepted-first", "lst.sort(key=lambda r: (r[\"accepted_at\"] is None,",
      "lst.sort(key=lambda r: (r[\"accepted_at\"] is not None,"),
-    ("stop-hook-active-ignored", "if stop and data.get(\"stop_hook_active\") is True:", "if False:"),
     ("wake-types-into-busy", "elif not st or st.get(\"state\") != \"idle\" or not st.get(\"tmux_pane\"):",
      "elif not st or not st.get(\"tmux_pane\"):"),
-    ("wake-ignores-blocked", "elif not blocked[s]:", "elif False:"),
+    ("send-wakes-again", "    # desk-delivery c5: no wake here.", "    wake(hub, letter)  # desk-delivery c5: no wake here."),
+    ("wake-after-given", "        elif (\"seen\", s) in done:\n", "        elif False:\n"),
+    ("stop-hook-active-guard-back", "        carried = settle(", "        todo = [] if stop and data.get(\"stop_hook_active\") is True else todo\n        carried = settle("),
+    ("unacked-counts-as-acted", "verdict, detail = (\"acted\", None) if lid in acked else", "verdict, detail = (\"acted\", None) if True else"),
+    ("ack-in-any-turn", "    if a.lid not in ((st or {}).get(\"given\") or []):", "    if False:"),
+    ("notice-no-ack-command", "    return f\"When you have done what this letter asks, confirm it to Ty with: {ack_command(hub, lid)}\"",
+     "    return \"When you have done what this letter asks, tell Ty.\""),
+    ("notice-no-lead", "    return lead_line(len(blocks)) + \"\\n\\n\" + \"\\n\\n\".join(blocks)", "    return \"\\n\\n\".join(blocks)"),
+    ("ack-not-recorded", "    store.add_event(a.lid, \"acked\", name)", "    pass"),
+    ("start-context-not-carried", "    if ev == \"UserPromptSubmit\" and (prev or {}).get(\"event\") == \"SessionStart\":", "    if False:"),
+    ("not-acted-given-again", "            seen = {e[\"letter\"] for e in store.events() if e[\"event\"] == \"seen\" and e.get(\"session\") == name}",
+     "            seen = {e[\"letter\"] for e in store.events() if e[\"event\"] == \"acted\" and e.get(\"session\") == name}"),
+    ("wake-ask-for-busy", "            if idle:\n                wake_ask.append", "            if True:\n                wake_ask.append"),
+    ("dismiss-any-letter", "    if a.event == \"dismissed\" and delivery_of(", "    if False and delivery_of("),
     ("seen-not-recorded", "store.add_event(x[\"id\"], \"seen\", name)", "pass"),
     ("retired-owner-live", "lv = [s for s in own if s in live]", "lv = list(own)"),
     ("send-skips-fsync-and-write", "append_line(os.path.join(desk_dir(hub), \"letters.jsonl\"), letter)  # stored",
@@ -171,6 +184,25 @@ def delivered(about, text):
     return f"Letter from Ty (the Desk), about {about}:\n{text}"
 
 
+def lead(n):
+    """desk-delivery c7: the first line of each notice, written out here."""
+    what = "a letter" if n == 1 else f"{n} letters"
+    return (f"Ty sent you {what} on the Desk. The Desk gives letters between turns, so that they do not "
+            "interrupt your work. Read each one, do what it asks now, and confirm each with the command under it.")
+
+
+def block(h, about, text, lid):
+    """One letter in a notice: the letter, then its confirm line with the exact ack command (c7)."""
+    t = delivered(about, text)
+    return (t + ("\n" if t.endswith("\n") else "\n\n") + "When you have done what this letter asks, confirm it to Ty with: python3 "
+            + os.path.join(h, ".claude", "scripts", "desk.py") + " ack " + lid)
+
+
+def noticed(h, *blocks):
+    """A whole notice: the lead line, then the letters joined by one empty line."""
+    return lead(len(blocks)) + "\n\n" + "\n\n".join(blocks)
+
+
 def ctx_of(out):
     o = json.loads(out)
     return o["reason"] if "decision" in o else o["hookSpecificOutput"]["additionalContext"]
@@ -190,11 +222,11 @@ def hook(h, session, event, cwd=None, extra=None, env=None, hub=False):
     return code, out, err
 
 
-def events(h):
+def events(h, kind=None):
     p = os.path.join(h, "flow", "desk", "events.jsonl")
     if not os.path.exists(p):
         return []
-    return [json.loads(x) for x in open(p, encoding="utf-8") if x.strip()]
+    return [e for e in (json.loads(x) for x in open(p, encoding="utf-8") if x.strip()) if kind is None or e["event"] == kind]
 
 
 def lines(h, name="letters.jsonl"):
@@ -488,7 +520,7 @@ def case_hook(r, root):
         o = json.loads(out)
         ctx = o["hookSpecificOutput"]["additionalContext"]
         ok = o["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit" \
-            and ctx == delivered("question 2 of the ask " + a, "Use SQLite, not Postgres.\n")
+            and ctx == noticed(h, block(h, "question 2 of the ask " + a, "Use SQLite, not Postgres.\n", lid))
     except (ValueError, KeyError) as e:
         ok, ctx = False, repr(e)
     r.check("hook-prompt-recipient-gets-exact-text", code == 0 and ok, (out, err))
@@ -498,22 +530,30 @@ def case_hook(r, root):
     r.check("hook-state-busy-with-pane", sj["state"] == "busy" and sj["tmux_pane"] == "%7"
             and sj["event"] == "UserPromptSubmit" and sj["session_id"] == "sid-discovery", sj)
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
-    r.check("hook-once-only", code == 0 and out == "" and len(events(h)) == 1, out)
+    r.check("hook-once-only", code == 0 and out == "" and len(events(h, "seen")) == 1, out)
     hook(h, "discovery", "Stop")
     sj = json.load(open(os.path.join(h, "flow", "desk", "sessions", "discovery.json")))
     r.check("hook-stop-idle-no-pane", sj["state"] == "idle" and sj["tmux_pane"] is None, sj)
     l2 = send(h, root, ask_item(a), "One more thing.", kind="diverge")
-    code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": True})
-    r.check("hook-stop-active-gives-nothing", code == 0 and out == "" and len(events(h)) == 1, out)
     code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": False})
     try:
         o = json.loads(out)
-        ok = o["decision"] == "block" and o["reason"] == delivered("the ask " + a, "One more thing.")
+        ok = o["decision"] == "block" and o["reason"] == noticed(h, block(h, "the ask " + a, "One more thing.", l2))
     except (ValueError, KeyError):
         ok = False
-    r.check("hook-stop-blocks", code == 0 and ok and events(h)[-1]["letter"] == l2, out)
+    r.check("hook-stop-blocks", code == 0 and ok and events(h, "seen")[-1]["letter"] == l2, out)
     sj = json.load(open(os.path.join(h, "flow", "desk", "sessions", "discovery.json")))
     r.check("hook-stop-block-sets-busy", sj["state"] == "busy", sj)
+    # desk-delivery c2: a Stop that continues from a stop hook also gives what waits (each letter once)
+    l2b = send(h, root, ask_item(a), "And a third thing.", kind="note")
+    code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": True})
+    r.check("hook-stop-active-gives-the-rest", code == 0 and out.strip() != "" and json.loads(out).get("decision") == "block"
+            and json.loads(out)["reason"] == noticed(h, block(h, "the ask " + a, "And a third thing.", l2b))
+            and events(h, "seen")[-1]["letter"] == l2b, out)
+    code, out, err = hook(h, "discovery", "Stop", extra={"stop_hook_active": True})
+    sj = json.load(open(os.path.join(h, "flow", "desk", "sessions", "discovery.json")))
+    r.check("hook-stop-active-nothing-left-idle", out == "" and sj["state"] == "idle"
+            and len(events(h, "seen")) == 3, (out, sj))
     code, out, err = hook(h, "discovery", "SessionStart")
     r.check("hook-session-start-idle", out == "" and json.load(open(os.path.join(
         h, "flow", "desk", "sessions", "discovery.json")))["state"] == "idle", out)
@@ -521,7 +561,7 @@ def case_hook(r, root):
     code, out, err = hook(h, "build", "SessionStart")
     try:
         ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-        ok = ctx == delivered("q3 in the KB y", "b: y answer") \
+        ok = ctx == noticed(h, block(h, "q3 in the KB y", "b: y answer", l3)) \
             and json.loads(out)["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     except (ValueError, KeyError):
         ok = False
@@ -536,10 +576,10 @@ def case_hook(r, root):
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     r.check("hook-fix-not-to-the-owner", out == "", out)
     code, out, err = hook(h, "process", "UserPromptSubmit")
-    r.check("hook-fix-to-non-owner", out != "" and ctx_of(out) == delivered("the ask " + a, "Fix: take A-0001 over."), out)
+    r.check("hook-fix-to-non-owner", out != "" and ctx_of(out) == noticed(h, block(h, "the ask " + a, "Fix: take A-0001 over.", lf)), out)
     lo = put_letter(h, item=q_item("y"), text="an old letter")
     code, out, err = hook(h, "build", "UserPromptSubmit")
-    r.check("hook-old-letter-owner-rule", out != "" and ctx_of(out) == delivered("specs/y q3", "an old letter"), out)
+    r.check("hook-old-letter-owner-rule", out != "" and ctx_of(out) == noticed(h, block(h, "specs/y q3", "an old letter", lo)), out)
     n = len(events(h))
     code, out, err = hook(h, None, "UserPromptSubmit")
     r.check("hook-no-hub-session-silent", code == 0 and out == "" and err == "" and len(events(h)) == n, (code, out, err))
@@ -571,19 +611,19 @@ def case_notice(r, root):
         short.append((send(h, root, ask_item(a), t, about=f"letter {i}"), t))
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     ctx = ctx_of(out)
-    r.check("notice-long-letter-whole-alone", ctx == delivered("the long one", long_text), ctx[-200:])
-    r.check("notice-one-letter-seen", [e["letter"] for e in events(h)] == [long_id], events(h))
+    r.check("notice-long-letter-whole-alone", ctx == noticed(h, block(h, "the long one", long_text, long_id)), ctx[-200:])
+    r.check("notice-one-letter-seen", [e["letter"] for e in events(h, "seen")] == [long_id], events(h))
     code, out, err = hook(h, "discovery", "UserPromptSubmit")
     ctx = ctx_of(out)
-    n = len(events(h)) - 1
-    want = "\n\n".join(delivered(f"letter {i}", t) for i, (_, t) in enumerate(short[:n]))
-    r.check("notice-whole-letters-joined", 1 < n < 12 and ctx == want and len(ctx) <= 1500
-            and [e["letter"] for e in events(h)][1:] == [x for x, _ in short[:n]], (n, ctx[:300]))
+    n = len(events(h, "seen")) - 1
+    want = noticed(h, *[block(h, f"letter {i}", t, x) for i, (x, t) in enumerate(short[:n])])
+    r.check("notice-whole-letters-joined", 1 < n < 12 and ctx == want and len(ctx) - len(lead(n)) - 2 <= 1500
+            and [e["letter"] for e in events(h, "seen")][1:] == [x for x, _ in short[:n]], (n, ctx[:300]))
     for _ in range(13):
         code, out, err = hook(h, "discovery", "UserPromptSubmit")
         if not out:
             break
-    r.check("notice-rest-follows", len(events(h)) == 13, len(events(h)))
+    r.check("notice-rest-follows", len(events(h, "seen")) == 13, len(events(h, "seen")))
     code, out, err = desk(h, "letters", "--id", long_id)
     r.check("letters-id-full-text", code == 0 and long_text.strip() in out, err)
     code, out, err = desk(h, "letters", "--json")
@@ -596,10 +636,11 @@ def case_render(r, root):
     text = "Use SQLite.\n\n" + "Because " * 500 + "\n"
     tf = text_file(root, text)
     code, out, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf)
-    r.check("render-is-exact", code == 0 and out == delivered("the database of " + a, text), (code, out[:200], err))
+    r.check("render-is-exact", code == 0 and out == noticed(h, block(h, "the database of " + a, text, "L-<the letter id>")), (code, out[:200], err))
     lid = send(h, root, ask_item(a), text, to="helpdesk", about="the database of " + a)
     code, hout, err = hook(h, "support", "UserPromptSubmit")
-    r.check("render-equals-delivery", hout != "" and ctx_of(hout) == out, hout[:200])
+    code, rid, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf, "--id", lid)
+    r.check("render-equals-delivery", hout != "" and ctx_of(hout) == rid and rid == out.replace("L-<the letter id>", lid), hout[:200])
     code, jout, err = desk(h, "render", "--to", "helpdesk", "--about", "the database of " + a, "--text-file", tf, "--json")
     j = {}
     try:
@@ -694,6 +735,10 @@ exit 0
 
 
 def case_wake(r, root):
+    """The wake (desk-delivery c5): send never types; Ty's yes (`wake LID`) types the wake line into
+    an idle recipient's pane that runs Claude, whether or not it is blocked on the item; never into a
+    busy pane (c4), a pane that does not run Claude, a session that was given the letter, or a
+    session that is not the recipient or not live. status asks Ty about each idle recipient."""
     h = make_hub(r, root)
     fake = os.path.join(root, "fake-tmux")
     with open(fake, "w") as f:
@@ -714,59 +759,71 @@ def case_wake(r, root):
     def woken(lid):
         return [e for e in events(h) if e["letter"] == lid and e["event"] == "woken"]
 
+    def yes(lid, cmd="claude"):
+        code, out, err = desk(h, "wake", lid, env=env(cmd))
+        return code, (json.loads(out) if code == 0 and out.strip() else {}), err
+
+    def asks(lid):
+        return letter_of(status(h), lid)["wake_ask"]
+
     a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which database?", "--status", "waiting")
     a_open = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Not waiting ask")
-    hfo(h, "add", "thread", "--title", "KB w held", "--ref", "kb:w", "--status", "waiting", session="build")
     hook(h, "discovery", "Stop", env={"TMUX_PANE": "%3"})
     hook(h, "build", "Stop", env={"TMUX_PANE": "%4"})
-    lb = send(h, root, ask_item(a), "to build, not the owner", to="build", env=env())
-    r.check("wake-only-the-recipient", calls() == [] and not woken(lb), calls())
     lid = send(h, root, ask_item(a), "SQLite", env=env(), about="the database (A-0001)")
-    c = calls()
+    r.check("wake-send-types-nothing", calls() == [] and not woken(lid), calls())
+    r.check("wake-ask-idle-recipient", asks(lid) == [{"session": "discovery", "pane": True}], asks(lid))
     code, line, err = desk(h, "wake-text", "--about", "the database (A-0001)")
     r.check("wake-text-format", line == "Desk: Ty sent a letter about the database (A-0001). It is stored; "
                                         "read the Desk notice of this prompt.", line)
-    r.check("wake-idle-waiting-claude", c == ["[display-message][-p][-t][%3][#{pane_current_command}]",
-                                              f"[send-keys][-t][%3][-l][{line}]", "[send-keys][-t][%3][Enter]"], c)
-    r.check("wake-woken-event", [(e["session"]) for e in woken(lid)] == ["discovery"])
+    code, o, err = yes(lid)
+    r.check("wake-yes-types-one-line", code == 0 and calls() == ["[display-message][-p][-t][%3][#{pane_current_command}]",
+                                                                  f"[send-keys][-t][%3][-l][{line}]", "[send-keys][-t][%3][Enter]"]
+            and o == {"woken": ["discovery"], "not": {}}, (calls(), o, err))
+    r.check("wake-woken-event", [(e["session"], e["detail"]) for e in woken(lid)] == [("discovery", "%3")], woken(lid))
     reset()
-    code, out, err = desk(h, "wake", lid, env=env())
-    r.check("wake-already-woken-not-again", calls() == [] and "already woken" in err and len(woken(lid)) == 1,
-            (calls(), err))
+    code, o, err = yes(lid)  # the wake line did not reach the agent: Ty may say yes again
+    r.check("wake-yes-again-while-not-given", len(woken(lid)) == 2 and any("send-keys" in x for x in calls()), (calls(), err))
+    hook(h, "discovery", "UserPromptSubmit", env={"TMUX_PANE": "%3"})  # the wake line is a prompt: discovery gets it
     reset()
-    lq = send(h, root, q_item("w"), "w answer", to="build", env=env())
-    r.check("wake-question-recipient", any("[send-keys][-t][%4][-l][Desk: Ty sent a letter about q3 in the KB w." in x
-                                           for x in calls()) and woken(lq)[0]["session"] == "build", calls())
+    code, o, err = yes(lid)
+    r.check("wake-not-after-given", calls() == [] and o["not"] == {"discovery": "already given the letter"}
+            and asks(lid) == [], (calls(), o))
     reset()
-    hook(h, "discovery", "UserPromptSubmit", env={"TMUX_PANE": "%3"})  # busy (and sees what it owns)
-    l2 = send(h, root, ask_item(a), "again", env=env())
-    r.check("wake-busy-not-called", calls() == [] and not woken(l2), calls())
-    hook(h, "discovery", "Stop", extra={"stop_hook_active": True}, env={"TMUX_PANE": "%3"})  # idle, l2 unseen
+    lb = send(h, root, ask_item(a), "to build, not the owner", to="build", env=env())
+    code, o, err = yes(lb)
+    r.check("wake-only-the-recipient", not any("%3" in x for x in calls()) and any("[%4]" in x for x in calls())
+            and o["woken"] == ["build"], (calls(), o))
     reset()
-    l3 = send(h, root, ask_item(a_open), "not waiting", env=env())
-    r.check("wake-not-blocked-not-called", calls() == [] and not woken(l3), calls())
+    hook(h, "process", "Stop", env={"TMUX_PANE": "%5"})
+    lnb = send(h, root, ask_item(a_open), "not blocked", to="process", env=env())
+    code, o, err = yes(lnb)
+    r.check("wake-not-blocked-still-woken", any("send-keys" in x and "[%5]" in x for x in calls()) and o["woken"] == ["process"], (calls(), o))
     reset()
-    code, out, err = desk(h, "wake", l2, env=env("zsh"))
-    r.check("wake-zsh-pane-not-typed", not any("send-keys" in x for x in calls()) and not woken(l2)
-            and "zsh" in err, (calls(), err))
+    l2 = send(h, root, ask_item(a), "again", env=env())  # discovery is busy (its prompt above)
+    r.check("wake-ask-not-for-busy", asks(l2) == [], asks(l2))
+    code, o, err = yes(l2)
+    r.check("wake-busy-not-typed", calls() == [] and not woken(l2) and "not idle" in o["not"]["discovery"], (calls(), o))
+    stops(h, "discovery", env={"TMUX_PANE": "%3"})  # the turn ends: its Stop gives l2, then discovery is idle
+    l3 = send(h, root, ask_item(a), "after the turn", env=env())
     reset()
-    hfo(h, "add", "thread", "--title", "KB v held", "--ref", "kb:v", "--status", "waiting", session="process")
-    lv = send(h, root, q_item("v"), "v answer", to="process", env=env())
-    r.check("wake-non-owner-not-called", not any("%3" in x or "%4" in x for x in calls()) and not woken(lv), calls())
+    code, o, err = yes(l3, "zsh")
+    r.check("wake-zsh-pane-not-typed", not any("send-keys" in x for x in calls()) and not woken(l3)
+            and "zsh" in o["not"]["discovery"], (calls(), o))
+    stops(h, "build")  # build idle (its Stop gave lb), no pane known
+    l4 = send(h, root, ask_item(a), "no pane", to="build", env=env())
+    r.check("wake-ask-no-pane", asks(l4) == [{"session": "build", "pane": False}], asks(l4))
     reset()
-    code, out, err = desk(h, "wake", l2, env=env())
-    r.check("wake-command-types-now", any("send-keys" in x for x in calls()) and len(woken(l2)) == 1, (calls(), err))
-    reset()
-    hfo(h, "add", "thread", "--title", "KB u held", "--ref", "kb:u", "--status", "waiting", session="support")
     hfo(h, "session", "retire", "support")
     hook(h, "support", "Stop", env={"TMUX_PANE": "%9"})
     lu = send(h, root, q_item("u"), "u answer", to="support", env=env())
-    r.check("wake-retired-not-called", calls() == [] and not woken(lu), calls())
+    code, o, err = yes(lu)
+    r.check("wake-retired-not-called", calls() == [] and not woken(lu) and asks(lu) == [], (calls(), o))
     code, out, err = desk(h, "wake", "L-20260101T000000Z-abcdef", env=env())
     r.check("wake-unknown-letter-exit-2", code == 2, (code, err))
     reset()
-    l6 = send(h, root, ask_item(a), "tmux missing", env={"DESK_TMUX": os.path.join(root, "no-such-tmux")})
-    r.check("wake-tmux-missing-send-still-ok", l6 and not woken(l6), l6)
+    code, out, err = desk(h, "wake", l3, env={"DESK_TMUX": os.path.join(root, "no-such-tmux")})
+    r.check("wake-tmux-missing-no-woken", code == 0 and not woken(l3) and "tmux failed" in out, (code, out, err))
 
 
 def case_join(r, root):
@@ -991,9 +1048,234 @@ def case_toast_read_only(r, root):
             out[-1200:])
 
 
+def stops(h, session, env=None):
+    """The Stop hooks of one turn end, as Claude Code runs them: a Stop that blocks continues the
+    turn, and each later Stop of that turn has stop_hook_active true. Returns the reasons given."""
+    got, active = [], False
+    for _ in range(20):
+        code, out, err = hook(h, session, "Stop", extra={"stop_hook_active": active}, env=env)
+        if not out.strip():
+            return got
+        got.append(json.loads(out)["reason"])
+        active = True
+    return got + ["(the turn never ended)"]
+
+
+def case_c2_batch(r, root):
+    """desk-delivery c2: when several letters wait for one session, every one of them is given to its
+    agent without a prompt by Ty, none cut, oldest first. Example: three letters of 800 characters
+    reach build during a turn; at its end build gets the first; the other two also reach build
+    before it goes idle."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which port?",
+            "--waits-on", "me", session="build")
+    hook(h, "build", "UserPromptSubmit")  # build is in a turn
+    texts = [(f"letter {i}: " + "abcdefghij" * 80)[:800] for i in range(3)]
+    ids = [send(h, root, ask_item(a), t, to="build", about=f"part {i} of the port") for i, t in enumerate(texts)]
+    want = [noticed(h, block(h, f"part {i} of the port", t, x)) for i, (t, x) in enumerate(zip(texts, ids))]
+    got = stops(h, "build")
+    r.check("c2-batch-every-letter-before-idle", len(got) == 3 and got == want, [g[:60] for g in got])
+    seen = [e["letter"] for e in events(h) if e["event"] == "seen"]
+    r.check("c2-batch-oldest-first-once", seen == ids, seen)
+    sj = json.load(open(os.path.join(h, "flow", "desk", "sessions", "build.json")))
+    r.check("c2-batch-idle-after-all", sj["state"] == "idle", sj)
+    # the same batch to an idle session: one prompt (a wake line) and the end of that turn give them all
+    hook(h, "discovery", "Stop")
+    ids2 = [send(h, root, ask_item(a), t, to="discovery", about=f"part {i} of the port") for i, t in enumerate(texts)]
+    code, out, err = hook(h, "discovery", "UserPromptSubmit")
+    got = ([ctx_of(out)] if out.strip() else []) + stops(h, "discovery")
+    want2 = [noticed(h, block(h, f"part {i} of the port", t, x)) for i, (t, x) in enumerate(zip(texts, ids2))]
+    r.check("c2-idle-one-prompt-gives-all", got == want2, [g[:60] for g in got])
+    seen = [e["letter"] for e in events(h) if e["event"] == "seen" and e["session"] == "discovery"]
+    r.check("c2-idle-oldest-first", seen == ids2, seen)
+
+
+def case_c4_busy(r, root):
+    """desk-delivery c4 (preserve): a letter never breaks into a turn in progress: a busy session gets
+    it only at the end of its turn or at a prompt. Example: Ty sends build a note while build runs a
+    check; build gets it at the Stop of that turn, not in the middle of the check."""
+    h = make_hub(r, root)
+    fake = os.path.join(root, "fake-tmux")
+    with open(fake, "w") as f:
+        f.write(FAKE_TMUX)
+    os.chmod(fake, 0o755)
+    logp = os.path.join(root, "tmux.log")
+    tenv = {"DESK_TMUX": fake, "FAKE_TMUX_LOG": logp, "FAKE_TMUX_CMD": "claude"}
+
+    def typed():
+        return [x for x in (open(logp).read().splitlines() if os.path.exists(logp) else []) if "send-keys" in x]
+
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which port?",
+            "--waits-on", "me", "--status", "waiting", session="build")
+    hook(h, "build", "UserPromptSubmit", env={"TMUX_PANE": "%4"})  # build runs a check
+    lid = send(h, root, ask_item(a), "A note while you run the check.", to="build", env=tenv)
+    r.check("c4-send-types-nothing-into-busy", typed() == [], typed())
+    desk(h, "wake", lid, env=tenv)
+    r.check("c4-wake-types-nothing-into-busy", typed() == [], typed())
+    st = letter_of(status(h), lid)
+    r.check("c4-no-wake-offer-for-busy", not st.get("wake_ask"), st.get("wake_ask"))
+    for ev in ("PreToolUse", "PostToolUse", "Notification", "SubagentStop", "PreCompact"):
+        code, out, err = hook(h, "build", ev, env={"TMUX_PANE": "%4"})
+        r.check("c4-nothing-mid-turn-" + ev, out == "" and not [e for e in events(h) if e["event"] == "seen"], out)
+    code, out, err = hook(h, "build", "Stop", env={"TMUX_PANE": "%4"})
+    r.check("c4-given-at-stop", out.strip() != "" and json.loads(out).get("decision") == "block"
+            and json.loads(out)["reason"] == noticed(h, block(h, "the ask " + a, "A note while you run the check.", lid)), out)
+
+
+def case_c6_settle(r, root):
+    """desk-delivery c6: a letter that its agent was given but did not act on (the turn ended by
+    Ctrl+C, a crash or a compaction) is not given again: the Desk shows it as given, not acted on,
+    until Ty acts on it. A turn that reaches its Stop acted on what it was given."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which port?",
+            "--waits-on", "me", session="build")
+
+    def deliv(lid):
+        return letter_of(status(h), lid).get("delivery")
+
+    l1 = send(h, root, ask_item(a), "one: Ctrl+C", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    r.check("c6-given-at-prompt", "one: Ctrl+C" in out and deliv(l1) == "given", (out, deliv(l1)))
+    code, out, err = hook(h, "build", "UserPromptSubmit")  # Ctrl+C: no Stop; Ty types again
+    r.check("c6-ctrl-c-not-given-again", "one: Ctrl+C" not in out, out)
+    r.check("c6-ctrl-c-not-acted", deliv(l1) == "not_acted", deliv(l1))
+    stops(h, "build")
+    l2 = send(h, root, ask_item(a), "two: crash", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    code, out, err = hook(h, "build", "SessionStart", extra={"source": "resume"})  # a crash, then resume
+    r.check("c6-crash-not-given-again", "two: crash" not in out and deliv(l2) == "not_acted", (out, deliv(l2)))
+    l3 = send(h, root, ask_item(a), "three: compaction", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    code, out, err = hook(h, "build", "SessionStart", extra={"source": "compact"})
+    r.check("c6-compact-not-given-again", "three: compaction" not in out and deliv(l3) == "not_acted", (out, deliv(l3)))
+    l4 = send(h, root, ask_item(a), "four: a whole turn", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    desk(h, "ack", l4, env={"HUB_SESSION": "build"})  # c7: the agent confirms it
+    stops(h, "build")
+    r.check("c6-whole-turn-acted", deliv(l4) == "acted", deliv(l4))
+    l5 = send(h, root, ask_item(a), "five: at session start", to="build")
+    hook(h, "build", "SessionStart", extra={"source": "startup"})
+    hook(h, "build", "UserPromptSubmit")  # the first prompt of the session: the start context lives on
+    r.check("c6-start-context-lives-into-first-turn", deliv(l5) == "given", deliv(l5))
+    desk(h, "ack", l5, env={"HUB_SESSION": "build"})
+    stops(h, "build")
+    r.check("c6-start-letter-acted-at-stop", deliv(l5) == "acted", deliv(l5))
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    seen = [e["letter"] for e in events(h) if e["event"] == "seen"]
+    r.check("c6-each-letter-given-once", out == "" and sorted(seen) == sorted([l1, l2, l3, l4, l5]), (out, seen))
+    code, out, err = desk(h, "event", l4, "dismissed")
+    r.check("c6-dismiss-only-not-acted", code == 1 and deliv(l4) == "acted", (code, err))
+    code, out, err = desk(h, "event", l1, "dismissed")
+    r.check("c6-ty-dismisses", code == 0 and deliv(l1) == "dismissed" and deliv(l2) == "not_acted", (code, err))
+
+
+def case_c7_ack(r, root):
+    """desk-delivery c7: a letter counts as acted on only when its agent confirms it by its id
+    (desk.py ack LID) in the turn that was given it; a turn that ends, by a Stop, Ctrl+C, a crash or a
+    compaction, with no confirmation shows it as given, not acted on, and it is not given again; the
+    notice reads as a letter from Ty that asks for the confirmation, not as an error. Example: an
+    agent given a letter that asks it to reply PINEAPPLE answers only Hello. and ends its turn with a
+    Stop: not acted on. An agent that runs desk.py ack with the letter id: acted on."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which fruit?",
+            "--waits-on", "me", session="build")
+
+    def deliv(lid):
+        return letter_of(status(h), lid).get("delivery")
+
+    def ack(lid, session="build"):
+        return desk(h, "ack", lid, env={"HUB_SESSION": session} if session else {})
+
+    cmd = "python3 " + os.path.join(h, ".claude", "scripts", "desk.py") + " ack "
+    bad_words = re.compile(r"\b(error|errors|fail|failed|failure|blocked|blocking|warning|denied|refused)\b", re.I)
+
+    def frame_ok(text, lids, letter_texts):
+        rest = text
+        for t in letter_texts:
+            rest = rest.replace(t, "")
+        lines = [x for x in text.rstrip("\n").split("\n") if x.strip()]
+        return (text.startswith("Ty sent you") and "Letter from Ty (the Desk)" in text
+                and lines[-1].endswith(cmd + lids[-1]) and all((cmd + l) in text for l in lids)
+                and not bad_words.search(rest))
+
+    hook(h, "build", "SessionStart", extra={"source": "startup"})
+    l1 = send(h, root, ask_item(a), "Ty here: please reply to this letter with the word PINEAPPLE.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    ctx = ctx_of(out) if out.strip() else ""
+    r.check("c7-notice-asks-ack-by-id-not-error", frame_ok(ctx, [l1], ["Ty here: please reply to this letter with the word PINEAPPLE."]), ctx)
+    stops(h, "build")  # the agent answered only Hello. and ended its turn
+    r.check("c7-stop-without-ack-not-acted", deliv(l1) == "not_acted", deliv(l1))
+    code, out, err = ack(l1)
+    r.check("c7-ack-after-its-turn-refused", code == 1 and deliv(l1) == "not_acted", (code, err))
+    l2 = send(h, root, ask_item(a), "Ty here: please reply with the word MANGO.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    r.check("c7-not-acted-not-given-again", "PINEAPPLE" not in out and "MANGO" in out, out)
+    code, aout, err = ack(l2)
+    r.check("c7-ack-in-its-turn", code == 0 and [e for e in events(h, "acked") if e["letter"] == l2 and e["session"] == "build"], (code, err))
+    stops(h, "build")
+    r.check("c7-acked-is-acted", deliv(l2) == "acted", deliv(l2))
+    l3 = send(h, root, ask_item(a), "three", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    code, out, err = ack(l3, "discovery")
+    r.check("c7-ack-by-another-session-refused", code == 1, (code, err))
+    hook(h, "build", "UserPromptSubmit")  # Ctrl+C with no ack
+    r.check("c7-ctrl-c-without-ack-not-acted", deliv(l3) == "not_acted", deliv(l3))
+    for src in ("resume", "compact"):
+        lx = send(h, root, ask_item(a), "lost to " + src, to="build")
+        stops(h, "build")
+        hook(h, "build", "UserPromptSubmit")
+        hook(h, "build", "SessionStart", extra={"source": src})
+        r.check("c7-" + src + "-without-ack-not-acted", deliv(lx) == "not_acted", deliv(lx))
+    l4 = send(h, root, ask_item(a), "acked, then Ctrl+C", to="build")
+    hook(h, "build", "UserPromptSubmit")
+    ack(l4)
+    hook(h, "build", "UserPromptSubmit")
+    r.check("c7-acked-then-ctrl-c-acted", deliv(l4) == "acted", deliv(l4))
+    stops(h, "build")
+    # the Stop that gives letters: its block reason reads the same way
+    hook(h, "build", "UserPromptSubmit")
+    l5 = send(h, root, ask_item(a), "five", to="build")
+    l6 = send(h, root, ask_item(a), "six", to="build")
+    code, out, err = hook(h, "build", "Stop", extra={"stop_hook_active": False})
+    reason = json.loads(out)["reason"] if out.strip() else ""
+    r.check("c7-stop-reason-reads-as-letter", frame_ok(reason, [l5, l6], ["five", "six"]), reason)
+    ack(l5)
+    stops(h, "build")
+    r.check("c7-stop-batch-only-acked-acted", deliv(l5) == "acted" and deliv(l6) == "not_acted", (deliv(l5), deliv(l6)))
+    seen = [e["letter"] for e in events(h, "seen")]
+    r.check("c7-each-letter-given-once", len(seen) == len(set(seen)), seen)
+
+
+def case_c7_old_letters(r, root):
+    """desk-delivery c7, review finding 2 (H-0184): a letter that has a seen event from before the Desk kept
+    track of turns (no session's given list holds it, no acted or not_acted event) is not shown as given
+    for ever: its delivery reads given_before. A letter given now is still given until its turn ends."""
+    h = make_hub(r, root)
+    a = hfo(h, "add", "ask", "--note", "Test ask: case, options, default.", "--no-kb", "--title", "Which fruit?",
+            "--waits-on", "me", session="build")
+
+    def deliv(lid):
+        return letter_of(status(h), lid).get("delivery")
+
+    hook(h, "build", "SessionStart", extra={"source": "startup"})
+    old = send(h, root, ask_item(a), "An old letter, seen before turns were tracked.", to="build")
+    # a seen event from the desk.py before this change: no given list holds it
+    sd = os.path.join(h, "flow", "desk")
+    with open(os.path.join(sd, "events.jsonl"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": "2026-11-20T10:00:00Z", "letter": old, "event": "seen", "session": "build", "detail": None}) + "\n")
+    r.check("c7-old-seen-reads-given-before", deliv(old) == "given_before", deliv(old))
+    new = send(h, root, ask_item(a), "A letter given now.", to="build")
+    code, out, err = hook(h, "build", "UserPromptSubmit")
+    r.check("c7-new-given-reads-given", deliv(new) == "given", deliv(new))
+    r.check("c7-old-letter-still-given-before", deliv(old) == "given_before", deliv(old))
+    stops(h, "build")
+    r.check("c7-new-after-stop-not-acted", deliv(new) == "not_acted", deliv(new))
+
+
 CASES = [case_send, case_send_order, case_events, case_ownership, case_status, case_drafts, case_hook,
          case_notice, case_render, case_late, case_kb_refs_outside, case_corrupt, case_wake, case_join,
-         case_service, case_hooks_cmd, case_db_read_only, case_hooks_status, case_toast_mod, case_toast_read_only]
+         case_service, case_hooks_cmd, case_db_read_only, case_hooks_status, case_toast_mod, case_toast_read_only, case_c2_batch, case_c4_busy,
+         case_c6_settle, case_c7_ack, case_c7_old_letters]
 
 
 def run_all(r, only):
