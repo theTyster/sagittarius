@@ -50,6 +50,8 @@ async function open(width, height, opts) {
     },
     async shot(file) { const s = await send('Page.captureScreenshot', {format: 'png'}); fs.writeFileSync(file, Buffer.from(s.result.data, 'base64')); },
     async afterNav() { const n0 = loads; await settle(n0); },
+    loadCount() { return loads; },
+    async waitNote() { for (let i = 0; i < 200; i++) { const f = await this.ev(`return !!document.querySelector('.donenote');`); if (f) return true; await sleep(25); } return false; },
     async key(k) { const code = k === 'Enter' ? 13 : 0; for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', {type, key: k, code: k, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, text: type === 'keyDown' && k === 'Enter' ? '\r' : undefined}); },
     async focusEmu() { await send('Emulation.setFocusEmulationEnabled', {enabled: true}); },   // a headless page has no window focus
     close() { ws.close(); }
@@ -686,15 +688,23 @@ async function r10() {
     const ta = f.querySelector('textarea[name=text]'); if (ta) ta.value = 'probe words';
     f.scrollIntoView({block: 'center'}); await new Promise(r => setTimeout(r, 400));
     const y = Math.round(scrollY);
+    const cardEl = f.closest('[id^="item-"]'), all = [...document.querySelectorAll('[id^="item-"]')].filter(e => !e.closest('dialog') && e.getBoundingClientRect().height > 0), nx = all[all.indexOf(cardEl) + 1];
+    const cardId = cardEl ? cardEl.id : '', cardTop = cardEl ? Math.round(cardEl.getBoundingClientRect().top) : null, nextId = nx && cardEl && nx.getBoundingClientRect().top - cardEl.getBoundingClientRect().bottom <= 40 ? nx.id : '';   // only the card that follows in the same list
     f.requestSubmit(); await new Promise(r => setTimeout(r, 900));
-    return {found: true, y, reviewOpen: !!document.querySelector('#review button.go')};`);
+    return {found: true, y, cardId, cardTop, nextId, reviewOpen: !!document.querySelector('#review button.go')};`);
   check('c18: the probe found a card to answer in Waits on you, and its review opened', pre.found && pre.reviewOpen, JSON.stringify(pre));
   if (!(pre.found && pre.reviewOpen)) { pg.close(); return; }
+  const loads0 = pg.loadCount();
+  await pg.ev(`window.__cardEl = document.getElementById(${JSON.stringify(pre.cardId)}); return 1;`);
   await pg.ev(`document.querySelector('#review button.go').click(); return 1;`);
-  await pg.afterNav();
-  const folded = await pg.ev(`for (let i = 0; i < 100; i++) { const n = document.querySelector('.donenote'); if (n && /height/.test(n.style.transition || '')) return true; await new Promise(r => setTimeout(r, 15)); } return false;`);
-  check('c21: the line folds in with a height transition (the cards below move up)', folded, String(folded));
-  await new Promise(r => setTimeout(r, 700));
+  const folding = await pg.ev(`for (let i = 0; i < 120; i++) { const c = window.__cardEl; if (c && /height/.test(c.style.transition || '') && c.style.height === '0px') return true; await new Promise(r => setTimeout(r, 10)); } return false;`);
+  check('c21: the answered card folds away with a height transition (a third of a second)', folding, String(folding));
+  await pg.waitNote();
+  check('c21: after the send no page is loaded (the page changes in place)', pg.loadCount() === loads0, 'loads ' + loads0 + ' -> ' + pg.loadCount());
+  await new Promise(r => setTimeout(r, 900));
+  const gone = await pg.ev(`const c = document.getElementById(${JSON.stringify(pre.cardId)}); const n = document.getElementById(${JSON.stringify(pre.nextId)}); const near = [...document.querySelectorAll('[id^="item-"]')].filter(e => e.getBoundingClientRect().height > 0).slice(0, 4).map(e => e.id.slice(-18) + '@' + Math.round(e.getBoundingClientRect().top)); return {cardGone: !c, y: Math.round(scrollY), nextTop: n ? Math.round(n.getBoundingClientRect().top) : null, near, nextId: ${JSON.stringify(pre.nextId)}};`);
+  check('c21: the answered card is gone from the page', gone.cardGone, JSON.stringify(gone));
+  check('c21: the next item of the list stands within 10 px of where the card stood', !pre.nextId || (gone.nextTop !== null && pre.cardTop !== null && Math.abs((gone.nextTop + gone.y) - (pre.cardTop + pre.y)) <= 10), JSON.stringify(gone) + ' card was at ' + pre.cardTop + ' (page y ' + pre.y + ')');
   const a = await pg.ev(state + '');
   const note = await pg.ev(`const n = document.querySelector('.donenote'); if (!n) return null; const r = n.getBoundingClientRect(); return {text: n.textContent, href: (n.querySelector('a') || {}).href || '', top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight, dy: n.getAttribute('data-y')};`);
   const st = await pg.ev(state);
@@ -725,7 +735,7 @@ async function r10() {
     return {found: true, top, reviewOpen: !!document.querySelector('#review button.go')};`);
   if (pre2.found && pre2.reviewOpen) {
     await pg.ev(`document.querySelector('#review button.go').click(); return 1;`);
-    await pg.afterNav(); await new Promise(r => setTimeout(r, 900));
+    await pg.waitNote(); await new Promise(r => setTimeout(r, 900));
     const n2 = await pg.ev(`const n = document.querySelector('.donenote'); if (!n) return null; const r = n.getBoundingClientRect(); const e = document.elementFromPoint(Math.round(r.left + Math.min(40, r.width / 2)), Math.round(r.top + r.height / 2)); return {text: n.textContent, top: Math.round(r.top), vh: innerHeight, seen: !!(e && (e === n || n.contains(e)))};`);
     check('c18: after the last ask of a list the line is on the screen and can be seen', !!n2 && n2.top >= 0 && n2.top < n2.vh - 20 && n2.seen, JSON.stringify(n2) + ' card was at ' + pre2.top);
   } else check('c18: the last ask of a list was found and its review opened', false, JSON.stringify(pre2));
@@ -743,6 +753,11 @@ async function r10() {
   await pg.go(base + '/?mh=alpha#item-alpha-ask-A-0002');
   const an = await pg.ev(state);
   check('c19: a link with an anchor is not sent to the kept view (the anchor stays)', /#item-alpha-ask-A-0002$/.test(an.url) && an.view !== 'questions', JSON.stringify(an));
+  // c23: a tab whose address names a view shows that view, also when the kept view is from another server start
+  await pg.ev(`const k = Object.keys(localStorage).filter(k => k.indexOf('desk-last:') === 0); for (const x of k) localStorage.setItem(x, JSON.stringify({view: 'everything', boot: 'another-server-start'})); return k.length;`);
+  await pg.go(base + '/?mh=alpha&view=questions');
+  const tq = await pg.ev(state);
+  check('c23: a tab with view=questions in its address shows Questions after a restart', tq.view === 'questions', JSON.stringify(tq));
   // c20: a kept place from another server start is a cold load
   await pg.ev(`const k = Object.keys(localStorage).filter(k => k.indexOf('desk-last:') === 0); for (const x of k) localStorage.setItem(x, JSON.stringify({view: 'questions', boot: 'another-server-start'})); return k.length;`);
   await pg.go(base + '/?mh=alpha');

@@ -20,7 +20,7 @@
   var lastKey = 'desk-last:' + (document.body.getAttribute('data-tab') || '');
   function lastRead() { try { var o = JSON.parse(localStorage.getItem(lastKey) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
   var thisView = document.body.getAttribute('data-view') || '';
-  var deskDone = null;
+  var deskDone = null, reviewCard = null;
   function runDone() { var f = deskDone; deskDone = null; if (f) f(); }
   var qs = new URLSearchParams(location.search);
   if (!qs.has('view') && !location.hash && !qs.has('did')) {
@@ -31,11 +31,79 @@
       return;
     }
   }
-  if (qs.has('view') && qs.get('view') !== 'waits') {   // c20: a refresh of a tab that an older server start served is a cold load
-    var lv2 = lastRead(), nav0 = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
-    if (lv2 && lv2.boot !== bootId && nav0.type === 'reload') { qs.set('view', 'waits'); location.replace(location.pathname + '?' + qs.toString()); return; }
-  }
   try { localStorage.setItem(lastKey, JSON.stringify({view: thisView, boot: bootId})); } catch (e) { /* no storage: nothing is kept */ }
+  // c21: the Send of the review posts in the background and the page changes in place: no document is loaded, the
+  // card folds away, the line of what was done stands where it was, and the counts are read again. Without fetch, or
+  // when the server refuses, the form posts as before (the server's own page says why).
+  function nowLine(res) {
+    var line = document.createElement('p'); line.className = 'banner donenote'; line.setAttribute('role', 'status');
+    line.appendChild(document.createTextNode((res.said || 'Done') + '. '));
+    if (res.ans && res.did) {
+      var lq = new URLSearchParams(location.search); lq.delete('did'); lq.delete('said'); lq.delete('ans'); lq.set('view', 'answered');
+      var a = document.createElement('a'); a.href = '?' + lq.toString() + '#' + encodeURIComponent(String(res.did).replace(/^item-/, 'ans-'));
+      a.textContent = 'See it in Answered'; line.appendChild(a);
+    }
+    return line;
+  }
+  function fadeOut(line, ms) {
+    var x = document.createElement('button'); x.type = 'button'; x.className = 'linkb'; x.textContent = '\u00d7'; x.setAttribute('aria-label', 'Dismiss this line'); x.style.marginLeft = '12px';
+    x.addEventListener('click', function () { if (line.parentNode) line.parentNode.removeChild(line); });
+    line.appendChild(x);
+    setTimeout(function () { line.style.transition = 'opacity 400ms'; line.style.opacity = '0'; setTimeout(function () { if (line.parentNode) line.parentNode.removeChild(line); }, 450); }, ms);
+  }
+  function refreshCounts() {   // the views row and the lanes of the band: read again from the server
+    fetch(location.pathname + location.search, {credentials: 'same-origin', headers: {'X-Desk-Fragment': '1'}}).then(function (r) { return r.text(); }).then(function (t) {
+      var d = new DOMParser().parseFromString(t, 'text/html');
+      ['nav.views', 'nav.lanes'].forEach(function (sel) {
+        var o = document.querySelector(sel), n = d.querySelector(sel);
+        if (o && n) o.innerHTML = n.innerHTML;
+      });
+    }).catch(function () { /* the counts stay as they were until the next load */ });
+  }
+  function applyInPlace(res) {
+    var dlg2 = document.getElementById('review'); if (dlg2 && dlg2.open) dlg2.close();
+    try { sessionStorage.removeItem('desk-done-place'); } catch (e) { /* none */ }
+    var line = nowLine(res), card = reviewCard && document.body.contains(reviewCard) ? reviewCard : null, band = document.querySelector('header.top');
+    var bandH = band ? Math.max(0, band.getBoundingClientRect().bottom) : 0;
+    if (card && res.leaves) {
+      var r = card.getBoundingClientRect(), top = r.top + scrollY;
+      line.style.cssText = 'position:absolute;z-index:6;margin:0;left:' + Math.round(r.left + scrollX) + 'px;width:' + Math.round(r.width) + 'px;top:' + Math.round(top) + 'px;opacity:0;transition:opacity 250ms';
+      document.body.appendChild(line);
+      requestAnimationFrame(function () { line.style.opacity = '1'; });
+      card.style.overflow = 'hidden'; card.style.height = r.height + 'px'; card.style.boxSizing = 'border-box';
+      card.style.transition = 'height 330ms ease-out, margin 330ms ease-out, padding 330ms ease-out, opacity 330ms ease-out, border-width 330ms';
+      requestAnimationFrame(function () { requestAnimationFrame(function () {
+        card.style.height = '0px'; card.style.marginTop = '0'; card.style.marginBottom = '0'; card.style.paddingTop = '0'; card.style.paddingBottom = '0'; card.style.opacity = '0'; card.style.borderWidth = '0';
+      }); });
+      setTimeout(function () {
+        if (card.parentNode) card.parentNode.removeChild(card);
+        var lr = line.getBoundingClientRect();
+        if (lr.bottom < bandH + 4 || lr.top > innerHeight - 20) line.scrollIntoView({block: 'center'});   // the page got shorter: the line is off the screen
+      }, 380);
+      fadeOut(line, 60000);
+    } else if (card) {
+      card.parentNode.insertBefore(line, card);
+      var nat = line.offsetHeight; line.style.height = '0px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
+      requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = nat + 'px'; }); });
+      setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
+      fadeOut(line, 60000);
+    } else {
+      line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0';
+      document.body.appendChild(line); fadeOut(line, 60000);
+    }
+    reviewCard = null;
+    refreshCounts();
+  }
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.getAttribute || f.getAttribute('action') !== '/send' || !f.closest || !f.closest('#review') || !window.fetch || !window.FormData) return;
+    e.preventDefault();
+    var b = new URLSearchParams(new FormData(f)); b.set('inplace', '1'); b.set('view', thisView);
+    fetch('/send', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: b.toString()}).then(function (r) {
+      if (!r.ok) { f.setAttribute('data-plain', '1'); f.submit(); return null; }
+      return r.json();
+    }).then(function (res) { if (res) applyInPlace(res); }).catch(function () { f.submit(); });
+  }, true);
   document.addEventListener('submit', function (e) {
     var f = e.target;
     if (!f || !f.getAttribute || !/\/(send|review)$/.test(f.getAttribute('action') || '') || f.querySelector('input[name=view]')) return;
@@ -311,7 +379,8 @@
       if (!dlg || !window.fetch) return;            // no dialog: the form posts to /review as a page
       e.preventDefault();
       try {
-        var pc = f.closest('[id^="item-"]') || f, pr = pc.getBoundingClientRect();
+        reviewCard = f.closest('[id^="item-"]');   // the card of the item (c21: the send updates the page in place)
+        var pc = reviewCard || f, pr = pc.getBoundingClientRect();
         sessionStorage.setItem('desk-done-place', JSON.stringify({top: Math.round(pr.top), h: Math.round(pr.height), y: Math.round(scrollY), view: thisView}));
       } catch (e) { /* no storage: the line takes the default place */ }
       post('/review', fields(f), {'X-Desk-Fragment': '1'}).then(function (r) {

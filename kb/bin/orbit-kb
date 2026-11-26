@@ -5457,7 +5457,17 @@ serve_act(review, Form) :-
 serve_act(send, Form) :-
     (   \+ desk_mode -> serve_message_page(404, "There is no such page. GET / shows the questions.")
     ;   desk_send_form(Form, R),
-        (   R = ok(Anchor) -> serve_frame_headers(FH),
+        (   R = ok(Anchor), serve_field(Form, inplace, "1")
+        ->  % r10 c21: the page updates in place: no redirect, no document; the page script takes this answer
+            serve_frame_headers(FH0), desk_done_words(Form, Anchor, Said0),
+            ( serve_field(Form, intent, I1) -> true ; I1 = "answer" ), ( serve_field(Form, item, It1) -> true ; It1 = "" ),
+            ( memberchk(I1, ["answer", "close", "park"]), It1 \== "new" -> Leaves = true ; Leaves = false ),
+            ( I1 == "answer", string_concat("ask:", _, It1), Anchor \== '' -> Ans = true ; Ans = false ),
+            format("Status: 200~n~wContent-type: application/json; charset=UTF-8~nCache-Control: no-store~n~n", [FH0]),
+            set_stream(current_output, encoding(utf8)),
+            atom_string(AnchorS, Anchor),
+            json_write_dict(current_output, _{ok: true, said: Said0, did: AnchorS, ans: Ans, leaves: Leaves}, [width(0)])
+        ;   R = ok(Anchor) -> serve_frame_headers(FH),
             ( serve_field(Form, tab, Tb), Tb \== "" -> uri_encoded(query_value, Tb, TbE), format(string(Back), "/?mh=~w", [TbE]), Sep = "&" ; Back = "/", Sep = "?" ),
             (   serve_field(Form, view, VW), memberchk(VW, ["waits", "questions", "answered", "everything"])
             ->  % r10 c18: the view stays, with no anchor (the card may have left the view); a line says what was done
@@ -9210,7 +9220,7 @@ desk_letter_head(About, Head) :- dk_f("Letter from Ty (the Desk), about ~w:", [A
 % desk_early_js(-Js): the first script of the page, before anything paints (r10 c19, c20): the plain address of a
 % browser that kept a view of this server goes to that view; a refresh of a tab of an older server start is a cold
 % load (Waits on you). The same rule is in desk.js (a fallback); the boot id is a hash of the token of this server.
-desk_early_js("(function(){try{var d=document.body,t=d.getAttribute('data-token')||'',h=5381;for(var i=0;i<t.length;i++)h=((h*33)^t.charCodeAt(i))>>>0;var b=h.toString(36),q=new URLSearchParams(location.search),k='desk-last:'+(d.getAttribute('data-tab')||''),o=JSON.parse(localStorage.getItem(k)||'null'),n=(performance.getEntriesByType('navigation')[0]||{}).type,v=d.getAttribute('data-view')||'';if(o&&/^(waits|questions|answered|everything)$/.test(o.view||'')){if(!q.has('view')&&!location.hash&&!q.has('did')){if(o.boot===b&&o.view!==v){q.set('view',o.view);location.replace(location.pathname+'?'+q.toString())}}else if(q.has('view')&&n==='reload'&&o.boot!==b&&q.get('view')!=='waits'){q.set('view','waits');location.replace(location.pathname+'?'+q.toString())}}}catch(e){}})();").
+desk_early_js("(function(){try{var d=document.body,t=d.getAttribute('data-token')||'',h=5381;for(var i=0;i<t.length;i++)h=((h*33)^t.charCodeAt(i))>>>0;var b=h.toString(36),q=new URLSearchParams(location.search),k='desk-last:'+(d.getAttribute('data-tab')||''),o=JSON.parse(localStorage.getItem(k)||'null'),n=(performance.getEntriesByType('navigation')[0]||{}).type,v=d.getAttribute('data-view')||'';if(o&&/^(waits|questions|answered|everything)$/.test(o.view||'')){if(!q.has('view')&&!location.hash&&!q.has('did')){if(o.boot===b&&o.view!==v){q.set('view',o.view);location.replace(location.pathname+'?'+q.toString())}}}}catch(e){}})();").
 % desk_done_words(+Form, +Anchor, -Text) (r10, c18): one line that says what was done: "ask A-0001: answered".
 % desk_item_name(+Item, -Name): the short name of the item of a form, for the line of what was done.
 desk_item_name(It, Name) :-
