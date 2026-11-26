@@ -525,6 +525,7 @@ kb_command('pin-request').
 kb_command('apply-pending').
 kb_command(review).
 kb_command(withdraw).
+kb_command('model-run').
 kb_command(adopt).
 kb_command(retire).
 kb_command(rests).
@@ -664,7 +665,7 @@ writer_command('confirm-proposal').
 % --take replaces the holder at once and records writer_takeover/3 too.
 % The lock is a record, not a guard: nothing stops a hand edit of kb.pl.
 
-lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'pin-item',
+lock_command(C) :- memberchk(C, [adopt, retire, judge, locate, confirm, add, subject, attest, run, prove, uses, withdraw, 'model-run', 'pin-item',
                                  'pin-question', 'pin-answer', 'pin-request', 'apply-pending', review,
                                  propose, 'confirm-proposal']).
 
@@ -1293,6 +1294,7 @@ kb_cmd('pin-request', KB, Args, Code) :- cmd_pin_request(KB, Args, Code).
 kb_cmd('apply-pending', KB, Args, Code) :- cmd_apply_pending(KB, Args, Code).
 kb_cmd(review, KB, Args, Code) :- cmd_review(KB, Args, Code).
 kb_cmd(withdraw, KB, Args, Code) :- cmd_withdraw(KB, Args, Code).
+kb_cmd('model-run', KB, Args, Code) :- cmd_model_run(KB, Args, Code).
 kb_cmd(propose, KB, Args, Code) :- cmd_propose(KB, Args, Code).
 kb_cmd('confirm-proposal', KB, Args, Code) :- cmd_confirm_proposal(KB, Args, Code).
 
@@ -4269,6 +4271,242 @@ kb_lines_commented(File, LTs, Out) :-
     atomic_list_concat(Outs, '\n', Out).
 
 % ---------------------------------------------------------------------
+% model-run: orbit runs the solver or the model checker itself (orbit-front-door c1 to c3)
+% ---------------------------------------------------------------------
+% orbit model-run MODEL [--tool z3|cvc5|tlc] [--timeout SECONDS] [--spec FILE] [--cfg FILE] [--with FILE]...
+% MODEL is a subject with model(MODEL, smt|tla). z3 (else cvc5) runs an smt model, tlc a tla model.
+% For tlc the files are copied into a temporary directory and TLC runs there, so it leaves no states/
+% in the KB: the model file; --spec FILE, a harness module that TLC checks (it extends the model);
+% the config (--cfg FILE, else the .cfg of the same name beside the spec); each --with FILE, a module
+% that the spec extends. The output is the log runs/N-MODEL.log, recorded as a subject with
+% model_run(LOG, MODEL, DIGEST), the digest of the model file that ran. The first line of the log names
+% the tool, its exit code, the verdict, and the digest of each file that took part.
+% A run is decided only when the tool exits as it does for a result and prints it: z3 or cvc5 with exit 0
+% and only sat lines, or only unsat lines; TLC with exit 0 and "No error has been found" (holds), or exit
+% 11, 12 or 13 and a violation line (a counterexample), never both. Anything else (unknown, a nonzero
+% exit of a solver, a timeout, a missing tool) exits 2: the log is kept as a subject, no model_run is
+% written, and the run counts for or against no claim. A model_run fact cannot be added by hand: add
+% refuses it and names this command. Not covered: the digest of model_run is that of the model file
+% only; the config and the other files are named in the log header (a question for discovery).
+cmd_model_run(KB, Args, Code) :-
+    parse_opts(Args, ['--tool'-value, '--timeout'-value, '--spec'-value, '--cfg'-value, '--with'-value], Pos, Opts),
+    (   Pos = [M] -> true ; usage_error("Give one model: orbit model-run MODEL [--tool z3|cvc5|tlc] [--timeout SECONDS] [--spec FILE] [--cfg FILE] [--with FILE]...", []) ),
+    opt(Opts, '--timeout', '120', TA),
+    (   atom_number(TA, TO), number(TO), TO > 0 -> true ; usage_error("--timeout takes a number of seconds above 0.", []) ),
+    kb_items(KB, Items), kb_dir(KB, Dir),
+    (   member(it(kb, _, _, MT, _, _), Items), nonvar(MT), MT = model(M, Kind) -> true
+    ;   die(2, ["There is no model " + M + " in kb.pl (model(" + M + ", smt) or model(" + M + ", tla)).", "Fix: orbit subject " + M + " FILE, then orbit add 'model(" + M + ", smt)'. Nothing was run."] >> fix_lines)
+    ),
+    (   member(it(kb, _, _, ST, _, _), Items), nonvar(ST), ST = subject(M, Path, Digest) -> true
+    ;   die(2, ["Model " + M + " has no subject file. Fix: orbit subject " + M + " FILE. Nothing was run."] >> fix_lines)
+    ),
+    subject_abs(KB, Path, Abs),
+    (   exists_file(Abs) -> true ; die(2, ["The model file " + Abs + " does not exist. Nothing was run."] >> fix_lines) ),
+    sha256_file(Abs, Now0),
+    (   Now0 == Digest -> true
+    ;   die(2, ["The model file " + Path + " changed since subject " + M + " was recorded.",
+            "Fix: orbit subject " + M + " " + Path + " records the new digest. Nothing was run."] >> fix_lines)
+    ),
+    (   Kind \== tla, member(O, ['--spec', '--cfg', '--with']), memberchk(O-_, Opts)
+    ->  usage_error("~w is for a tla model.", [O]) ; true ),
+    mr_tool(Kind, Opts, Tool, ToolArgs0),
+    directory_file_path(Dir, runs, RunsDir), make_directory_path(RunsDir),
+    (   Kind == tla
+    ->  file_directory_name(Abs, MDir),
+        mr_tla_files(Opts, Dir, MDir, Abs, Spec, Cfg, Withs),
+        findall(F, ( member(F, [Spec]) ; Cfg \== none, F = Cfg ; member(F, Withs) ), Fs0), exclude(==(Abs), Fs0, Fs1), sort(Fs1, FileList),
+        include(fact_item, Items, FactItems), items_decls(Items, Ds0), build_env(FactItems, Ds0, env(Ids0, _, _, _)),
+        mr_resolve_files(Items, Dir, M, Ids0, FileList, _),
+        setup_call_cleanup(mr_tmpdir(Tmp),
+            (   mr_stage(Tmp, Abs, Spec, Cfg, Withs, SpecBase, CfgBase),
+                ( CfgBase == none -> CfgArgs = [] ; CfgArgs = ['-config', CfgBase] ),
+                directory_file_path(Tmp, states, Meta),
+                append([ToolArgs0, ['-metadir', Meta], CfgArgs, [SpecBase]], ToolArgs),
+                mr_run(Tool, ToolArgs, Tmp, RunsDir, TO, EC, Out) ),
+            mr_rmdir(Tmp)),
+        mr_files_text(Spec, Cfg, Withs, FilesText)
+    ;   file_directory_name(Abs, MDir), FileList = [],
+        append(ToolArgs0, [Abs], ToolArgs),
+        mr_run(Tool, ToolArgs, MDir, RunsDir, TO, EC, Out), FilesText = ""
+    ),
+    split_string(Out, "\n", "\r \t", Lines),
+    mr_class(Kind, EC, Lines, Class),
+    (   EC == timeout -> Verdict = timeout
+    ;   Class \== none -> Verdict = decided
+    ;   EC == 0 -> Verdict = unknown
+    ;   Verdict = failed
+    ),
+    utc_now(Now),
+    with_kb_lock(Dir, mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, FileList, Verdict, Class, LogId, Log)),
+    mr_say(Verdict, Class, M, Tool, Log, LogId),
+    ( Verdict == decided -> Code = 0 ; Code = 2 ).
+
+mr_tool(smt, Opts, Tool, Args) :- !,
+    (   memberchk('--tool'-T, Opts) -> true
+    ;   absolute_file_name(path(z3), _, [access(execute), file_errors(fail)]) -> T = z3
+    ;   T = cvc5
+    ),
+    (   memberchk(T, [z3, cvc5]) -> true ; usage_error("--tool for an smt model is z3 or cvc5.", []) ),
+    Tool = T, ( T == cvc5 -> Args = ['--lang=smt2'] ; Args = [] ).
+mr_tool(tla, Opts, tlc, ['-workers', '2']) :-
+    (   memberchk('--tool'-T, Opts), T \== tlc -> usage_error("--tool for a tla model is tlc.", []) ; true ).
+
+% mr_class(+Kind, +EC, +Lines, -Class): the result that the tool printed AND exited with, or none.
+mr_class(smt, EC, Lines, Class) :- !,
+    (   EC == 0
+    ->  findall(W, ( member(L, Lines), memberchk(L, ["sat", "unsat", "unknown"]), atom_string(W, L) ), Ws0), sort(Ws0, Ws),
+        (   Ws = [sat] -> Class = z3_sat ; Ws = [unsat] -> Class = z3_unsat ; Class = none )
+    ;   Class = none
+    ).
+mr_class(tla, EC, Lines, Class) :-
+    (   member(L, Lines), sub_string(L, _, _, _, "No error has been found") -> Holds = true ; Holds = false ),
+    (   member(L2, Lines), ( sub_string(L2, _, _, _, "is violated") ; sub_string(L2, _, _, _, "Temporal properties were violated")
+                           ; sub_string(L2, _, _, _, "Deadlock reached") ) -> Viol = true ; Viol = false ),
+    (   EC == 0, Holds == true, Viol == false -> Class = tlc_holds
+    ;   memberchk(EC, [11, 12, 13]), Viol == true, Holds == false -> Class = tlc_violated
+    ;   Class = none
+    ).
+
+mr_path(Dir, MDir, F, Abs) :-
+    (   is_absolute_file_name(F) -> Abs0 = F
+    ;   exists_file(F) -> absolute_file_name(F, Abs0)
+    ;   directory_file_path(MDir, F, P1), exists_file(P1) -> Abs0 = P1
+    ;   directory_file_path(Dir, F, Abs0)
+    ),
+    (   exists_file(Abs0) -> Abs = Abs0
+    ;   die(2, ["The file " + F + " does not exist. Nothing was run."] >> fix_lines)
+    ).
+
+mr_tla_files(Opts, Dir, MDir, Abs, Spec, Cfg, Withs) :-
+    (   memberchk('--spec'-S, Opts) -> mr_path(Dir, MDir, S, Spec) ; Spec = Abs ),
+    (   memberchk('--cfg'-C, Opts) -> mr_path(Dir, MDir, C, Cfg)
+    ;   file_name_extension(Stem, _, Spec), file_name_extension(Stem, cfg, CfgF), exists_file(CfgF) -> Cfg = CfgF
+    ;   Cfg = none
+    ),
+    findall(W, ( member('--with'-W0, Opts), mr_path(Dir, MDir, W0, W) ), Withs).
+
+mr_tmpdir(T) :-
+    tmp_file(orbit_model_run, T), make_directory(T).
+mr_rmdir(T) :- catch(delete_directory_and_contents(T), _, true).
+
+% mr_stage(+Tmp, +ModelFile, +Spec, +Cfg, +Withs, -SpecBase, -CfgBase): copy the files into Tmp.
+mr_stage(Tmp, Model, Spec, Cfg, Withs, SpecBase, CfgBase) :-
+    findall(F, ( member(F, [Model, Spec|Withs]) ; Cfg \== none, F = Cfg ), Fs0), sort(Fs0, Fs),
+    forall(member(F, Fs), ( file_base_name(F, B), directory_file_path(Tmp, B, D), copy_file(F, D) )),
+    file_base_name(Spec, SpecBase),
+    ( Cfg == none -> CfgBase = none ; file_base_name(Cfg, CfgBase) ).
+
+mr_files_text(Spec, Cfg, Withs, Text) :-
+    sha256_file(Spec, SD), ( Cfg == none -> CD = none ; sha256_file(Cfg, CD) ),
+    findall(D, ( member(W, Withs), sha256_file(W, D) ), WDs), atomic_list_concat(WDs, ',', WT),
+    format(string(Text), " spec=~w cfg=~w with=~w", [SD, CD, WT]).
+
+% mr_run(+Tool, +Args, +Cwd, +RunsDir, +TimeOut, -EC, -Output): EC is the exit code, timeout, failed or not_found.
+mr_run(Tool, Args, Cwd, RunsDir, TO, EC, Out) :-
+    (   absolute_file_name(path(Tool), Exe, [access(execute), file_errors(fail)])
+    ->  runs_tmp(RunsDir, Tmp, OS),
+        catch(process_create(Exe, Args, [cwd(Cwd), stdin(null), stdout(stream(OS)), stderr(stream(OS)), process(P)]), Ex, true),
+        close(OS),
+        (   nonvar(Ex)
+        ->  err_text(Ex, ET), EC = failed, fmt(Out, "could not start ~w: ~w~n", [Tool, ET])
+        ;   run_wait(P, TO, St),
+            (   St == timeout -> EC = timeout
+            ;   St = exit(C) -> EC = C
+            ;   St = killed(Sg) -> EC is 128 + Sg
+            ;   EC = 255
+            ),
+            read_file_to_string(Tmp, Out, [encoding(utf8)])
+        )
+    ;   EC = not_found, fmt(Out, "~w is not on the PATH~n", [Tool])
+    ).
+
+mr_record(KB, M, Digest, Tool, EC, Now, Out, FilesText, FileList, Verdict, Class, LogId, Log) :-
+    kb_dir(KB, Dir), recheck_writer(Dir), kb_lib(KB, Lib),
+    load_kb(Dir, Lib, KB2), kb_items(KB2, Items), items_decls(Items, Ds),
+    directory_file_path(Dir, runs, RunsDir),
+    mr_next_n(RunsDir, N),
+    format(atom(Rel), "runs/~w-~w.log", [N, M]),
+    directory_file_path(Dir, Rel, Log),
+    format(string(Head), "% orbit model-run ~w tool=~w exit=~w verdict=~w class=~w digest=~w~w time=~w~n", [M, Tool, EC, Verdict, Class, Digest, FilesText, Now]),
+    string_concat(Head, Out, LogText),
+    create_exclusive(Log, LogText),
+    sha256_file(Log, LogDigest),
+    include(fact_item, Items, Facts),
+    build_env(Facts, Ds, env(Ids, _, _, _)),
+    format(atom(LogId0), "~w_run~w", [M, N]),
+    mr_free_id(LogId0, Ids, LogId),
+    mr_resolve_files(Items, Dir, M, [LogId|Ids], FileList, Res),
+    findall(L, ( member(r(FId, FAbs, FDg, new), Res), stored_path(Dir, FAbs, FSt), clause_line(subject(FId, FSt, FDg), [], L) ), NewSubs),
+    findall(L, ( member(r(FId, _, FDg, _), Res), clause_line(model_run_file(LogId, FId, FDg), [], L) ), FileLines),
+    clause_line(subject(LogId, Rel, LogDigest), [], L1),
+    (   Verdict == decided
+    ->  clause_line(model_run(LogId, M, Digest), [], L2), append([NewSubs, [L1, L2], FileLines], Ls)
+    ;   append(NewSubs, [L1], Ls)
+    ),
+    kb_file(KB2, KbFile),
+    append_lines(KbFile, Ls).
+
+% mr_subject_guard(+KB, +Items, +Id, +NewDigest) (review of orbit-front-door): the log of a model run is
+% not refreshed by subject: an edited log would count as the run that orbit made. Run orbit model-run again.
+mr_subject_guard(KB, Items, Id, NewDigest) :-
+    (   member(it(kb, _, _, subject(Id, OldP, OldD), _, _), Items), OldD \== NewDigest,
+        mr_run_log_subject(KB, Items, Id, OldP)
+    ->  fmt(M, "~w is the log of a model run: subject does not refresh the digest of a log that changed. The log counts only as orbit model-run wrote it.", [Id]),
+        reject([M, "Fix: run orbit model-run MODEL again; it writes a new log."] >> fix_lines)
+    ;   true
+    ).
+
+% mr_run_log_subject(+KB, +Items, +Id, +Path): the subject is the log of a model run: a model_run fact names
+% it, or its first line is the header that orbit model-run writes.
+mr_run_log_subject(KB, Items, Id, Path) :-
+    (   member(it(_, _, _, T, _, _), Items), nonvar(T), T = model_run(Id, _, _) -> true
+    ;   atom(Path), subject_abs(KB, Path, Abs),
+        catch(setup_call_cleanup(open(Abs, read, S), read_line_to_string(S, L1), close(S)), _, fail),
+        string(L1), sub_string(L1, 0, _, _, "% orbit model-run ")
+    ), !.
+
+% mr_resolve_files(+Items, +Dir, +M, +UsedIds, +Files, -Res): each file that a run read (spec, cfg, with) is
+% a subject. One that is a subject already must still have the digest recorded (else the run is refused:
+% refresh it with orbit subject, and the runs at the old digest go stale: model_old_run); a new one gets
+% an id. Res: r(Id, AbsFile, Digest, old|new).
+mr_resolve_files(Items, Dir, M, Used, Files, Res) :-
+    foldl(mr_resolve_file(Items, Dir, M), Files, Used-[], _-Res0), reverse(Res0, Res).
+
+mr_resolve_file(Items, Dir, M, F, Used0-Acc, Used-[R|Acc]) :-
+    sha256_file(F, Dg), stored_path(Dir, F, St),
+    (   member(it(kb, _, _, subject(Id0, P0, D0), _, _), Items), atom(P0),
+        ( P0 == St ; is_absolute_file_name(P0), P0 == F )
+    ->  (   D0 == Dg -> R = r(Id0, F, Dg, old), Used = Used0
+        ;   die(2, ["The file " + St + " changed since subject " + Id0 + " was recorded.",
+                "Fix: orbit subject " + Id0 + " " + St + " records the new digest; runs at the old digest are then stale. Nothing was run."] >> fix_lines)
+        )
+    ;   file_base_name(F, B), file_name_extension(Stem, _, B),
+        format(atom(Id1), "~w_~w", [M, Stem]), mr_free_id(Id1, Used0, Id), R = r(Id, F, Dg, new), Used = [Id|Used0]
+    ).
+
+mr_free_id(Id, Ids, F) :- ( ord_memberchk(Id, Ids) -> atom_concat(Id, x, Id1), mr_free_id(Id1, Ids, F) ; F = Id ).
+
+mr_next_n(RunsDir, N) :-
+    (   exists_directory(RunsDir) -> directory_files(RunsDir, Fs) ; Fs = [] ),
+    findall(K, ( member(F, Fs), atom_codes(F, Cs), append(Ds, [0'-|_], Cs), Ds \== [], maplist([C]>>code_type(C, digit), Ds),
+                 number_codes(K, Ds) ), Ks),
+    ( Ks == [] -> N = 1 ; max_list(Ks, Mx), N is Mx + 1 ).
+
+mr_say(decided, Class, M, Tool, Log, LogId) :-
+    format("model ~w: ~w (~w). Log ~w, recorded as ~w with model_run.~n", [M, Class, Tool, Log, LogId]).
+mr_say(Verdict, _, M, Tool, Log, LogId) :-
+    Verdict \== decided,
+    format("model ~w: ~w (~w). Log ~w, kept as subject ~w. No model_run is recorded: this run is no result for or against a claim.~n", [M, Verdict, Tool, Log, LogId]).
+
+% orbit repo-map ARGS: the repo-map program beside this script, with the same arguments and streams.
+cmd_repo_map(Args, Code) :-
+    orbit_script(F0), real_file(F0, F), file_directory_name(F, D), directory_file_path(D, 'repo-map', RM),
+    (   exists_file(RM) -> true ; die(2, ["repo-map is not beside this script: " + RM] >> fix_lines) ),
+    process_create(RM, Args, [stdin(std), stdout(std), stderr(std), process(P)]),
+    process_wait(P, St),
+    (   St = exit(C) -> Code = C ; St = killed(S) -> Code is 128 + S ; Code = 255 ).
+
+% ---------------------------------------------------------------------
 % shift: the step from words to records in one command (D37, 0.3.0 K-H)
 % ---------------------------------------------------------------------
 % orbit-kb shift DIR (--request-file F | --request T) --hypothesis T [--kind K]
@@ -4586,6 +4824,7 @@ cmd_add(KB, Args, Code) :-
     findall(M, member(err(M), Rs), Errs),
     (   Errs \== [] -> reject(Errs) ; true ),
     findall(It, member(ok(It), Rs), NewItems),
+    model_run_gate(NewItems),
     check_words_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
@@ -4621,6 +4860,17 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     Code = 0.
+
+% model_run_gate(+NewItems) (orbit-front-door c3): a model_run fact is written by orbit model-run, which started
+% the solver itself; a run typed by hand is refused.
+model_run_gate(NewItems) :-
+    (   member(it(_, _, _, T, _, _), NewItems), nonvar(T), ( T = model_run(_, M, _) ; T = model_run_file(_, _, _), M = none )
+    ->  term_text(T, TT),
+        fmt(M1, "~w: a model run cannot be recorded by hand. Only orbit model-run writes model_run, because it runs the solver itself and keeps the log.", [TT]),
+        ( atom(M), M \== none -> fmt(Fix, "Fix: orbit model-run ~w   (z3 or cvc5 for an smt model, tlc for a tla model).", [M]) ; Fix = "Fix: orbit model-run MODEL." ),
+        reject([M1, Fix] >> fix_lines)
+    ;   true
+    ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -9551,6 +9801,7 @@ cmd_subject(KB, Args, Code) :-
     stored_path(Dir, Abs, Stored),
     New = subject(Id, Stored, Digest),
     kb_items(KB, Items),
+    mr_subject_guard(KB, Items, Id, Digest),
     items_decls(Items, Ds),
     include(fact_item, Items, Facts),
     exclude([it(_, _, _, T, _, _)]>>(nonvar(T), T = subject(Id, _, _)), Facts, Others),
@@ -11603,7 +11854,10 @@ w_diags(KB, Items, Ds, Facts, Diags) :-
               (   \+ exists_file(Abs)
               ->  fmt(M, "The file of subject ~q is missing: ~w. Restore it, or refresh with orbit-kb subject ~w PATH.", [Id, Abs, Id])
               ;   sha256_file(Abs, D1), D1 \== D0,
-                  fmt(M, "The file of subject ~q changed since its digest was recorded. Refresh with orbit-kb subject ~w ~w.", [Id, Id, Path])
+                  (   mr_run_log_subject(KB, Facts, Id, Path)
+                  ->  fmt(M, "The log of subject ~q (a model run) changed since orbit model-run wrote it, so it is not that run any more. Run orbit model-run MODEL again; subject does not refresh a run log.", [Id])
+                  ;   fmt(M, "The file of subject ~q changed since its digest was recorded. Refresh with orbit-kb subject ~w ~w.", [Id, Id, Path])
+                  )
               ) ),
             W1),
     % D22: the first_use/3 facts of kb.pl
@@ -12728,9 +12982,11 @@ name_in_path(Pre, Post) :-
     ).
 
 door_command(hub).
+door_command('repo-map').
 door_command('s1-record').
 door_command('drop-goal').
 
+cmd_door('repo-map', _, Args, Code) :- !, cmd_repo_map(Args, Code).
 cmd_door(Cmd, DirOpt, Args, Code) :-
     (   member(Arg, Args), memberchk(Arg, ['--help', '-h'])
     ->  cmd_help([hub], Code)
@@ -15736,6 +15992,8 @@ help_general([
 "  init DIR (--request TEXT | --request-file F) [--uses m1,m2] [--id ID] [--source REF]",
 "  uses MODULE ...",
 "  withdraw NAME/ARITY [--by human|agent]      remove a kind that a typo declared (lint E19)",
+"  model-run MODEL [--timeout S] [--spec F] [--cfg F] [--with F]   run the solver or TLC of a model; keep the log; write model_run",
+"  repo-map ARGS                               run the repo-map beside this tool (orbit repo-map --facts KB_PL --containers CONTAINERS_PL)",
 "  shift DIR --request-file F [--goal T [--goal-by human|agent]] --hypothesis T [--defeating-case T] (--no-premises|--premise T ...) --claim T --example T --check ID --checks-that T",
 "  add 'FACT' ... [--by human|agent] [--doc TEXT]",
 "  subject ID PATH",
@@ -16218,6 +16476,30 @@ help_lines(doctor, [
 "arithmetic under not gives exactly k2, k3, k4;",
 "E18 flags p :- not q, q :- not p; E17 flags -p(b).",
 "Exit 2 if something is missing or a self-test fails."
+]).
+help_lines('model-run', [
+"orbit model-run MODEL [--tool z3|cvc5|tlc] [--timeout SECONDS] [--spec FILE] [--cfg FILE] [--with FILE]...",
+"",
+"Run the solver or the model checker of a model yourself, and record the run. MODEL is a subject with",
+"model(MODEL, smt) or model(MODEL, tla). An smt model runs on z3 (else cvc5). A tla model runs on tlc in a",
+"temporary directory (nothing is left in the KB): --spec FILE is a harness module that TLC checks (it extends the",
+"model), --cfg FILE its config (default: the .cfg of the same name beside the spec), --with FILE a module that",
+"the spec extends. The output is runs/N-MODEL.log, kept as the subject MODEL_runN; its first line names the tool, the",
+"exit code, the verdict and the digest of each file that took part. When the tool decides (z3 or cvc5: exit 0 and",
+"only sat or only unsat; TLC: exit 0 and No error has been found, or exit 11, 12 or 13 and a violation line),",
+"model_run(LOG, MODEL, DIGEST) is written and the exit code is 0 (a deadlock, exit 11, is a result: a counterexample). Anything else (unknown, a failing exit, a",
+"timeout, a missing tool) keeps the log, writes no model_run and exits 2: it counts for or against no claim.",
+"orbit add refuses a model_run fact typed by hand. orbit subject does not refresh the digest of such a log.",
+"Each file besides the model file that a run read (--spec, --cfg, --with) is a subject (MODEL_STEM), and the run gets",
+"model_run_file(LOG, FILE, DIGEST) for it: when a digest of such a file changes (orbit subject), the run is stale. A run is",
+"refused while one of its files differs from its subject (refresh it with orbit subject first).",
+"Takes the writer lock."
+]).
+help_lines('repo-map', [
+"orbit repo-map ARGS",
+"",
+"Run the repo-map program beside this tool (the same arguments, the same output and exit code):",
+"orbit repo-map --facts KB_PL --containers CONTAINERS_PL [--level c1|c2|both]."
 ]).
 help_lines(withdraw, [
 "orbit-kb withdraw NAME/ARITY [--by human|agent]",

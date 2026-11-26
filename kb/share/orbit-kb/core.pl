@@ -193,6 +193,12 @@ decl(fact, model(ref(subject), oneof([smt, tla])),
 decl(fact, model_run(ref(subject), ref(model), digest),
      'A solver log, the model that the solver ran, and the digest of the model file at that run.',
      'log @(1) is a run of model @(2) at digest @(3)').
+% 0.11.0 (orbit-front-door c6): a model run reads more than the model file: a harness module, its cfg, other
+% modules. orbit model-run records each as a subject and writes this fact. A change of any of them (a new
+% digest by orbit subject) makes the run stale (model_old_run).
+decl(fact, model_run_file(ref(subject), ref(subject), digest),
+     'A file that a model run read besides the model file (a harness module, a cfg, a module), and its digest at that run. orbit model-run writes it.',
+     'run @(1) read file @(2) at digest @(3)').
 decl(fact, encodes(ref(model), ref(claim)),
      'A model states a claim, so the model can falsify the claim.',
      'model @(1) states claim @(2)').
@@ -637,6 +643,7 @@ was_red(K) :- attest(_, test_result, _, result(K, R1, fail), _, _),
 % A verdict counts only for the current digest of its own model: a log that also has a run at an
 % older digest does not count, so reusing a log for a new digest does not bring old verdicts back.
 model_old_run(S, M) :- model_run(S, M, D), subject(M, _, D1), D \= D1.
+model_old_run(S, M) :- model_run(S, M, _), model_run_file(S, F, D), subject(F, _, D1), D \= D1.
 model_run_current(S, M) :- model_run(S, M, D), subject(M, _, D), not model_old_run(S, M).
 model_run_stale(S, M) :- model_run(S, M, _), not model_run_current(S, M).
 model_verdict(A, M, K, R) :- attest(A, model_result, S, verdict(M, K, R), _, _), model_run_current(S, M).
