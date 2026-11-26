@@ -16,8 +16,13 @@ FAILS = []
 PASSED = 0
 
 
-def run(d, *args):
-    r = subprocess.run([OK, "--dir", d, *args], capture_output=True, text=True, env=ENV)
+AGENT_NAMES = ("CLAUDECODE", "AI_AGENT", "CLAUDE_CODE_SESSION_ID")   # orbit-kb agent_session/1 reads these
+AGENT_ENV = dict(ENV, CLAUDECODE="1")                                  # an agent shell, whatever shell runs the test
+HUMAN_ENV = {k: v for k, v in ENV.items() if k not in AGENT_NAMES}     # a shell with none of the names
+
+
+def run(d, *args, env=None):
+    r = subprocess.run([OK, "--dir", d, *args], capture_output=True, text=True, env=env or ENV)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -153,10 +158,15 @@ def t_human():
     ck("lint has no error", lint_clean(d)[0], lint_clean(d)[1])
     d2 = fixture()
     run(d2, "add", "answer(q1, 'A', human)", "--by", "human")
-    code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human")
+    code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human", env=AGENT_ENV)
     ck("--by human from an agent shell needs the words of the human (--note), as judge does", code != 0 and "--note" in out, out)
-    code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human", "--note", "Ty: drop that answer")
+    code, out = run(d2, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human", "--note", "Ty: drop that answer", env=AGENT_ENV)
     ck("the human changes his own record with no disclosure", code == 0, out)
+    d2h = fixture()
+    run(d2h, "release")                                     # the fixture's writer is the shell's; the human shell is another
+    run(d2h, "add", "answer(q1, 'A', human)", "--by", "human", env=HUMAN_ENV)   # one writer for both steps
+    code, out = run(d2h, "strike", "answer(q1)#1", "--why", "the human changed it", "--by", "human", env=HUMAN_ENV)
+    ck("--by human from a shell that is no agent session needs no --note", code == 0, out)
     d3 = fixture(["hypothesis(hy1, g1, human, 'the words of Ty')"])
     code, out = run(d3, "replace", "hy1", "hypothesis(hy2, g1, agent, 'mine')")
     ck("a hypothesis of the human is a record of the human", code != 0, out)
