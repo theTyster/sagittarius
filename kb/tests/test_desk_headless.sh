@@ -36,13 +36,13 @@ FAKE
 chmod +x "$T/bin/claude"
 export PATH="$T/bin:/usr/bin:/bin" HOME="$T/home" DESK_STATE="$T/state" FAKE_LOG="$T/claude.log"; : > "$FAKE_LOG"
 unset HUB_SESSION DESK_AGENTS
+[ "$(command -v claude)" = "$T/bin/claude" ] || { echo "setup: claude resolves outside the fake ($(command -v claude)); refusing to run"; exit 2; }
 h=$T/alpha
 python3 "$ROOT/hubkit/tools/hubkit.py" install --hub "$h" >/dev/null 2>&1 || { echo "setup: no hub"; exit 2; }
 ( cd "$h" && { [ -f flow/flow.db ] || python3 .claude/scripts/hubflow.py --hub "$h" init --seed flow/seed.json; } ) >/dev/null 2>&1
 K="$h/.claude/orbit-kb/bin/orbit-kb"; D="python3 $h/.claude/scripts/desk.py --hub $h"
 for s in t1 t2 t3 t4; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
 ( cd "$h" && python3 .claude/scripts/desk.py join --name alpha ) >/dev/null 2>&1
-command -v claude | grep -q "^$T/bin/claude$" || { echo "setup: claude is not the fake"; exit 2; }
 # DH6 (off by default)
 printf 'x' > "$T/text"; out0=$($D send --kind note --item-json '{"type": "kb", "slug": "t3", "kb": "specs/t3", "ref": "note"}' --about probe --text-file "$T/text" 2>/dev/null); sleep 0.5
 check "DH6 desk agents are off by default: no agent" '[ "$(grep -c "^START" "$FAKE_LOG")" = 0 ] && ! grep -q "\"agent\"" <<<"$out0"'

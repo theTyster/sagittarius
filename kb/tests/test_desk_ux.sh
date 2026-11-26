@@ -14,6 +14,10 @@ D=$(mktemp -d "${TMPDIR:-/tmp}/desk-ux.XXXXXX") || exit 2
 PIDS=""
 cleanup() { for p in $PIDS; do kill "$p" 2>/dev/null; done; [ "${DESK_KEEP:-}" = 1 ] && echo "kept: $D" || rm -rf "$D"; }
 trap cleanup EXIT
+# a fake claude first on the PATH: a desk agent that a letter starts by mistake never reaches the real claude (H-0261)
+mkdir -p "$D/fakebin" && printf '#!/bin/sh\necho "fake claude: a test reached claude" >&2\nexit 3\n' > "$D/fakebin/claude" && chmod +x "$D/fakebin/claude"
+export PATH="$D/fakebin:$PATH"
+[ "$(command -v claude)" = "$D/fakebin/claude" ] || { echo "setup: claude resolves outside the fake ($(command -v claude)); refusing to run"; exit 2; }
 die() { echo "setup: $*"; exit 2; }
 CB=$(command -v chromium-browser || command -v chromium || command -v google-chrome) || die "no Chromium"
 ND=$(command -v node) && "$ND" -e 'process.exit(typeof WebSocket==="function"?0:1)' || die "no Node 22"
