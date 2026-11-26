@@ -240,7 +240,8 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"
     echo "the ticket" > "$d/ticket.txt"; oldw subject tk ticket.txt; oldw add "ticket(tk)"; oldw attest approval tk 'digest(current)' --by human; oldw release
     q "$d" discovery_closed; [ "$rc" = 0 ] || { note "setup: the old tool did not close the orbit (rc $rc)"; return; }
-    wr build --dir "$d" lint; echo "$out" | grep -q ED12 || note "before the migration the new tool should read the old history as ED12 (it is the case that the migration cures): $(snip "$out")"
+    wr build --dir "$d" lint; echo "$out" | grep -q ED12 && note "before the migration (a frozen KB is never migrated) the new tool reads the old history as ED12: $(grep ED12 <<<"$out" | head -1 | cut -c1-200)"
+    gate_is "$d" go "the closed old KB before any migration (it reads as wholly from before the upgrade)"
     q "$d" 'vote_epoch_needed(_)'; [ "$rc" = 0 ] || note "the KB made before 0.11.0 does not ask for vote_epoch"
     wr build --dir "$d" migrate plan --old "$OLD"; pl=$out; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$pl" | tail -1)
     [ -n "$dg" ] || { note "migrate plan gave no digest: $(snip "$pl")"; return; }
@@ -253,11 +254,23 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
     oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
     oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"; oldw release
-    gate_not "$d" go "an old change, before the migration, reads as a change (the case the migration cures)"
+    gate_is "$d" go "an old change, before the migration: the KB made before 0.11.0 reads as wholly from before the upgrade"
     wr build --dir "$d" migrate plan --old "$OLD"; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$out" | tail -1); wr build --dir "$d" migrate apply --seen "$dg" --old "$OLD"; wr build --dir "$d" release
     gate_is "$d" go "the gate after the migration: the change from before the upgrade keeps the vote"
     wr build --dir "$d" add "claim(c3, introduce, 'A claim after the upgrade.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks three')" "predicts(hy1, c3)"; wr build --dir "$d" release
     gate_not "$d" go "a change after the upgrade takes the vote back"
+    # case B (review): the new tool writes to an old KB before migrate: its first write records vote_epoch first, so its change counts
+    d="$T/b"; ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human; oldw release
+    wr build --dir "$d" add "claim(c3, introduce, 'A claim of the new tool.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks three')" "predicts(hy1, c3)"; wr build --dir "$d" release
+    grep -q "^vote_epoch(" "$d/kb.pl" || note "the first write of the new tool wrote no vote_epoch"
+    gate_not "$d" go "a claim that the new tool added before migrate counts"
+    wr build --dir "$d" migrate plan --old "$OLD"; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$out" | tail -1); [ -n "$dg" ] && { wr build --dir "$d" migrate apply --seen "$dg" --old "$OLD"; wr build --dir "$d" release; }
+    [ "$(grep -c '^vote_epoch(' "$d/kb.pl")" = 1 ] || note "two vote_epoch lines after migrate: $(grep '^vote_epoch(' "$d/kb.pl" | tr '\n' ' ')"
+    gate_not "$d" go "after migrate the claim of the new tool still counts"
+    # add refuses vote_epoch (CONTRACT: the tool writes it)
+    wr build --dir "$d" add "vote_epoch(100000)"; [ "$rc" != 0 ] || note "add took vote_epoch/1"
 }
 for n in 1 2 2b 3 4 5 6 7 8 9; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"

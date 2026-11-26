@@ -1850,7 +1850,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), append([Ts11a, Ts11b, Ts11c, Ts11d], Ts11),
+    vote_void_derived(Dir, KbItems, Ts11a), vote_changed_derived(Dir, KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), append([Ts11a, Ts11b, Ts11c, Ts11d], Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2024,9 +2024,10 @@ reopen_derived(_, []).
 % attestation follows in kb.pl (it belongs to an earlier orbit: after a return to discovery,
 % a new round of votes is needed), and for each vote V that comes after a discovery_end(E) of a
 % human approval of the ticket when no back follows E (the orbit was closed when V came).
-vote_void_derived(KbItems, Facts) :-
+vote_void_derived(KbItems, Facts) :- vote_void_derived(none, KbItems, Facts).
+vote_void_derived(Dir, KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
-    vote_changed_derived(KbItems, Ch),
+    vote_changed_derived(Dir, KbItems, Ch),
     findall(T, kb_term(KbItems, T), Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_void(V),
@@ -2040,14 +2041,14 @@ vote_void_derived(KbItems, Facts) :-
             Fs0),
     findall(vote_void(V), ( member(vote_changed(V), Ch) ), Fs1),
     append(Fs0, Fs1, Fs2), sort(Fs2, Facts).
-vote_void_derived(_, []).
+vote_void_derived(_, _, []).
 
 % vote_changed_derived(+KbItems, -Facts) (vote-start c6): vote_changed(V) for each vote V that a record
 % of the specification follows in kb.pl (see vote_spec_changed/3). Such a vote is void as well, and the
 % gate says hold until a vote of the human in a new round (the rule gate(hold) of the discovery module).
-vote_changed_derived(KbItems, Facts) :-
+vote_changed_derived(Dir, KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
-    findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Ts0, Ts),
+    findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_changed(V),
             ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
@@ -2056,16 +2057,40 @@ vote_changed_derived(KbItems, Facts) :-
               vote_spec_changed(Ts, Tks, Pv, After) ),
             Fs0),
     sort(Fs0, Facts).
-vote_changed_derived(_, []).
+vote_changed_derived(_, _, []).
 
 % vote_epoch_mask(+Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): vote_epoch(N) in kb.pl, which the
 % migration of the upgrade writes, says that the first N terms of the KB are from before the upgrade: a
 % record of the specification among them is not a change that takes a vote back.
-vote_epoch_mask(Ts, Ts1) :-
-    (   member(T, Ts), nonvar(T), T = vote_epoch(E), integer(E)
-    ->  findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1)
-    ;   Ts1 = Ts
-    ), !.
+% With no vote_epoch/1, a KB that an orbit-kb before 0.11.0 made (its Made by line) is wholly from before the
+% upgrade (review H-0245): a frozen KB, which the migration does not write, keeps its old reading. The first
+% write of this orbit-kb to such a KB with a vote of the human writes vote_epoch(N) first (epoch_lines/2), so
+% what it adds counts from then on.
+vote_epoch_mask(Dir, Ts, Ts1) :-
+    (   member(T, Ts), nonvar(T), T = vote_epoch(E0), integer(E0) -> E = E0
+    ;   kb_made_before_reset(Dir) -> length(Ts, E)
+    ;   E = 0
+    ),
+    (   E > 0 -> findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1) ; Ts1 = Ts ), !.
+
+kb_made_before_reset(Dir) :-
+    Dir \== none, atom(Dir), directory_file_path(Dir, 'kb.pl', F), exists_file(F),
+    catch(mig_made_by(F, V), _, fail),
+    ( V == none -> true ; version_parts(V, P), P @< [0, 11, 0] ).
+
+% epoch_lines(+KbFile, +Lines0, -Lines): the line vote_epoch(N) before the first lines that this orbit-kb adds
+% to a KB made before 0.11.0 that holds a vote of the human and no vote_epoch/1 (N: its terms so far).
+epoch_lines(File, Lines0, [L]) :-
+    \+ ( member(L0, Lines0), sub_string(L0, 0, _, _, "vote_epoch(") ),
+    file_base_name(File, 'kb.pl'), exists_file(File),
+    catch(read_source_file(kb, File, KbItems), _, fail),
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, vote_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    file_directory_name(File, Dir), kb_made_before_reset(Dir),
+    findall(T, kb_term(KbItems, T), Ts), length(Ts, N),
+    clause_line(vote_epoch(N), [], L), !.
+epoch_lines(_, _, []).
 
 % vote_epoch_needed_derived(+Dir, +KbItems, -Facts): vote_epoch_needed(N) when the KB has a vote of the
 % human, no vote_epoch/1, and was made by an orbit-kb older than the one that brings the reset rule
@@ -4627,7 +4652,8 @@ cmd_uses(Dir, _, _) :-
 % (upgrade_lines/2).
 append_lines(File, Lines0) :-
     (   Lines0 \== [], catch(upgrade_lines(File, ULs), _, ULs = []) -> true ; ULs = [] ),
-    append(ULs, Lines0, Lines),
+    (   Lines0 \== [], catch(epoch_lines(File, Lines0, ELs), _, ELs = []) -> true ; ELs = [] ),
+    append([ULs, ELs, Lines0], Lines),
     (   exists_file(File)
     ->  read_file_to_string(File, S, [encoding(utf8)]),
         ( ( S == "" ; sub_string(S, _, 1, 0, "\n") ) -> Pre = "" ; Pre = "\n" )
@@ -4890,6 +4916,8 @@ add_item(ATs, I, A, R) :-
         ->  fmt(M, "Argument ~w is an attestation type. orbit-kb add does not declare attestation types. Use a type that orbit-kb help core or a module topic lists.", [I]), R = err(M)
         ;   nonvar(T), T = uses(_)
         ->  fmt(M, "Argument ~w is uses/1. orbit-kb init writes it. To add a module, run orbit-kb uses MODULE.", [I]), R = err(M)
+        ;   nonvar(T), T = vote_epoch(_)
+        ->  fmt(M, "Argument ~w: vote_epoch/1 is written by orbit-kb only (the migration m_0_11_0_vote_epoch, or the first write to a KB made before 0.11.0). add refuses it.", [I]), R = err(M)
         ;   nonvar(T), T = discovery_end(_)
         ->  fmt(M, "Argument ~w: orbit-kb attest approval writes discovery_end/1 itself (D30), when the human approves the ticket while gate(go) holds. add refuses it.", [I]), R = err(M)
         ;   nonvar(T), functor(T, RN, RA), memberchk(RN/RA, [actor/3, change_at/2, review_saw/3])
@@ -7496,7 +7524,7 @@ desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W
 % desk_vote_changes(+Dir, -Lines): the records of the specification that follow the last vote of the
 % human in kb.pl (the same set that voids the vote: spec_change/1), in words.
 desk_vote_changes(Dir, Lines) :-
-    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Ts0, Ts),
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
             (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
                 \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts0, Sv2) )
             ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
