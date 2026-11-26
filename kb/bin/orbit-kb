@@ -4378,17 +4378,18 @@ crud_human_record(Items, L, T) :-
     nth1(N, Ls, L),
     member(it(kb, _, _, M, _, _), Items), nonvar(M), M = by_human(at(K2, I2, N2), _), K2 == K, I2 == I, N2 == N, !.
 
-% crud_pane_owner(+Items, +Target, -Pane) (kb-crud c8): Target is a run or a verdict (an attestation) that another pane
-% recorded: its actor/3 names a role that is not the role of this command (--as ROLE, or ORBIT_KB_ROLE).
-% When the role is unknown on either side, the writer (the session) decides: another session is another pane.
+% crud_pane_owner(+Items, +Target, -Pane) (kb-crud c10, Ty: "Only my own session is free"): Target is a run or a
+% verdict (an attestation) that this session did not record itself: the writer of its actor/3 is not the writer of
+% this command (a writer that is unknown is not this one). The role does not matter. Pane names whose it is: its
+% role when known, else its session.
 crud_pane_owner(Items, Target, Pane) :-
     atom(Target),
     member(it(kb, _, _, A, _, _), Items), nonvar(A), A = attest(Target, _, _, _, _, _), !,
     member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(Target, R, S), !,
-    actor_role(Me), actor_session(MS),
-    (   R \== unknown, Me \== unknown -> R \== Me, Pane = R
-    ;   S \== unknown, S \== MS -> ( R \== unknown -> Pane = R ; fmt(PT, "of the session ~w", [S]), atom_string(Pane, PT) )
-    ).
+    actor_session(MS),
+    ( S == unknown ; MS == unknown ; S \== MS ), !,
+    (   R \== unknown -> fmt(PT, "~w (session ~w)", [R, S]) ; fmt(PT, "of the session ~w", [S]) ),
+    atom_string(Pane, PT).
 
 crud_guard(KB, LTs, Target, By, Opts) :-
     kb_items(KB, Items),

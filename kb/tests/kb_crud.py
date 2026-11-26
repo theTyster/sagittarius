@@ -294,12 +294,27 @@ def t_other_session():
     subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=e2)
     r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "flaky"], capture_output=True, text=True, env=e1)
     ck("the same session strikes its own run", r.returncode == 0, r.stdout + r.stderr)
+    # c10: the writer decides, the role does not
+    d3 = fixture()
+    run(d3, "release")
+    s1 = dict(ENV, ORBIT_KB_WRITER="session-1"); s2 = dict(ENV, ORBIT_KB_WRITER="session-2")
+    for _ in range(2):
+        subprocess.run([OK, "--dir", d3, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=s1)
+    subprocess.run([OK, "--dir", d3, "release"], capture_output=True, env=s1)
+    ids = re.findall(r"attest\((a\d+), test_result, k1", text(d3))
+    t0 = text(d3)
+    r = subprocess.run([OK, "--dir", d3, "strike", ids[0], "--why", "x", "--as", "build"], capture_output=True, text=True, env=s2)
+    ck("c10: another session with the same role needs a disclosure", r.returncode != 0 and text(d3) == t0, r.stdout + r.stderr)
+    subprocess.run([OK, "--dir", d3, "release"], capture_output=True, env=s2)
+    r = subprocess.run([OK, "--dir", d3, "strike", ids[1], "--why", "x", "--as", "review"], capture_output=True, text=True, env=s1)
+    ck("c10: the same session strikes its own run under another role", r.returncode == 0, r.stdout + r.stderr)
 
 
 def t_other_pane():
     """H-0220 c8: a run or a verdict of another pane is struck only with a disclosure that names the pane."""
     d = fixture()
-    eb = dict(ENV, HUB_SESSION="build"); er = dict(ENV, HUB_SESSION="review")
+    run(d, "release")
+    eb = dict(ENV, HUB_SESSION="build", ORBIT_KB_WRITER="session-build"); er = dict(ENV, HUB_SESSION="review", ORBIT_KB_WRITER="session-review")
     subprocess.run([OK, "--dir", d, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=eb)
     subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=eb)
     m = re.search(r"attest\((a\d+), test_result, k1", text(d))
@@ -308,9 +323,11 @@ def t_other_pane():
     t0 = text(d)
     r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "p", "--as", "review"], capture_output=True, text=True, env=er)
     ck("review's strike of build's run with no disclosure is refused, kb.pl unchanged", r.returncode != 0 and text(d) == t0 and "pane build" in (r.stdout + r.stderr), r.stdout + r.stderr)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=er)
     r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "p", "--as", "build"], capture_output=True, text=True, env=eb)
     ck("build strikes its own run with no disclosure", r.returncode == 0, r.stdout + r.stderr)
     d2 = fixture()
+    run(d2, "release")
     subprocess.run([OK, "--dir", d2, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=eb)
     subprocess.run([OK, "--dir", d2, "release"], capture_output=True, env=eb)
     rid2 = re.search(r"attest\((a\d+), test_result, k1", text(d2)).group(1)
