@@ -21,21 +21,8 @@ Sagittarius pair changes. Older sections below say "hub kit" or "the MindHole" f
    that change, and a line `preview summary: {...}` for a program. The full preview follows, and the
    `--seen-migrations` digest is the digest of the full preview, not of the summary. Read the summary
    first; read the block of each KB that changes.
-   **When more than five KBs change,** a reducer agent can write a short summary of the changed KBs only.
-   Either run it yourself (a subagent of your session, in the mindhole of the hub, given the full preview),
-   or let the tool run it: `python3 "$KIT"/tools/hubkit.py upgrade --hub "$HUB" --reduce` (dry run only;
-   opt-in). `--reduce` runs `claude -p` in the hub folder, with a minimal environment, on the plans of the
-   changed KBs and no other. A real `claude -p` sends those plans to a model: it is a paid call, and the text
-   leaves this machine. Ask your human first on a hub whose text must stay on the machine. When `claude` is
-   missing, fails or times out, the dry run still prints the full preview and the digest, and exits 2.
-   The agent must begin with one machine line, which the tool compares exactly:
-   `COUNTS kbs=N verdicts=N writes=N refused=N slugs=a,b` (kbs: the KBs that change; verdicts: those whose
-   verdicts differ; writes: those with a write or a new open item; refused: those whose plan is refused).
-   Its prose is shown, not trusted: the tool also compares each count it states (N KBs change, N verdicts
-   differ, N writes, N refused), a statement that nothing changes, and each KB it names. One difference and
-   the check fails (exit 1). A summary written outside the tool is checked the same way:
-   `python3 "$KIT"/tools/hubkit.py upgrade --hub "$HUB" --check-summary FILE`. Show the human the tool's
-   counts first, then the agent's text, and offer the full preview.
+   No model reads the preview (preview-reducer c5): the summary is the tool's own counts.
+
 3. **Apply.** `python3 "$KIT"/tools/hubkit.py upgrade --hub "$HUB" --yes`. It replaces the engine
    files the hub did not change, adds new files, and lists each changed engine file as `pending`.
 4. **Merge each pending file by intent.** For each one, find the release section that names it.

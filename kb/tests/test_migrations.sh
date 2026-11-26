@@ -532,10 +532,9 @@ EOF
     cmp -s "$T/h/.claude/orbit-kb/bin/orbit-kb" "$T/B/kb/bin/orbit-kb" || note "the hub did not get the new engine"
 }
 
-# ================================================================ preview-reducer c1, c2, c4: a summary first
+# ================================================================ preview-reducer c1, c2, c3, c5: a summary first, no model
 # A hub of kit A with six spec KBs: three have a check with no words (lint W12 changes with kit B's engine), three do not.
-# The dry run opens with the counts the tool computes; the digest stays that of the full preview; the summary of a
-# reducer agent is checked against the tool's counts and slugs.
+# The dry run opens with the counts the tool computes; the digest stays that of the full preview; no model is called.
 t_MGP() {
     mkkit "$T/A"; mkkit "$T/B"
     rm -rf "$T/A/kb/share/orbit-kb/migrations"; echo "% kit A" >> "$T/A/kb/bin/orbit-kb"
@@ -581,55 +580,16 @@ EOF
     rc_is 1 "--yes with no --seen-migrations is refused"; any_has 'seen-migrations'
     rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --seen-migrations sha256:0000 2>&1) || rc=$?
     rc_is 1 "--yes with another digest is refused"
-    # c4: the summary of a reducer agent is checked against the tool: the COUNTS line field by field, and the prose
-    good='COUNTS kbs=3 verdicts=3 writes=0 refused=0 slugs=kb1,kb2,kb3'
-    printf '%s\n3 KBs change: kb1, kb2, kb3. The verdict of lint W12 goes from none to 1 in each.\n' "$good" > "$T/good.txt"
-    printf '3 KBs change: kb1, kb2, kb3.\n' > "$T/prose.txt"
-    printf '2 KBs change: kb1, kb2.\n' > "$T/short.txt"
-    printf '3 KBs change: kb1, kb2, kb4.\n' > "$T/wrong.txt"
-    printf 'Some KBs change.\n' > "$T/none.txt"
-    printf 'COUNTS kbs=2 verdicts=3 writes=0 refused=0 slugs=kb1,kb2,kb3\nThe KBs kb1, kb2, kb3 change.\n' > "$T/c-count.txt"
-    printf 'COUNTS kbs=3 verdicts=3 writes=0 refused=0 slugs=kb1,kb2,kb3,kb4\n' > "$T/c-extra.txt"
-    printf 'COUNTS kbs=3 verdicts=3 writes=1 refused=0 slugs=kb1,kb2,kb3\n' > "$T/c-writes.txt"
-    printf 'COUNTS kbs=3 verdicts=3 writes=0 refused=1 slugs=kb1,kb2,kb3\n' > "$T/c-refused.txt"
-    printf '%s\nNothing of note changes: no KB loses or gains a verdict. kb1, kb2, kb3 change in wording only.\n' "$good" > "$T/c-lie.txt"
-    printf 'It is wrong that 3 KBs change. 0 KBs change. I looked at kb1, kb2 and kb3.\n' > "$T/second.txt"
-    printf '%s\nkb4 also changes.\n' "$good" > "$T/c-names4.txt"
-    for f in good prose; do
-        rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/$f.txt" 2>&1) || rc=$?
-        rc_is 0 "the summary $f (the tool's counts and KBs) is accepted"; any_has 'the summary matches the tool'
+    # c5 (Ty, 2026-11-26: Drop the reducer agent): the upgrade tool makes no model call, and --reduce is not an option
+    mkdir -p "$T/bin"; printf '#!/bin/sh\necho called >> "%s/agent.called"\necho "MODELTEXT-63"\n' "$T" > "$T/bin/claude"; chmod +x "$T/bin/claude"
+    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" 2>&1) || rc=$?
+    rc_is 0 "the dry run with a claude on the PATH"
+    printf '%s' "$out" | grep -q MODELTEXT-63 && note "text of a model is in the output"
+    for f in --reduce --check-summary; do
+        rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" $f x 2>&1) || rc=$?
+        rc_is 1 "$f is not an option"; any_has 'unknown option'
     done
-    for f in short wrong none c-count c-extra c-writes c-refused c-lie second c-names4; do
-        rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/$f.txt" 2>&1) || rc=$?
-        rc_is 1 "the summary $f is refused"; any_has 'summary check:'; any_has '^preview digest: sha256:'
-    done
-    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --check-summary "$T/no-such-file.txt" 2>&1) || rc=$?
-    rc_is 2 "a missing summary file is a clean error"; printf '%s' "$out" | grep -q Traceback && note "a missing file gives a traceback"
-    # c4: --reduce runs the reducer agent (claude -p; a fake here, never a paid call) with the changed KBs only
-    mkdir -p "$T/bin"
-    printf '#!/bin/sh\ncat > "%s/agent.in"\npwd > "%s/agent.pwd"; env > "%s/agent.env"\necho "%s"\necho "3 KBs change: kb1, kb2, kb3. Each gets lint W12."\n' "$T" "$T" "$T" "$good" > "$T/bin/claude"; chmod +x "$T/bin/claude"
-    rc=0; out=$(cd "$T" && MGP_CALLER_ONLY=1 PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
-    rc_is 0 "--reduce with an agent that tells the truth"; any_has 'Each gets lint W12'; any_has "its counts and its KBs match the tool"
-    for i in 1 2 3; do grep -q "kb$i" "$T/agent.in" || note "the agent was not given kb$i"; done
-    for i in 4 5 6; do grep -q "kb$i" "$T/agent.in" && note "the agent was given kb$i, which did not change"; done
-    [ "$(cat "$T/agent.pwd")" = "$(cd "$T/h" && pwd -P)" ] || [ "$(cat "$T/agent.pwd")" = "$T/h" ] || note "the agent did not run in the hub ($(cat "$T/agent.pwd"))"
-    grep -q '^MGP_CALLER_ONLY=' "$T/agent.env" && note "the agent got the caller's whole environment"
-    printf '#!/bin/sh\ncat > /dev/null\necho "COUNTS kbs=2 verdicts=2 writes=0 refused=0 slugs=kb1,kb2"\n' > "$T/bin/claude"
-    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
-    rc_is 1 "--reduce with an agent whose counts differ from the tool"; any_has "it differs from the tool"; any_has '^preview digest: sha256:'
-    printf '#!/bin/sh\ncat > /dev/null\necho "%s"\nexit 3\n' "$good" > "$T/bin/claude"
-    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
-    rc_is 2 "--reduce with an agent that fails"; any_has 'reducer agent: FAILED'; any_has '^preview digest: sha256:'; any_has '^kb:kb6$'
-    mkdir -p "$T/nobin"; ln -sf "$(command -v python3)" "$T/nobin/python3"
-    rc=0; out=$(cd "$T" && PATH="$T/nobin" "$T/nobin/python3" -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --reduce 2>&1) || rc=$?
-    rc_is 2 "--reduce with no claude on the PATH"; any_has 'no program claude'; any_has '^preview digest: sha256:'
-    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h" --yes --reduce 2>&1) || rc=$?
-    rc_is 1 "--reduce is for the dry run"; any_has 'dry run only'
-    python3 -I "$T/B/hubkit/tools/hubkit.py" install --hub "$T/h2" --edition formal >/dev/null 2>&1 || { note "setup: a second hub"; return; }
-    rc=0; out=$(cd "$T" && PATH="$T/bin:$PATH" python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h2" --yes --reduce 2>&1) || rc=$?
-    rc_is 1 "--yes --reduce is refused also with no spec KB"; any_has 'dry run only'
-    rc=0; out=$(cd "$T" && python3 -I "$T/B/hubkit/tools/hubkit.py" upgrade --hub "$T/h2" --check-summary "$T/good.txt" 2>&1) || rc=$?
-    rc_is 1 "--check-summary with no preview says there is nothing to check"; any_has 'nothing to check'
+    [ -e "$T/agent.called" ] && note "the upgrade tool started claude $(wc -l < "$T/agent.called") time(s)"
 }
 
 # ================================================================ c19: closed KBs are previewed too
@@ -809,7 +769,7 @@ run_test t_MG7 MG7 "c7: an additive migration (new kinds and rules only) changes
 run_test t_MG14 MG14 "c14: a changed verdict outside the reach of S is refused; W12 is in the reach of checks_that"
 run_test t_MG15 MG15 "c15: the preview shows each verdict that the old engine and the new one differ on"
 run_test t_MGU MGU "c15: a kit upgrade shows each verdict that the new engine changes and needs the preview digest"
-run_test t_MGP MGP "preview-reducer c1, c2, c4: counts first, the digest of the full preview, the summary of an agent checked against the tool"
+run_test t_MGP MGP "preview-reducer c1, c2, c3, c5: counts first, the digest of the full preview, no model call"
 run_test t_MGC MGC "c19: the kit upgrade previews closed KBs too, and writes nothing to them"
 run_test t_MGR MGR "c20: in a hub, project_kb is read from the hub root, so a moved KB keeps its link with no write"
 run_test t_MG16 MG16 "c16: the cut-fail clause hides old and later facts, lint accepts it first only, WM1 never blocks done"
