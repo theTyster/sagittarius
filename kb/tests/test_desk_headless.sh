@@ -19,7 +19,8 @@
 #   DH12 a run that fails (exit 1, one line on stderr) leaves the agent failed, with that line, and no lock; the next
 #        run that ends normally clears it; the Desk's view Agents says failed with the line (desk-agents c20)
 #   DH13 a run gets nothing of the session that sent the letter: no CLAUDECODE, AI_AGENT, CLAUDE_CODE_SESSION_ID,
-#        CLAUDE_PANE_*, CLAUDE_CODE_MESSAGING_*, TMUX_PANE; CLAUDE_CODE_OAUTH_TOKEN (the login) still reaches it (c21)
+#        CLAUDE_PANE_*, CLAUDE_CODE_MESSAGING_*, CLAUDE_SESSION_ID, TMUX_PANE; ORBIT_KB_ROLE is the agent's own role;
+#        CLAUDE_CODE_OAUTH_TOKEN and CLAUDE_CONFIG_DIR (the login) still reach it (c21; review H-0283 f_h5)
 set -u
 ROOT=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}
 T=$(mktemp -d "${TMPDIR:-/tmp}/desk-headless-test.XXXXXX")
@@ -36,7 +37,9 @@ def val(n):
     return next((a[i + 1] for i, x in enumerate(a) if x == n and i + 1 < len(a)), "")
 sid = val("--session-id") or val("--resume")
 open(os.environ["FAKE_LOG"], "a").write("START " + json.dumps(a) + "\n")
-open(os.environ["FAKE_LOG"], "a").write("ENV " + json.dumps({k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "AI_", "TMUX", "HUB_"))}) + "\n")
+open(os.environ["FAKE_LOG"], "a").write("ENV " + json.dumps({k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "AI_", "TMUX", "HUB_", "ORBIT_KB_ROLE"))}) + "\n")
+if os.environ.get("FAKE_FAIL") == "result":   # the error only in the result event on stdout, nothing on stderr
+    print(json.dumps({"type": "result", "subtype": "success", "is_error": True, "result": "RESULTERR-62 Invalid API key"}), flush=True); sys.exit(1)
 if os.environ.get("FAKE_FAIL"):
     sys.stderr.write("first line\nFAILLINE-61 Invalid API key - please run /login\n"); sys.exit(1)
 def bye(*_):
@@ -143,14 +146,20 @@ check "DH12 and the failed agent holds no lock" '[ -z "$(lock t8)" ]'
 FAKE_SECS=1 send "{\"type\": \"agent\", \"agent\": \"$n8\"}" "Try again." >/dev/null
 waitfor '[ "$(field "$(agent "$n8")" state)" = ended ]' 100; a8b=$(agent "$n8")
 check "DH12 the next run that ends normally clears it" '[ "$(field "$a8b" state)" = ended ] && [ -z "$(field "$a8b" why)" ]'
-out=$(FAKE_FAIL=1 send "$(kbi t8)" "Letter eight, again."); waitfor '[ "$(field "$(agent "$n8")" state)" = failed ]' 100
+FAKE_FAIL=result send "{\"type\": \"agent\", \"agent\": \"$n8\"}" "Fail in the result event." >/dev/null
+waitfor '[ "$(field "$(agent "$n8")" state)" = failed ]' 100; a8c=$(agent "$n8")
+check "DH12 an error only in the result event (empty stderr) is the reason" '[ "$(field "$a8c" state)" = failed ] && [ "$(field "$a8c" why)" = "RESULTERR-62 Invalid API key" ]'
+out=$(FAKE_FAIL=1 send "$(kbi t8)" "Letter eight, again."); waitfor '[ "$(field "$(agent "$n8")" why)" = "FAILLINE-61 Invalid API key - please run /login" ]' 100
 # DH13 (c21): the sender's session does not reach the run
 n0=$(starts)
 out=$(CLAUDECODE=1 AI_AGENT=LEAK-70 CLAUDE_CODE_SESSION_ID=LEAK-71 CLAUDE_PANE_ROLE_PROMPT=LEAK-72 CLAUDE_PANE_NAME=LEAK-73 TMUX_PANE=%LEAK-74 \
-      CLAUDE_CODE_MESSAGING_SOCKET=LEAK-75 CLAUDE_CODE_MESSAGING_TOKEN=LEAK-76 CLAUDE_CODE_OAUTH_TOKEN=KEEP-77 FAKE_SECS=1 send "$(kbi t9)" "Letter nine.")
+      CLAUDE_CODE_MESSAGING_SOCKET=LEAK-75 CLAUDE_CODE_MESSAGING_TOKEN=LEAK-76 CLAUDE_SESSION_ID=LEAK-78 ORBIT_KB_ROLE=LEAK-79 \
+      CLAUDE_CODE_OAUTH_TOKEN=KEEP-77 CLAUDE_CONFIG_DIR="$HOME/.claude" FAKE_SECS=1 send "$(kbi t9)" "Letter nine.")
 waitfor '[ "$(starts)" -gt '"$n0"' ]' 80; sleep 0.3; e9=$(grep "^ENV" "$FAKE_LOG" | tail -1)
 check "DH13 the run has no value of the sender's session" '[ -n "$e9" ] && ! grep -q "LEAK-" <<<"$e9" && ! grep -q "\"CLAUDECODE\"" <<<"$e9"'
-check "DH13 the login (CLAUDE_CODE_OAUTH_TOKEN) still reaches it" 'grep -q "KEEP-77" <<<"$e9"'
+check "DH13 the login (CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CONFIG_DIR) still reaches it" 'grep -q "KEEP-77" <<<"$e9" && grep -q "\"CLAUDE_CONFIG_DIR\"" <<<"$e9"'
+n9=$(field "$out" agent); r9=$(field "$(agent "$n9")" role)
+check "DH13 ORBIT_KB_ROLE is the agent's own role ($r9), not the sender's" '[ -n "$r9" ] && grep -q "\"ORBIT_KB_ROLE\": \"$r9\"" <<<"$e9"'
 
 # DH9, DH10: the Desk path
 cat >> "$h/specs/t5/kb.pl" <<'KB'

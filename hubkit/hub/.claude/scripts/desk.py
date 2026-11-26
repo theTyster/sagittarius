@@ -635,18 +635,21 @@ def agents_on():
 # desk-agents c21 (review H-0279): a desk agent gets nothing of the session that started the Desk or sent the
 # letter. A Desk started from inside a Claude Code session carries that session's id, role prompt, pane,
 # messaging socket and token, and the mark that it runs inside Claude Code; each child would inherit them.
-AGENT_ENV_DROP = ("CLAUDECODE", "AI_AGENT", "HUB_SESSION", "TMUX", "TMUX_PANE")
-AGENT_ENV_DROP_PREFIX = ("CLAUDE_CODE_", "CLAUDE_PANE_")
-AGENT_ENV_KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
-                  "CLAUDE_CODE_USE_FOUNDRY")   # how claude logs in and which provider: the user's, not the session's
+# Every name that starts with CLAUDE goes (CLAUDECODE, CLAUDE_SESSION_ID, CLAUDE_PID, CLAUDE_CODE_*, CLAUDE_PANE_*,
+# and names that a later Claude Code adds), but the login, the provider and the config dir of the user. ORBIT_KB_ROLE
+# goes too: orbit-kb writes it into actor/3, so an agent would sign as the session's role (review H-0283, f_h5);
+# the runner sets the agent's own role instead.
+AGENT_ENV_DROP = ("AI_AGENT", "HUB_SESSION", "TMUX", "TMUX_PANE", "ORBIT_KB_ROLE")
+AGENT_ENV_DROP_PREFIX = ("CLAUDE",)
+AGENT_ENV_KEEP = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+                  "CLAUDE_CODE_USE_FOUNDRY")   # where and how claude logs in, and which provider: the user's, not the session's
 
 
 def agent_env(**extra):
     """The environment of a desk agent's runner, its claude and its orbit-kb: this process's, without the
-    names of the session that started it (AGENT_ENV_DROP, and the prefixes but AGENT_ENV_KEEP), plus extra."""
+    names of the session that started it (AGENT_ENV_DROP, and every CLAUDE* name but AGENT_ENV_KEEP), plus extra."""
     env = {k: v for k, v in os.environ.items()
-           if k not in AGENT_ENV_DROP and (k in AGENT_ENV_KEEP or not k.startswith(AGENT_ENV_DROP_PREFIX))
-           and k not in ("CLAUDE_PID", "CLAUDE_EFFORT")}
+           if k not in AGENT_ENV_DROP and (k in AGENT_ENV_KEEP or not k.startswith(AGENT_ENV_DROP_PREFIX))}
     env.update(extra)
     return env
 
@@ -1065,7 +1068,7 @@ def cmd_agent_run(hub, a):
         args = [claude_prog(), "-p", "--name", name, "--permission-mode", mode, "--output-format", "stream-json",
                 "--verbose", "--append-system-prompt", system_prompt(hub, name, ag["role"], ag["kb"]),
                 "--session-id" if first else "--resume", sid, "--", job["prompt"]]
-        env = agent_env(ORBIT_KB_WRITER=sid, DESK_AGENT=name)
+        env = agent_env(ORBIT_KB_WRITER=sid, DESK_AGENT=name, **({"ORBIT_KB_ROLE": ag["role"]} if ag.get("role") else {}))
         agent_event(hub, name, "start", ("Started" if first else "Resumed") + f" with: {job['prompt']}")
         if job.get("letter"):
             try:
@@ -1085,6 +1088,7 @@ def cmd_agent_run(hub, a):
         with_agents(hub, lambda o: (o["agents"][name].update(claude=p.pid), True)[1])
         renew = renew_lock_while(kbdir, sid, p)
         seen_any = False
+        res_err = None   # c20: the error of a result event (is_error), for a run that writes none on stderr
         for line in p.stdout:
             try:
                 ev = json.loads(line)
@@ -1092,6 +1096,8 @@ def cmd_agent_run(hub, a):
                 continue
             if not isinstance(ev, dict):
                 continue
+            if ev.get("type") == "result" and (ev.get("is_error") is True or str(ev.get("subtype") or "").startswith("error")):
+                res_err = str(ev.get("result") or ev.get("error") or ev.get("subtype") or "").strip() or None
             for kind, text in summarize_event(ev):
                 seen_any = True
                 t = agent_event(hub, name, kind, text)
@@ -1117,8 +1123,10 @@ def cmd_agent_run(hub, a):
         stopped = with_agents(hub, lambda o: (False, o["agents"][name].get("state") == "stopping"))
         failed = None
         if rc != 0 and not stopped:
-            # c20 (Ty, q11: "Show failed, with the reason"): the last line of its stderr, else of its events
-            lines = [x.strip() for x in err.splitlines() if x.strip()]
+            # c20 (Ty, q11: "Show failed, with the reason"): the last line of its stderr, else the last line of the
+            # error of its result event (stream-json, is_error), else the exit code
+            lines = [x.strip() for x in err.splitlines() if x.strip()] or \
+                [x.strip() for x in (res_err or "").splitlines() if x.strip()]
             failed = agent_event(hub, name, "error", lines[-1] if lines else f"claude ended with exit {rc} and wrote no error line")
         if job.get("letter"):
             try:
