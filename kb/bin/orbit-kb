@@ -2059,15 +2059,16 @@ vote_changed_derived(Dir, KbItems, Facts) :-
     sort(Fs0, Facts).
 vote_changed_derived(_, _, []).
 
-% vote_epoch_mask(+Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): vote_epoch(N) in kb.pl, which the
-% migration of the upgrade writes, says that the first N terms of the KB are from before the upgrade: a
-% record of the specification among them is not a change that takes a vote back.
+% vote_epoch_mask(+Dir, +Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): the terms ABOVE the term
+% vote_epoch(_) in kb.pl, which the migration or the first write of this orbit-kb puts there, are from before the
+% upgrade: a record of the specification among them is not a change that takes a vote back. Its number is kept for
+% the reader and not used: the place is the edge.
 % With no vote_epoch/1, a KB that an orbit-kb before 0.11.0 made (its Made by line) is wholly from before the
 % upgrade (review H-0245): a frozen KB, which the migration does not write, keeps its old reading. The first
 % write of this orbit-kb to such a KB with a vote of the human writes vote_epoch(N) first (epoch_lines/2), so
 % what it adds counts from then on.
 vote_epoch_mask(Dir, Ts, Ts1) :-
-    (   member(T, Ts), nonvar(T), T = vote_epoch(E0), integer(E0) -> E = E0
+    (   nth1(IM, Ts, TM), nonvar(TM), TM = vote_epoch(_) -> E is IM - 1      % its place, not its count: a withdraw or strike above it cannot move the edge (review H-0250)
     ;   kb_made_before_reset(Dir) -> length(Ts, E)
     ;   E = 0
     ),

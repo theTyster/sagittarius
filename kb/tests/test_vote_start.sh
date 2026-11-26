@@ -16,6 +16,7 @@
 #       after the change) joins his vote; the others open the gate; the sheet lists only those
 #   VS9 c13: a KB made by 0.10.1 with a vote and a change after it: ED12 and hold before the migration; after migrate
 #       (vote_epoch(N)) the gate is go and lint has no ED12; a change after the upgrade takes the vote back
+#   VS10 c6, c13: the edge is the place of vote_epoch; a withdraw of old lines above it does not move it
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -26,6 +27,7 @@ vs_kb() { local d=$1 x=${3:-}
     wr build init "$d" --request "a request" --uses discovery || { note "setup: no KB $d: $(snip "$err")"; return 1; }
     wr build --dir "$d" add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" \
         "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)" || { note "setup: facts refused: $(snip "$err")"; return 1; }
+    [ "$x" = cited ] && { wr build --dir "$d" add "cited(c1, 'a typo kind')" --doc "a typo of cites" && wr build --dir "$d" add "cited(c1, 'a second fact of it')" || note "setup: the typo kind was refused: $(snip "$err")"; }
     [ "$x" = hy2 ] && { wr build --dir "$d" add "hypothesis(hy2, g1, agent, 'A second avenue.')" "defeating_case(hy2, agent, 'A case.')" "no_premises(hy2)" || note "setup: hy2 refused: $(snip "$err")"; }
     if [ "$2" = notready ]; then
         wr build --dir "$d" add "finding(f1, surprise('A surprise.'), system)" "question(q1, hy1, 'A question that waits?')" "option(q1, 'A', 'a')" "option(q1, 'B', 'b')" "raised_by(q1, f1)" || { note "setup: question refused: $(snip "$err")"; return 1; }
@@ -272,6 +274,16 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     # add refuses vote_epoch (CONTRACT: the tool writes it)
     wr build --dir "$d" add "vote_epoch(100000)"; [ "$rc" != 0 ] || note "add took vote_epoch/1"
 }
-for n in 1 2 2b 3 4 5 6 7 8 9; do run_one VS$n; done
+t_VS10() {  # c6, c13 (review H-0250): the edge is the place of vote_epoch in kb.pl; a withdraw above it does not move it
+    local d="$T/w"; vs_kb "$d" voted cited || return
+    gate_is "$d" go "the fixture"
+    wr build --dir "$d" add "example(c1, 'Another case.')"; wr build --dir "$d" release
+    grep -q "^vote_epoch(" "$d/kb.pl" || note "no marker after the first write that follows the vote"
+    gate_is "$d" hold "a new example after the vote"
+    wr build --dir "$d" withdraw cited/2; wr build --dir "$d" release; [ "$(grep -c '^% withdrawn' "$d/kb.pl")" -ge 3 ] || note "setup: withdraw commented nothing: $(snip "$out$err")"
+    gate_is "$d" hold "after a withdraw of old lines above the marker"
+    grep -q "^vote_epoch(" "$d/kb.pl" || note "the withdraw dropped the marker"
+}
+for n in 1 2 2b 3 4 5 6 7 8 9 10; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
