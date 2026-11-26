@@ -917,6 +917,10 @@ hypothesis_of(H, G) :- hypothesis(H, G, _, _).
 decl(rule, hypothesis_of(ref, ref),
      'The hypothesis (of the new sense) is a hypothesis of the goal.',
      'hypothesis @(1) is a hypothesis of goal @(2)').
+% question-default-option: a question whose default is none of its options shows two choices on the Desk.
+% orbit-kb add refuses it (E22); this names one that an older KB holds (orbit-kb migrate brings it right).
+lint_issue('W22', Q, 'The default of this question is none of its options, so the Desk shows the default and the option as two choices. orbit-kb migrate plan lists the fix, or: orbit-kb replace the default by the text of one option.') :-
+    assumed(Q, D), option(Q, _, _), not option(Q, D, _).
 % D52: an agent retirement that the rule does not count is named, so it is not a silent record.
 lint_issue('W19', A, 'This retirement by an agent does not count: a human wrote or adopted the hypothesis, or the ticket marks it as adopted by the human (adoption_cited). The hypothesis is not retired. Only the human retires it: orbit-kb retire H --reason TEXT --by human.') :-
     attest(A, retirement, H, _, agent, _), hypothesis(H, _, _, _), retirement_ignored(H).

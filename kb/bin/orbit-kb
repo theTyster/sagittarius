@@ -3723,7 +3723,7 @@ body_lits_deep(G, [G]).
 %   LoadErrs: list of le(File, Line, Message)
 
 build_engine(Items00, Ds, eng(M, LoadErrs)) :-
-    struck_filter(Items00, Items0),                % kb-crud: a struck or superseded record is not in the model
+    struck_filter(Items00, Items0),                % kb-crud: a struck or superseded record is not in the model (query, why, lint, the Desk)
     answer_items(Items0, Ds, Items),
     gensym(orbit_eng_, M),
     set_module(M:base(system)),
@@ -4685,7 +4685,11 @@ struck_filter(Items0, Items) :-
                  \+ crud_own_rule(Items0, O) ), S1),
     append(S0, S1, S2), sort(S2, Ids),
     findall(L, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(at(K, I, N), _, _, _),
-                 crud_address_line(Items0, K, I, N, L) ), Ls0),
+                 crud_address_line(Items0, K, I, N, L) ), Ls00),
+    % struck(fact(F), ...): the fact F itself, wherever it is in kb.pl (the migration of question-default-option writes it)
+    findall(L, ( member(it(kb, _, _, T, _, _), Items0), nonvar(T), T = struck(fact(F), _, _, _), nonvar(F),
+                 member(it(kb, _, L, F2, _, _), Items0), nonvar(F2), F2 =@= F ), Ls01),
+    append(Ls00, Ls01, Ls0),
     sort(Ls0, Ls),
     (   Ids == [], Ls == []
     ->  Items = Items0
@@ -4873,7 +4877,10 @@ cmd_replace(KB, Args, Code) :-
     KB = kb(_, _, _, _),
     ( By == human -> ByArgs = ['--by', human] ; ByArgs = [] ),
     append([NewText|MoreFacts], Extra, Facts0), append(Facts0, ByArgs, AddArgs),
-    setup_call_cleanup(nb_setval(crud_internal, true), cmd_add(KB, AddArgs, _), nb_setval(crud_internal, false)),
+    (   Target = at(RK, RI, RN), kb_items(KB, RItems), crud_address_line(RItems, RK, RI, RN, RLine)
+    ->  nb_setval(crud_replacing_line, RLine) ; nb_setval(crud_replacing_line, none) ),   % question-default-option: the gate of a replaced default
+    setup_call_cleanup(nb_setval(crud_internal, true), cmd_add(KB, AddArgs, _),
+                       ( nb_setval(crud_internal, false), nb_setval(crud_replacing_line, none) )),
     utc_now(Now), kb_file(KB, KbFile),
     (   Strike == true
     ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
@@ -5311,6 +5318,7 @@ cmd_add(KB, Args, Code) :-
     ;   true
     ),
     check_words_gate(KI, NewItems),
+    default_option_gate(KI, NewItems),
     % D22: a fact whose name is declared nowhere declares its predicate by
     % its first use. The decl/4 lines take part in the checks of the batch.
     first_use_pis(KB, NewItems, FUs),
@@ -5392,6 +5400,41 @@ human_mark_line(KI, Now, it(_, _, _, T, _, _), Seen0-Ls0, Seen-Ls) :-
     ->  Seen = [K-I|Seen0], Ls = Ls0
     ;   Seen = Seen0, Ls = Ls0
     ).
+
+% default_option_gate(+KBItems, +NewItems) (question-default-option c2, c3): after the add, no question may hold a
+% default that is none of its options (a question with no option takes any default), and no question may
+% hold more than one default (to change a default: orbit-kb replace). A question that was wrong before the add
+% and is not made worse is let alone (an old KB: orbit-kb migrate brings it right). Else nothing is written.
+% It looks at a new assumed/2 and at a new option/3 of a question that has a default.
+default_option_gate(KI0, NewItems) :-
+    struck_filter(KI0, KI1),
+    (   nb_current(crud_replacing_line, RL), integer(RL)
+    ->  exclude([it(_, _, L, _, _, _)]>>(L == RL), KI1, KI)     % orbit-kb replace: the default that it replaces does not count
+    ;   KI = KI1
+    ),
+    findall(Q, ( member(it(_, _, _, T, _, _), NewItems), nonvar(T), ( T = assumed(Q, _) ; T = option(Q, _, _) ), atom(Q) ), Qs0),
+    sort(Qs0, Qs),
+    findall(M, ( member(Q, Qs), crud_default_state(KI, [], Q, st(DsB, OsB, _)), crud_default_state(KI, NewItems, Q, st(DsA, OsA, NDef)),
+                 (   crud_bad_defaults(DsA, OsA, BadA), crud_bad_defaults(DsB, OsB, BadB), member(D, BadA), \+ memberchk(D, BadB),
+                     atomic_list_concat(OsA, ' | ', OL),
+                     fmt(M, "E22: the default of question ~w is ~q, which is none of its options (~w). The Desk would show the default and the option as two choices.", [Q, D, OL])
+                 ;   NDef > 0, length(DsA, ND), ND > 1,
+                     atomic_list_concat(DsA, ' | ', DL),
+                     fmt(M, "E22: question ~w would have ~w defaults (~w). One default counts.", [Q, ND, DL])
+                 ) ), Ms),
+    (   Ms == [] -> true
+    ;   append(Ms, ["Fix: write the default as the text of one option, exactly (assumed(Q, 'Option text')); add the option first if it is new. To change a default that is recorded: orbit-kb replace 'assumed(Q)#1' \"assumed(Q, 'Option text')\" --why TEXT."], All),
+        reject(All)
+    ).
+
+% crud_default_state(+KBItems, +NewItems, +Q, -st(Defaults, Options, NNewDefaults)): the texts, with the new facts.
+crud_default_state(KI, New, Q, st(Ds, Os, ND)) :-
+    findall(D, ( ( member(it(kb, _, _, assumed(Q2, D0), _, _), KI) ; member(it(_, _, _, assumed(Q2, D0), _, _), New) ), Q2 == Q, nonvar(D0), plain_text(D0, D) ), Ds0),
+    findall(O, ( ( member(it(kb, _, _, option(Q3, O0, _), _, _), KI) ; member(it(_, _, _, option(Q3, O0, _), _, _), New) ), Q3 == Q, nonvar(O0), plain_text(O0, O) ), Os0),
+    findall(x, ( member(it(_, _, _, assumed(Q4, _), _, _), New), Q4 == Q ), NDs),
+    list_to_set(Ds0, Ds), sort(Os0, Os), length(NDs, ND).
+
+crud_bad_defaults(Ds, Os, Bad) :- ( Os == [] -> Bad = [] ; findall(D, ( member(D, Ds), \+ memberchk(D, Os) ), Bad) ).
 
 % check_words_gate(+KBItems, +NewItems) (E20): a new check(K, C) needs the words of the check:
 % checks_that(K, Text) with non-empty Text, in the same add or already in the KB. Else reject.
@@ -12121,6 +12164,12 @@ mig_text(T0, X, Text) :-
 % mig_new_text(+KbFile, +Plan, +Version, +Now, -Text): kb.pl with the writes of the plan. Each old
 % line stays as it is; a retire inserts its clause and facts above the first clause of its
 % predicate; the other facts are appended, each with migration_added/3 after it.
+% mig_subst_now(+Fact, +Now, -Fact1): the atom '$now' in a fact that a migration writes is the time of the write
+% (the plan shows '$now': a time in the plan would change its digest at each second).
+mig_subst_now(F, Now, F1) :- F == '$now', !, F1 = Now.
+mig_subst_now(F, Now, F1) :- compound(F), !, F =.. [N|As], maplist([A, B]>>mig_subst_now(A, Now, B), As, Bs), F1 =.. [N|Bs].
+mig_subst_now(F, _, F).
+
 mig_new_text(KbFile, plan(Ins, Adds, _), V, Now, Text) :-
     read_file_to_string(KbFile, S, [encoding(utf8)]),
     split_string(S, "\n", "", Ls0),
@@ -12136,7 +12185,7 @@ mig_new_text(KbFile, plan(Ins, Adds, _), V, Now, Text) :-
     (   Adds == [] -> Tail = []
     ;   findall(Id, member(_-Id, Adds), Ids0), sort(Ids0, Ids), atomic_list_concat(Ids, ', ', IdT),
         format(string(Hd), "% orbit-kb migrate apply: ~w, by orbit-kb ~w at ~w.", [IdT, V, Now]),
-        findall(X, ( member(F-Id, Adds), ( clause_line(F, [], X) ; clause_line(migration_added(Id, V, F), [], X) ) ), Xs),
+        findall(X, ( member(F0-Id, Adds), mig_subst_now(F0, Now, F), ( clause_line(F, [], X) ; clause_line(migration_added(Id, V, F), [], X) ) ), Xs),
         Tail = [Hd|Xs]
     ),
     append(Ls2, Tail, Ls3),
@@ -12159,8 +12208,8 @@ mig_insert([L|Ls], N, Blocks, Out) :-
 mig_validate(KB, plan(Ins, Adds, _), Problems) :-
     kb_file(KB, KbFile),
     tool_version_text(V),
-    findall(it(kb, KbFile, 0, F, [], 0-0), member(F-_, Adds), I1),
-    findall(it(kb, KbFile, 0, migration_added(Id, V, F), [], 0-0), member(F-Id, Adds), I2),
+    findall(it(kb, KbFile, 0, F, [], 0-0), ( member(F0-_, Adds), mig_subst_now(F0, '1970-01-01T00:00:00Z', F) ), I1),
+    findall(it(kb, KbFile, 0, migration_added(Id, V, F), [], 0-0), ( member(F0-Id, Adds), mig_subst_now(F0, '1970-01-01T00:00:00Z', F) ), I2),
     findall(it(kb, KbFile, 0, retired(N/A, MV, W), [], 0-0), member(ins(_, N/A, W, _, MV), Ins), I3),
     append([I1, I2, I3], New),
     validate_new(KB, New, Ps),
@@ -13210,8 +13259,15 @@ show_section(KB, Eng, open) :-
     forall(member(S2N, S2Notes), say("~w", [S2N])),
     forall(member(R, Rd), ( ready_line(Eng, R, RK, RS), say("- not_ready ~w: ~w", [RK, RS]) )),
     forall(member(P, Sp), ( stale_pin_text(Eng, P, PS), say("- stale_pin ~w: ~w", [P, PS]) )),
+    % question-default-option c4: one step for each default that is none of its options (the agent step
+    % means of the migration 0.11.0). It blocks nothing; it names what the agent that holds the KB does.
+    eng_all(Eng, [DQ, DD], ( assumed(DQ, DD), option(DQ, _, _), not(option(DQ, DD, _)) ), DFs0),
+    sort(DFs0, DFs),
+    forall(member([DQ, DD], DFs),
+           ( plain_text(DD, DT),
+             say("- default ~w: the default of question ~w (~w) is none of its options. Name the option it means: orbit-kb replace the default by the text of that option; add it as an option only when it means none. orbit-kb migrate plan links by text what it can.", [DQ, DQ, DT]) )),
     (   Qs == [], As == [], Cs == [], Ys == [], Us == [], Os == [], Bs == [], Ns == [], Rs == [], Ps == [],
-        Bl == [], Rd == [], Sp == []
+        Bl == [], Rd == [], Sp == [], DFs == []
     ->  say("- Nothing is open.", [])
     ;   true
     ).
