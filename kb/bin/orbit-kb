@@ -9136,7 +9136,7 @@ desk_plan_act(HD, K, Ref, Intent, Choice, Text, P) :-
         ( Choice == "" -> CT = "(see his words)" ; CT = Choice ),
         desk_act_instr(A, Instr),
         dk_f("Ty decides on ~w in the KB ~w (~w): ~w.~w\n\n~w", [Sum, K.label, K.dir, CT, WT, Instr], LT),
-        ( To == none -> Rec = "a desk agent of the KB (when desk agents are on), else the next session that takes the KB" ; Rec = To ),
+        ( To == none -> Rec = "the next session that takes the KB" ; Rec = To ),
         dk_f("Nothing is written by the Desk: ~w records it in the KB as your own word.", [Rec], R1),
         desk_lt(To, answer, About, Item, LT, L1),
         P = plan{title:"Your decision", sub:About, letters:[L1], records:[R1], effects:[none]}
