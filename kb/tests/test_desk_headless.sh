@@ -8,7 +8,8 @@
 #   DH5 a KB held by a live lock of another writer starts no agent; the letter keeps its receiver
 #   DH6 desk agents are on by default (Ty, q9): no flag and no DESK_AGENTS start an agent; `desk.py agents off`
 #       stops new starts; DESK_AGENTS=off wins; DESK_AGENTS=on wins over the off flag; `agents on` turns them on again
-#   DH6b DESK_AGENTS is read without case; 0, false, no and an unknown value are off; 1, true, yes are on (f_h4)
+#   DH6b DESK_AGENTS is read without case; 0, false, no are off; 1, true, yes are on (c22); an unknown value is
+#        reported by name and counts as not set: agents stay on, and the off flag still holds (c23)
 #   DH7 control bytes of a letter do not reach the prompt
 #   DH8 a letter to an unknown desk agent is refused; one to a known agent goes to no session
 #   DH9 the Desk path (POST /review, /send): an answer about a KB nobody holds starts an agent; a requirement to the
@@ -113,8 +114,8 @@ check "DH6 DESK_AGENTS=on wins over the off flag" '[ "$(starts)" -gt "$n0" ] && 
 waitfor 'grep -c "^END" "$FAKE_LOG" >/dev/null && [ "$(pgrep -fc "$T/bin/claude")" = 0 ]' 80; sleep 0.5
 $D agents on >/dev/null
 check "DH6 desk.py agents on removes the off flag" '[ ! -e "$DESK_STATE/agents-off" ]'
-# DH6b (review H-0274, f_h4): DESK_AGENTS is read without case; 0, false, no and any unknown value are off
-for v in OFF Off 0 false no maybe ' off '; do
+# DH6b (c22, c23): DESK_AGENTS is read without case; 0, false, no are off; an unknown value counts as not set
+for v in OFF Off 0 false no ' off '; do
   check "DH6b DESK_AGENTS='$v' reads as off" 'DESK_AGENTS="'"$v"'" $D agents | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin)[\"on\"] is False else 1)"'
 done
 for v in ON Yes 1 true; do
@@ -122,6 +123,12 @@ for v in ON Yes 1 true; do
 done
 n0=$(starts); out=$(DESK_AGENTS=Off send "$(kbi t3)" "Letter three, off in another case."); sleep 0.5
 check "DH6b DESK_AGENTS=Off starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
+uk=$(DESK_AGENTS=maybe $D agents 2>"$T/uk.err")
+check "DH6b an unknown value (maybe) counts as not set: agents stay on" 'python3 -c "import json,sys; sys.exit(0 if json.loads(sys.argv[1])[\"on\"] is True else 1)" "$uk"'
+check "DH6b and it is reported by name" 'grep -q "DESK_AGENTS=.maybe." "$T/uk.err"'
+$D agents off >/dev/null
+check "DH6b an unknown value does not override desk.py agents off" 'DESK_AGENTS=maybe $D agents 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin)[\"on\"] is False else 1)"'
+$D agents on >/dev/null
 # DH7
 n0=$(starts); FAKE_SECS=1 send "$(kbi t4)" "$(printf 'Bad\003byte CTLPROBE.')" >/dev/null; waitfor '[ "$(starts)" -gt '"$n0"' ]' 80
 check "DH7 no control byte in the prompt" 'grep -q CTLPROBE <<<"$(nth $((n0+1)))" && ! grep -q "\\\\u0003" <<<"$(nth $((n0+1)))"'

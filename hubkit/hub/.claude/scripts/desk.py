@@ -577,8 +577,8 @@ def find_letter(store, lid):
 # stopped or ended agent starts a new run at once. desk.py agent-stop ends the run (SIGTERM); agent-resume
 # starts a new headless run of the same session. Desk agents are ON by default (Ty, desk-agents q9: "On by
 # default"). `desk.py agents off` (a flag agents-off in the Desk's state dir) or DESK_AGENTS=off turns them off;
-# DESK_AGENTS=on wins over the flag; DESK_AGENTS=off wins over everything (any case; 0, false, no and any unknown value
-# are off too). A test or a copy of a hub that starts a
+# DESK_AGENTS=on wins over the flag; DESK_AGENTS=off wins over everything (any case; 0, false and no are off too, and
+# 1, true and yes are on). Any other value is reported by name on stderr and counts as not set (desk-agents c23). A test or a copy of a hub that starts a
 # Desk or runs desk.py must set DESK_AGENTS=off, or put a fake claude first on its PATH: else a letter of its
 # scratch hub starts a real, paid claude. kb/tests/test_desk_guard.sh checks the harnesses of the repo for that.
 
@@ -604,14 +604,27 @@ AGENTS_OFF_WORDS = ("off", "0", "false", "no")
 AGENTS_ON_WORDS = ("on", "1", "true", "yes")
 
 
+_AGENTS_UNKNOWN_SAID = set()
+
+
 def agents_env():
     """DESK_AGENTS as the switch reads it: "off", "on", or None (not set, or empty). Case does not matter; 0, false
-    and no are off, 1, true and yes are on. Any other value is off (review H-0274, f_h4): a guard with a typo must
-    not start a paid claude."""
-    e = (os.environ.get("DESK_AGENTS") or "").strip().lower()
+    and no are off, 1, true and yes are on (desk-agents c22). Any other value is reported by name on stderr, once
+    in a process, and counts as not set: desk agents stay on unless `desk.py agents off` set the flag (c23; Ty:
+    "My answer stands: unknown leaves agents on")."""
+    raw = (os.environ.get("DESK_AGENTS") or "").strip()
+    e = raw.lower()
     if not e:
         return None
-    return "on" if e in AGENTS_ON_WORDS else "off"
+    if e in AGENTS_ON_WORDS:
+        return "on"
+    if e in AGENTS_OFF_WORDS:
+        return "off"
+    if raw not in _AGENTS_UNKNOWN_SAID:
+        _AGENTS_UNKNOWN_SAID.add(raw)
+        print(f"desk: DESK_AGENTS={raw!r} is not a known value (on, 1, true, yes; off, 0, false, no): it counts as not set,"
+              " and desk agents stay on unless `desk.py agents off` was run", file=sys.stderr)
+    return None
 
 
 def agents_on():
