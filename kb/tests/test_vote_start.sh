@@ -14,6 +14,8 @@
 #       recorded as Ty's; a text that changed makes it stale and the sheet asks again; an old digest is refused
 #   VS7 c11: a change that Ty voted on himself (a vote that names the record, with the choice of the standing vote,
 #       after the change) joins his vote; the others open the gate; the sheet lists only those
+#   VS9 c13: a KB made by 0.10.1 with a vote and a change after it: ED12 and hold before the migration; after migrate
+#       (vote_epoch(N)) the gate is go and lint has no ED12; a change after the upgrade takes the vote back
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -228,6 +230,35 @@ t_VS8() {  # c11 (review): a retirement after the vote opens the gate; the migra
     d="$T/mig"; vs_kb "$d" voted || return; wr build --dir "$d" add "retired(foo/2, '0.9.0', 'bar')" || note "setup: the migration record was refused: $(snip "$err")"
     wr build --dir "$d" release; gate_is "$d" go "a migration record retired/3 after the vote"
 }
-for n in 1 2 2b 3 4 5 6 7 8; do run_one VS$n; done
+t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep counting; changes from the upgrade on take a vote back
+    local OLD=${OLD:-/home/ty/Projects/mine/sagittarius/kb/bin/orbit-kb} d="$T/old" pl dg l
+    [ -x "$OLD" ] || { SKIPPED=1; return; }
+    ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
+    oldw() { ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
+    oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"
+    echo "the ticket" > "$d/ticket.txt"; oldw subject tk ticket.txt; oldw add "ticket(tk)"; oldw attest approval tk 'digest(current)' --by human; oldw release
+    q "$d" discovery_closed; [ "$rc" = 0 ] || { note "setup: the old tool did not close the orbit (rc $rc)"; return; }
+    wr build --dir "$d" lint; echo "$out" | grep -q ED12 || note "before the migration the new tool should read the old history as ED12 (it is the case that the migration cures): $(snip "$out")"
+    q "$d" 'vote_epoch_needed(_)'; [ "$rc" = 0 ] || note "the KB made before 0.11.0 does not ask for vote_epoch"
+    wr build --dir "$d" migrate plan --old "$OLD"; pl=$out; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$pl" | tail -1)
+    [ -n "$dg" ] || { note "migrate plan gave no digest: $(snip "$pl")"; return; }
+    wr build --dir "$d" migrate apply --seen "$dg" --old "$OLD" || note "migrate apply: $(snip "$err")"; wr build --dir "$d" release
+    grep -q "^vote_epoch(" "$d/kb.pl" || note "the migration wrote no vote_epoch"
+    wr build --dir "$d" lint; echo "$out" | grep -q ED12 && note "ED12 after the migration: $(grep ED12 <<<"$out" | head -1 | cut -c1-200)"
+    gate_is "$d" go "the gate after the upgrade"; q "$d" 'vote_epoch_needed(_)'; [ "$rc" = 1 ] || note "the KB still asks for vote_epoch after the migration"
+    # a vote not yet closed: a change before the upgrade keeps it, a change after it takes it back
+    d="$T/open"; ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
+    oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"; oldw release
+    gate_not "$d" go "an old change, before the migration, reads as a change (the case the migration cures)"
+    wr build --dir "$d" migrate plan --old "$OLD"; dg=$(grep -o 'sha256:[0-9a-f]\{64\}' <<<"$out" | tail -1); wr build --dir "$d" migrate apply --seen "$dg" --old "$OLD"; wr build --dir "$d" release
+    gate_is "$d" go "the gate after the migration: the change from before the upgrade keeps the vote"
+    wr build --dir "$d" add "claim(c3, introduce, 'A claim after the upgrade.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks three')" "predicts(hy1, c3)"; wr build --dir "$d" release
+    gate_not "$d" go "a change after the upgrade takes the vote back"
+}
+for n in 1 2 2b 3 4 5 6 7 8 9; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

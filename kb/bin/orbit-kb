@@ -1850,7 +1850,7 @@ derived_items_(Dir, KbItems, Items) :-
     verdict_derived(KbItems, Ts8),
     reopen_derived(KbItems, Ts9),
     run_after_derived(KbItems, Ts10),
-    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), append([Ts11a, Ts11b, Ts11c], Ts11),
+    vote_void_derived(KbItems, Ts11a), vote_changed_derived(KbItems, Ts11b), vote_carry_derived(KbItems, Ts11c), vote_epoch_needed_derived(Dir, KbItems, Ts11d), append([Ts11a, Ts11b, Ts11c, Ts11d], Ts11),
     records_derived(Dir, KbItems, Ts12),
     stage2_derived(Dir, KbItems, Ts13),
     append([Ts1, Ts2, Ts3, Ts4, Ts5, Ts6, Ts7, Ts8, Ts9, Ts10, Ts11, Ts12, Ts13], Ts),
@@ -2047,16 +2047,38 @@ vote_void_derived(_, []).
 % gate says hold until a vote of the human in a new round (the rule gate(hold) of the discovery module).
 vote_changed_derived(KbItems, Facts) :-
     items_uses(KbItems, Uses), memberchk(discovery, Uses), !,
-    findall(T, kb_term(KbItems, T), Ts),
+    findall(T, kb_term(KbItems, T), Ts0), vote_epoch_mask(Ts0, Ts),
     findall(S, ( member(T, Ts), nonvar(T), T = ticket(S) ), Tks),
     findall(vote_changed(V),
             ( append(_, [X|After], Ts), nonvar(X), X = attest(V, Ty, Sv, Pv, _, _), Ty == vote, ground(V),
-              \+ vote_carry_subject(Ts, Sv),
+              \+ vote_carry_subject(Ts0, Sv),
               \+ ( member(B, After), is_back(B) ),
               vote_spec_changed(Ts, Tks, Pv, After) ),
             Fs0),
     sort(Fs0, Facts).
 vote_changed_derived(_, []).
+
+% vote_epoch_mask(+Ts, -Ts1) (vote-start c13, Ty q4: only from the upgrade on): vote_epoch(N) in kb.pl, which the
+% migration of the upgrade writes, says that the first N terms of the KB are from before the upgrade: a
+% record of the specification among them is not a change that takes a vote back.
+vote_epoch_mask(Ts, Ts1) :-
+    (   member(T, Ts), nonvar(T), T = vote_epoch(E), integer(E)
+    ->  findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1)
+    ;   Ts1 = Ts
+    ), !.
+
+% vote_epoch_needed_derived(+Dir, +KbItems, -Facts): vote_epoch_needed(N) when the KB has a vote of the
+% human, no vote_epoch/1, and was made by an orbit-kb older than the one that brings the reset rule
+% (0.11.0): N is the number of its terms now. The migration m_0_11_0_vote_epoch writes vote_epoch(N).
+vote_epoch_needed_derived(Dir, KbItems, Facts) :-
+    items_uses(KbItems, Uses), memberchk(discovery, Uses),
+    \+ kb_term(KbItems, vote_epoch(_)),
+    kb_term(KbItems, attest(_, vote, _, _, human, _)),
+    directory_file_path(Dir, 'kb.pl', KbFile), exists_file(KbFile),
+    catch(mig_made_by(KbFile, V), _, V = none),
+    (   V == none -> true ; version_parts(V, P), P @< [0, 11, 0] ),
+    !, findall(T, kb_term(KbItems, T), Ts), length(Ts, N), Facts = [vote_epoch_needed(N)].
+vote_epoch_needed_derived(_, _, []).
 
 % vote_spec_changed(+Ts, +Tks, +After) (vote-start c6, Ty r2): a record of the specification
 % (goal, hypothesis, claim, check, example, a retirement attestation, supersedes, struck) follows the vote in kb.pl,
@@ -3376,6 +3398,7 @@ protected_pi(discovery_run_after/2).
 protected_pi(vote_void/1).
 protected_pi(vote_changed/1).
 protected_pi(vote_carry/1).
+protected_pi(vote_epoch_needed/1).
 protected_pi(discovery_end_valid/1).
 protected_pi(discovery_closed/0).
 protected_pi(discovery_open/0).
@@ -7473,9 +7496,9 @@ desk_blocker_words(X, W) :- term_text(X, T), dk_f("blocks readiness: ~w", [T], W
 % desk_vote_changes(+Dir, -Lines): the records of the specification that follow the last vote of the
 % human in kb.pl (the same set that voids the vote: spec_change/1), in words.
 desk_vote_changes(Dir, Lines) :-
-    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts),
-            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts, Sv),
-                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts, Sv2) )
+    catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Ts0, Ts),
+            (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
+                \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts0, Sv2) )
             ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
             ;   Lines = []
             ) ), _, Lines = ["(the list of changes could not be read: the KB file did not load)"]).
@@ -11558,7 +11581,9 @@ discovery_end_diags(KB, Items, KbFile, Diags) :-
     findall(diag('ED12', KbFile, L, M),
             ( member(it(kb, _, L, T, _, _), KbItems), nonvar(T), T = discovery_end(A), atom(A),
               once(( member(it(kb, _, LA, TA, _, _), KbItems), nonvar(TA), TA = attest(A, approval, _, _, human, _) )),
-              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP, _, _, _), LP < LA ), Pre0),
+              findall(P, ( member(P, KbItems), P = it(kb, _, LP2, TP2, _, _), nonvar(TP2), TP2 = vote_epoch(_), LP2 > LA ), EpochItems),
+              append(Pre0, EpochItems, Pre),     % vote_epoch(N): the changes from before the upgrade do not take the vote back (c13)
               \+ go_before(Dir, LibItems, Pre),
               fmt(M, "This discovery_end names approval ~w, but no GO came before that approval: in the KB before it, the discovery orbit was not open, or gate(go) or the artifacts' go did not hold. orbit-kb attest approval writes discovery_end only after a GO. Remove the line, or vote and approve again.", [A]) ),
             Diags).
