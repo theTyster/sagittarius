@@ -876,7 +876,8 @@ t_QS19() {  # c5: the ledger owns a question that depends only on the owner, the
     mkhub "$T/h"; local A A2
     A=$(hf "$T/h" --session build add ask --title 'Should the list show the newest invoice first' --note 'The case, the options and the default, for the test.' --waits-on me --ref kb:billing/kb)
     kb_a "$T/a"
-    okb --dir "$T/a" add "option(q2, yes, 'Paid invoices move to the archive tab')"
+    # the default of q2 is no: it must be one of the options (question-default-option c2, E22), so both go in
+    okb --dir "$T/a" add "option(q2, yes, 'Paid invoices move to the archive tab')" "option(q2, no, 'Paid invoices stay in the list')"; rc_is 0 "the options of q2"
     okb --dir "$T/a" pin-question q1 ledger "$A"; rc_is 0 "pin-question to the ledger"
     has_goal "$T/a" "question_pin(q1, ledger, '$A', D, T)" "the question is pinned to its ask"
     okb --dir "$T/a" pin-question q2 tracker 'gh:acme/billing#7'; rc_is 0 "pin-question to the tracker"

@@ -234,11 +234,24 @@ t_VS8() {  # c11 (review): a retirement after the vote opens the gate; the migra
     d="$T/mig"; vs_kb "$d" voted || return; wr build --dir "$d" add "retired(foo/2, '0.9.0', 'bar')" || note "setup: the migration record was refused: $(snip "$err")"
     wr build --dir "$d" release; gate_is "$d" go "a migration record retired/3 after the vote"
 }
+# old_tool: the orbit-kb of v0.10.1, the last release before vote_epoch (OLD overrides it), extracted once from
+# the git tag of this checkout into $T; it fails (the test skips) when there is no tag. The tool of main is not
+# used: after the landing of 0.11.0 it is no longer old.
+old_tool() {
+    [ -n "${OLD:-}" ] && { echo "$OLD"; return 0; }
+    local r; r=$(cd "$here/../.." && git rev-parse --show-toplevel 2>/dev/null) || return 1
+    if [ ! -x "$T/old-0.10.1/kb/bin/orbit-kb" ]; then
+        mkdir -p "$T/old-0.10.1" && git -C "$r" archive v0.10.1 kb | tar -x -C "$T/old-0.10.1" 2>/dev/null || return 1
+    fi
+    echo "$T/old-0.10.1/kb/bin/orbit-kb"
+}
 t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep counting; changes from the upgrade on take a vote back
-    local OLD=${OLD:-/home/ty/Projects/mine/sagittarius/kb/bin/orbit-kb} d="$T/old" pl dg l
+    # the old tool runs with its own library: the harness exports ORBIT_KB_LIB of the tool under test, and with it
+    # the old tool would stamp its KBs with the new version (0.11.0), which reads as from the upgrade on
+    local OLD; OLD=$(old_tool) || { SKIPPED=1; return; }; local d="$T/old" pl dg l
     [ -x "$OLD" ] || { SKIPPED=1; return; }
-    ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
-    oldw() { ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+    ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
+    oldw() { ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
     oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
     oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
     oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"
@@ -254,7 +267,7 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     wr build --dir "$d" lint; echo "$out" | grep -q ED12 && note "ED12 after the migration: $(grep ED12 <<<"$out" | head -1 | cut -c1-200)"
     gate_is "$d" go "the gate after the upgrade"; q "$d" 'vote_epoch_needed(_)'; [ "$rc" = 1 ] || note "the KB still asks for vote_epoch after the migration"
     # a vote not yet closed: a change before the upgrade keeps it, a change after it takes it back
-    d="$T/open"; ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
+    d="$T/open"; ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
     oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
     oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human
     oldw add "claim(c2, introduce, 'A later claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks too')" "predicts(hy1, c2)"; oldw release
@@ -264,7 +277,7 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     wr build --dir "$d" add "claim(c3, introduce, 'A claim after the upgrade.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks three')" "predicts(hy1, c3)"; wr build --dir "$d" release
     gate_not "$d" go "a change after the upgrade takes the vote back"
     # case B (review): the new tool writes to an old KB before migrate: its first write records vote_epoch first, so its change counts
-    d="$T/b"; ( cd "$T" && ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
+    d="$T/b"; ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1
     oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
     oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human; oldw release
     wr build --dir "$d" add "claim(c3, introduce, 'A claim of the new tool.')" "cites(c3, 'a request')" "example(c3, 'A case.')" "check(k3, c3)" "checks_that(k3, 'it checks three')" "predicts(hy1, c3)"; wr build --dir "$d" release
@@ -277,7 +290,14 @@ t_VS9() {  # c13 (Ty q4): votes and approvals from before the upgrade keep count
     wr build --dir "$d" add "vote_epoch(100000)"; [ "$rc" != 0 ] || note "add took vote_epoch/1"
 }
 t_VS10() {  # c6, c13 (review H-0250): the edge is the place of vote_epoch in kb.pl; a withdraw above it does not move it
-    local d="$T/w"; vs_kb "$d" voted cited || return
+    # the fixture is made by the old tool (with its own library), so that the first write of this tool records the marker
+    local OLD; OLD=$(old_tool) || { SKIPPED=1; return; }; local d="$T/w"
+    [ -x "$OLD" ] || { SKIPPED=1; return; }
+    oldw() { ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+    ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw add "cited(c1, 'a typo kind')" --doc "a typo of cites"; oldw add "cited(c1, 'a second fact of it')"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human; oldw release
     gate_is "$d" go "the fixture"
     wr build --dir "$d" add "example(c1, 'Another case.')"; wr build --dir "$d" release
     grep -q "^vote_epoch(" "$d/kb.pl" || note "no marker after the first write that follows the vote"
@@ -288,7 +308,7 @@ t_VS10() {  # c6, c13 (review H-0250): the edge is the place of vote_epoch in kb
 }
 t_VS11() {  # c6, c13 (gather of kb-crud and vote-start): strike and erase above the marker keep the edge; the marker itself is refused
     # the old tool with its own library (the harness exports ORBIT_KB_LIB of the tool under test)
-    local OLD=${OLD:-/home/ty/Projects/mine/sagittarius/kb/bin/orbit-kb} d="$T/m" c by
+    local OLD; OLD=$(old_tool) || { SKIPPED=1; return; }; local d="$T/m" c by
     [ -x "$OLD" ] || { SKIPPED=1; return; }
     oldw() { ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
     ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
