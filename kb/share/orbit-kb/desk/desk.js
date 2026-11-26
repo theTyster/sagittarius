@@ -57,27 +57,45 @@
         var link = document.createElement('a'); link.href = '?' + lq.toString() + '#' + encodeURIComponent(did.replace(/^item-/, 'ans-'));   // the row of the answered ask in Answered
         link.textContent = 'See it in Answered'; line.appendChild(link);
       }
-      var band = document.querySelector('header.top'), bandH = band ? band.getBoundingClientRect().bottom : 0;
-      var want = placeNote && placeNote.view === thisView ? Math.max(bandH, Math.min(placeNote.top, innerHeight - 60)) : bandH + 20;
-      var card = null, cs = document.querySelectorAll('[id^="item-"]');
-      for (var i = 0; i < cs.length && !card; i++) {
-        if (cs[i].closest('dialog') || cs[i].closest('aside')) continue;
-        var cr = cs[i].getBoundingClientRect();
-        if (cr.height > 0 && cr.top >= want - 8 && cr.top < innerHeight - 20) card = cs[i];
-      }
+      var band = document.querySelector('header.top'), bandH = band ? Math.max(0, band.getBoundingClientRect().bottom) : 0;
+      var own = placeNote && placeNote.view === thisView;
+      var viewTop = own ? Math.max(bandH + 8, Math.min(placeNote.top, innerHeight - 90)) : bandH + 20;   // where the line should stand on the screen
+      var docTarget = own ? (placeNote.y || 0) + placeNote.top : scrollY + viewTop;                       // where the card was in the page
       var h0 = placeNote && placeNote.h ? Math.max(40, Math.min(placeNote.h, 600)) : 140;
-      if (card && card.parentNode) {
-        card.parentNode.insertBefore(line, card);
-        var natural = line.offsetHeight;
-        line.style.height = h0 + 'px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
-        requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = natural + 'px'; }); });
-        setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
-      } else {
+      function toast() {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        line.style.height = ''; line.style.overflow = ''; line.style.transition = '';
         line.classList.add('fixed');
         line.style.cssText = 'position:fixed;left:16px;right:16px;top:' + Math.round(bandH + 8) + 'px;z-index:20;margin:0';
         document.body.appendChild(line);
         setTimeout(function () { line.style.transition = 'opacity 400ms'; line.style.opacity = '0'; setTimeout(function () { if (line.parentNode) line.parentNode.removeChild(line); }, 450); }, 9000);
       }
+      var next = null, prev = null, cs = document.querySelectorAll('[id^="item-"]');
+      for (var i = 0; i < cs.length; i++) {
+        if (cs[i].closest('dialog') || cs[i].closest('aside')) continue;
+        var cr = cs[i].getBoundingClientRect();
+        if (cr.height <= 0) continue;                       // a closed fold holds no place
+        var dt = cr.top + scrollY;
+        if (dt >= docTarget - 8) { if (!next) next = {el: cs[i], top: dt}; }
+        else prev = {el: cs[i], bottom: dt + cr.height};
+      }
+      var ref = null, before = true;
+      if (next && next.top - docTarget <= 60) ref = next.el;                                   // the card that now stands in its place
+      else if (prev && docTarget - prev.bottom <= 60) { ref = prev.el; before = false; }       // the card was the last of its list
+      else if (next) ref = next.el;
+      else if (prev) { ref = prev.el; before = false; }
+      if (ref && ref.parentNode) {
+        ref.parentNode.insertBefore(line, before ? ref : ref.nextSibling);
+        var natural = line.offsetHeight;
+        line.style.height = h0 + 'px'; line.style.overflow = 'hidden'; line.style.transition = 'height 330ms ease-out';
+        requestAnimationFrame(function () { requestAnimationFrame(function () { line.style.height = natural + 'px'; }); });
+        setTimeout(function () { line.style.height = ''; line.style.overflow = ''; line.style.transition = ''; }, 420);
+        // keep the viewport anchor: the line stands where the card stood, or on the screen when the page got shorter
+        var lr = line.getBoundingClientRect();
+        window.scrollTo(0, Math.max(0, Math.round(scrollY + lr.top - viewTop)));
+        lr = line.getBoundingClientRect();
+        if (Math.abs(lr.top - viewTop) > 120) toast();   // the page got too short to hold the place: the line is a note on the screen
+      } else toast();
     }
     deskDone = put;   // run when the page took its place again (below)
   })();
@@ -294,7 +312,7 @@
       e.preventDefault();
       try {
         var pc = f.closest('[id^="item-"]') || f, pr = pc.getBoundingClientRect();
-        sessionStorage.setItem('desk-done-place', JSON.stringify({top: Math.round(pr.top), h: Math.round(pr.height), view: thisView}));
+        sessionStorage.setItem('desk-done-place', JSON.stringify({top: Math.round(pr.top), h: Math.round(pr.height), y: Math.round(scrollY), view: thisView}));
       } catch (e) { /* no storage: the line takes the default place */ }
       post('/review', fields(f), {'X-Desk-Fragment': '1'}).then(function (r) {
         return r.text().then(function (t) { openReview(t); });

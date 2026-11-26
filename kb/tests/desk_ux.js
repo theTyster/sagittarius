@@ -712,6 +712,23 @@ async function r10() {
   await pg.ev(`const a = [...document.querySelectorAll('nav.views a')].find(a => /Waits on you/.test(a.textContent)); a.click(); return 1;`); await pg.afterNav();
   const wl = await pg.ev(state);
   check('c19: the link Waits on you of the row of views opens Waits on you', wl.view === 'waits', JSON.stringify(wl));
+  // c18 at the end of a list: answer the last ask that is left; the line is still on the screen, at the place of the card
+  await pg.go(base + '/?mh=alpha&view=waits');
+  const pre2 = await pg.ev(`const f = [...document.querySelectorAll('form[data-review]')].filter(f => !f.closest('dialog') && (f.querySelector('input[name=choice]') || f.querySelector('textarea[name=text]')) && /-ask-A-/.test((f.closest('[id^="item-"]') || {id: ''}).id))[0];
+    if (!f) return {found: false};
+    for (let e = f; e; e = e.parentElement) if (e.tagName === 'DETAILS') e.open = true;
+    const c = f.querySelector('input[name=choice]'); if (c) c.checked = true;
+    const ta = f.querySelector('textarea[name=text]'); if (ta) ta.value = 'probe words';
+    f.scrollIntoView({block: 'center'}); await new Promise(r => setTimeout(r, 400));
+    const card = f.closest('[id^="item-"]'); const top = Math.round(card.getBoundingClientRect().top);
+    f.requestSubmit(); await new Promise(r => setTimeout(r, 900));
+    return {found: true, top, reviewOpen: !!document.querySelector('#review button.go')};`);
+  if (pre2.found && pre2.reviewOpen) {
+    await pg.ev(`document.querySelector('#review button.go').click(); return 1;`);
+    await pg.afterNav(); await new Promise(r => setTimeout(r, 900));
+    const n2 = await pg.ev(`const n = document.querySelector('.donenote'); if (!n) return null; const r = n.getBoundingClientRect(); const e = document.elementFromPoint(Math.round(r.left + Math.min(40, r.width / 2)), Math.round(r.top + r.height / 2)); return {text: n.textContent, top: Math.round(r.top), vh: innerHeight, seen: !!(e && (e === n || n.contains(e)))};`);
+    check('c18: after the last ask of a list the line is on the screen and can be seen', !!n2 && n2.top >= 0 && n2.top < n2.vh - 20 && n2.seen, JSON.stringify(n2) + ' card was at ' + pre2.top);
+  } else check('c18: the last ask of a list was found and its review opened', false, JSON.stringify(pre2));
   // c19: work in Questions, then the plain address
   await pg.go(base + '/?mh=alpha&view=questions');
   await pg.go(base + '/?mh=alpha');
