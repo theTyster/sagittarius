@@ -57,6 +57,7 @@ signature(burn_proved/1).
 signature(burn_reason/1).
 signature(burn_requested/1).
 signature(burn_waived/1).
+signature(by_human/2).
 signature(carried/2).
 signature(carried_over/2).
 signature(case_against/2).
@@ -156,6 +157,7 @@ signature(dropped/4).
 signature(due/2).
 signature(due_passed/1).
 signature(encodes/2).
+signature(erased/4).
 signature(example/2).
 signature(excludes/2).
 signature(experiment/3).
@@ -328,6 +330,7 @@ signature(record_up/2).
 signature(refuted/1).
 signature(relation_by/3).
 signature(relation_ratified/1).
+signature(replaced/4).
 signature(repo/2).
 signature(request/2).
 signature(request_accepted/3).
@@ -369,6 +372,8 @@ signature(stale_counts/2).
 signature(stale_grandfathered/2).
 signature(stale_pin/1).
 signature(stale_pin_open/1).
+signature(struck/4).
+signature(struck_disclosure/4).
 signature(subject/3).
 signature(subject_now/2).
 signature(supersede_cycle/1).
