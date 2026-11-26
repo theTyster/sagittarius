@@ -9,9 +9,9 @@ version did not go up.
 
 | Thing | Version | Where it is stated | What it covers |
 |---|---|---|---|
-| Sagittarius | 0.11.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
+| Sagittarius | 0.12.0 | the last line of `prompt/SAGITTARIUS.md` | the prompt, `orbit-kb`, the System 1 hook |
 | Philosophy | 3.0.0 | the first lines of `docs/PHILOSOPHY.md` | the beliefs; installed nowhere |
-| MindHole Kit | 0.13.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
+| MindHole Kit | 0.14.0 | `hubkit/kit.json`; a hub records its own in `.hub-template.json` | the hub template and its tools |
 | s1-glance | 0.14.0 | `s1/glance/.claude-plugin/plugin.json` | the Sagittarius Signals mod |
 | desk-toast | 0.1.0 | `hubkit/hub/.claude/scripts/desk-toast/.claude-plugin/plugin.json` | the Desk toast mod |
 
@@ -41,6 +41,35 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.1.0 | the tag `v0.1.0-experiment` (2026-07-01) |
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
+
+## Sagittarius 0.12.0 and MindHole Kit 0.14.0 (2026-11-26)
+
+MINOR for Sagittarius: the Desk shows a new state of a desk agent (failed, with its reason). No rule of
+the prompt, no command and no fact changes. MINOR for the kit: `desk.py` of the hub changes what a desk
+agent gets, how its end is recorded, and how `DESK_AGENTS` reads an unknown word. The db schema stays 9;
+no migration of spec KBs. One ticket, verified by review (desk-agents c20, c21, c23; H-0280, H-0281), released on Ty's word of 2026-11-26: "After they
+land, cut another minor release and get it live" (T-0073).
+
+- **A failed run shows as failed** (desk-agents c20; Ty, q11: "Show failed, with the reason"). A run of
+  a desk agent that exits with an error, and was not stopped, leaves the agent in the state failed, with
+  the last line of its stderr (for example "Invalid API key - please run /login"). The view Agents and
+  the sheet of the KB show it in the colour of a burn; its log has the line as an error event. The next
+  run that ends normally clears it. A Stop is not a failure.
+- **A desk agent gets nothing of another session** (desk-agents c21; review's finding H-0279). A Desk
+  started from inside a Claude Code session gave that session's id, role prompt, pane, messaging socket
+  and token to every desk agent. `desk.py` now gives the runner, its `claude -p` and its `orbit-kb` an
+  environment without `CLAUDECODE`, `AI_AGENT`, `HUB_SESSION`, `TMUX`, `TMUX_PANE`, `CLAUDE_PID`,
+  `CLAUDE_EFFORT` and every `CLAUDE_CODE_*` and `CLAUDE_PANE_*` name, except the login and the provider
+  (`CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY`).
+- **An unknown word in `DESK_AGENTS` leaves desk agents on** (desk-agents c23; Ty: "My answer stands:
+  unknown leaves agents on"). On, 1, true, yes and off, 0, false, no keep their meaning in any case (c22).
+  Any other value is named on stderr and counts as not set: agents stay on, unless `desk.py agents off`
+  set the flag. A Desk started with such a word names it at its start and in a banner on every view
+  (review's finding f_h6: a typo of off would start paid runs in silence). In 0.11.0 an unknown value
+  turned them off.
+- `hubkit/UPGRADING.md` 0.13.0: corrected. It said that a hub on 0.12.3 needs nothing but the upgrade;
+  the upgrade only previews the migrations of spec KBs, and each open KB needs `orbit-kb migrate apply`.
+- Tests: DH12, DH13, a new DH3 case (a Stop is not a failure) and DH6b for c23 in `test_desk_headless.sh`.
 
 ## Sagittarius 0.11.0 and MindHole Kit 0.13.0 (2026-11-26)
 

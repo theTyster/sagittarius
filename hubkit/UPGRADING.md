@@ -102,6 +102,29 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
+### 0.14.0 (a desk agent that fails shows failed; a desk agent gets nothing of the session that started the Desk; an unknown DESK_AGENTS word leaves agents on; db schema 9, unchanged)
+
+This release pairs with Sagittarius 0.12.0. The db schema is 9: no `hubflow.py migrate`. No migration of
+spec KBs. What changes in a hub:
+
+- `desk.py`: a run of a desk agent that exits with an error (and was not stopped) leaves the agent in
+  the state `failed`, with the last line of its stderr as the reason, in `desk.py agents` and on the
+  Desk; the next run clears it (desk-agents c20).
+- `desk.py`: the runner of a desk agent, its `claude -p` and the `orbit-kb` that it calls no longer
+  get the variables of the session that started the Desk or sent the letter: `CLAUDECODE`, `AI_AGENT`,
+  `HUB_SESSION`, `TMUX`, `TMUX_PANE`, `CLAUDE_PID`, `CLAUDE_EFFORT`, and every `CLAUDE_CODE_*` and
+  `CLAUDE_PANE_*` name (the session id, the role prompt, the messaging socket and its token). The names
+  of the login and the provider stay: `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`,
+  `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY` (desk-agents c21).
+- `desk.py`: `DESK_AGENTS` reads on, 1, true, yes as on and off, 0, false, no as off, in any case. Any
+  other value is named on stderr and counts as not set, so desk agents stay on unless `desk.py agents
+  off` set the flag (desk-agents c23). A Desk started with such a word says so at its start and in a
+  banner on every view. In 0.13.0 an unknown value turned them off: a test or a copy of a
+  hub that relied on a misspelled value to keep agents off must write `off`.
+- The hooks block that `desk.py hooks` prints is the same: no change to `.claude/settings.json`.
+
+A hub on 0.13.0 needs the upgrade, then a restart of the Desk after every joined hub is upgraded.
+
 ### 0.13.0 (the Desk gives letters and starts desk agents; two migrations of spec KBs; db schema 9, unchanged)
 
 This release pairs with Sagittarius 0.11.0. The db schema is 9: no `hubflow.py migrate`. What changes in
@@ -125,7 +148,12 @@ a hub:
   the preview prints. A closed ticket's KB is frozen: the migration is refused there, and the KB reads
   as wholly from before the upgrade (no write).
 
-A hub on 0.12.3 needs nothing but the upgrade. Restart the Desk after every joined hub is upgraded:
+A hub on 0.12.3 needs the upgrade, then the migrations in each open spec KB: `hubkit.py upgrade` only
+previews them and writes no KB. (Corrected in 0.14.0: the text of 0.13.0 said "nothing but the upgrade".)
+In each `specs/SLUG` of an open ticket, with no session writing it: `../../.claude/orbit-kb/bin/orbit-kb
+migrate plan`, then `orbit-kb migrate apply --seen sha256:DIGEST` with the digest that the plan prints,
+then `orbit-kb release`. A step that needs an agent stays with the holder of the KB (`hubflow.py
+migrations` lists them). Restart the Desk after every joined hub is upgraded:
 a Desk of the new tool with a hub of the old `desk.py` shows no delivery field, no Letters block and no
 agents. The Desk shows its running version under the title and says Restart needed while the tool
 installed in its own mindhole differs.
