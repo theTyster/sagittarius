@@ -42,28 +42,78 @@ Earlier versions, named after the fact so that a report can refer to them:
 | Sagittarius 0.2.0 | the Redesign (informal release); `main` at `7124544` |
 | Philosophy 1.0.0 | the text of 2026-11-05 |
 
-## Sagittarius 0.11.0 and MindHole Kit 0.13.0 (2026-11-25)
+## Sagittarius 0.11.0 and MindHole Kit 0.13.0 (2026-11-26)
 
-MINOR for Sagittarius: the Desk gives letters in a new way (wake on your yes, one letter at each Stop,
-confirmation by the agent) and the page shows where each letter is. No rule of the prompt changes.
-MINOR for the kit: `desk.py` of the hub changes (a new command, `ack`, and a changed hook); the db
-schema stays 9. A stopgap that Ty asked for (desk-agents q7, 2026-11-25), so that he can test the hook
-before the desk agents of `desk-agents` replace it.
+MINOR for Sagittarius: new commands (`orbit-kb strike`, `replace`, `erase`; `orbit model-run`, `orbit
+repo-map`), new rules of the engine (the vote of the human at any time, a default must be one of the
+options, the place of a KB decides its store), two migrations, and a Desk that starts desk agents, keeps
+its place after an action and shows its version. No rule of the prompt changes. MINOR for the kit:
+`desk.py` of the hub changes (letters by wake, Stop and confirmation; headless desk agents), the
+upgrade preview opens with counts, and HUB-CORE and the hub-flow skill gain the rule to find the spec
+KB of a finding. The db schema stays 9. Eleven tickets, each verified by review on its own branch and
+then gathered on `release/0.11.0` (H-0271, Ty's goal "cut and land the next release from the
+stockpiled tickets", 2026-11-26).
 
-- **Every letter reaches its session** (desk-delivery c2, c4, c5, c6). For a letter to an idle session
-  the Desk asks you whether to wake it; on your yes (`POST /wake`, `desk.py wake`) the line is typed
-  into its tmux pane and the agent gets the letter within a minute. Other letters come at each Stop of
-  the session, one turn end after another; a letter is given once.
-- **Acted on means confirmed** (c7). The notice reads as a letter from Ty and ends with
-  `desk.py ack LID`. A letter counts as acted on only when its agent runs that command in the turn that
-  got it. A turn that ends with no confirmation (a Stop, Ctrl+C, a crash or a compaction) shows the
-  letter as given, not acted on, in a block Letters above the layout, until you act on it (`POST
-  /dismiss`: "I have dealt with it"); it is not given again. A letter seen before the Desk kept track of
-  turns reads "given before the Desk kept track of turns", not "given, its turn has not ended yet".
-- **Not reachable** (c8). A letter to a session for which no Desk hook has ever run in its mindhole is
-  shown, on the card and in the review, as not reachable, not as sent.
-- Tests: `desk-test.py` (case_c2_batch, case_c4_busy, case_c6_settle, case_c7_ack, case_c7_old_letters)
-  and QS78 to QS80 of `kb/tests/test_question_server.sh`.
+- **Desk agents** (desk-agents c11 to c19; Ty r3 to r8, hy8, q9). A letter about a spec KB that nobody
+  holds starts a desk agent: `claude -p` with `--output-format stream-json`, one process per session,
+  run by a detached runner (`desk.py agent-run`), never in tmux. The runner holds the writer lock of
+  the KB while claude runs and renews it, keeps each event in `flow/desk/agents/NAME.jsonl`, and
+  releases the lock at the end. A letter for a running agent waits in its queue; the next run resumes
+  the session. The Desk has a view Agents and the same block on the sheet of the letter: the live log
+  (one line per tool call and per text), Stop, Resume with words, and the command to step into the
+  session in a terminal. A refused `--permission-mode auto` falls back once to `acceptEdits`. **On by
+  default** (Ty's answer to q9): `desk.py agents off` (or `DESK_AGENTS=off`) is the way out.
+- **Every letter reaches its session** (desk-delivery c2 to c8). For a letter to an idle session the
+  Desk asks you whether to wake it; on your yes (`POST /wake`, `desk.py wake`) the line is typed into its
+  tmux pane. Other letters come at each Stop, one at a time. A letter counts as acted on only when its
+  agent runs `desk.py ack LID` in the turn that got it; a turn that ends with no confirmation shows the
+  letter as given, not acted on, in a block Letters, until you act on it (`POST /dismiss`). A session
+  for which no Desk hook ever ran shows as not reachable.
+- **The Desk keeps your place** (desk-speed-orbit-door c18 to c23, r10). After an action (a Send, a
+  vote, an answer) the Desk stays in its view and place: the page is the server's render of the same
+  address, put in place of the body, and a line of what was done stands where the card was. A load
+  that is not cold returns to the last view; a tab whose address names a view shows it after a
+  restart. One review, one send id, one letter: the server takes an id once.
+- **The Desk shows its version** (desk-version-marker c1 to c4). The running version sits under the
+  title. When the tool installed in the Desk's own mindhole differs, it says Restart needed, with both
+  versions; another joined mindhole that differs gets "upgrade it" (behind) or "upgrade the Desk's
+  mindhole, then restart" (ahead).
+- **The vote of the human at any time** (vote-start c1 to c13). The sheet of every KB with an open
+  discovery has the Vote form (GO, NO-GO, HOLD; the Desk writes Ty's vote as his own record) and, while
+  the KB is not ready, Bring to a vote (a letter to the holder, or to the keeper when nobody holds it).
+  A change of the specification after the vote takes the vote back (`gate(hold)`; the sheet says what
+  changed), unless Ty voted on that change himself. After the GO the sheet shows the ticket text and
+  Approve with its digest. Votes and approvals from before the upgrade keep counting: the migration
+  `m_0_11_0_vote_epoch` writes `vote_epoch(N)`, and its place in kb.pl is the edge; strike, replace
+  and erase refuse it.
+- **Change any record** (kb-crud c1 to c10). `orbit-kb strike X --why`, `replace X 'NEW' --why` and
+  `erase X --why` work on every kind of item and on an attachment by its address (`KIND(ITEM)#N`);
+  `supersedes` takes every kind of item. The engine reads a KB without its struck records (query, why,
+  lint, the Desk). A fact that a human writes carries `by_human(at(KIND, ITEM, N), T)`: an agent
+  changes it only with `--disclose TEXT`, and so a record of another session (Ty: "Only my own
+  session is free"). The Desk has the forms New, Replace, Strike and Erase.
+- **A default is one of the options** (question-default-option c1 to c4). `add` refuses a default that
+  is none of the options of its question, or a second default (E22); lint W22 names an old one, and
+  `show open` names a step for it. The migration `0.11.0-default-option` links an old default to the
+  option it names, or keeps it with a step.
+- **The place decides the store** (spec-kb-store-rule c1 to c3). A KB at `<hub>/specs/<slug>` is a
+  spec KB whatever modules it takes; lint W21 names a spec KB that takes `project` and names no
+  project KB.
+- **orbit runs the solver** (orbit-front-door c1 to c7). `orbit model-run MODEL` runs z3, cvc5 or TLC
+  itself, keeps the log as a subject, and writes `model_run` (an undecided run writes none); `add`
+  refuses a `model_run` typed by hand; a change of the cfg, a harness or a module makes the run stale.
+  `orbit repo-map` runs the repo-map beside the tool.
+- **The upgrade preview opens with counts** (preview-reducer c1 to c5). `hubkit.py upgrade` (dry run)
+  starts with a summary (the counts, the KBs that change, one line for the KBs that do not); the digest
+  stays that of the full preview. No model call (Ty: "Drop the reducer agent").
+- **Find the KB of a finding** (kb-query c5, c6). HUB-CORE and the hub-flow skill: find the spec KB
+  that owns a finding with `orbit hub query` and give its kb ref; `hubflow` warns on a Kit thread with
+  no kb ref.
+- Tests: `test_kb_crud.sh`, `test_default_option.sh`, `test_vote_start.sh` (VS1 to VS11),
+  `test_model_run.sh`, `test_desk_headless.sh`, `test_desk_guard.sh` (every harness that starts a Desk sets
+  `DESK_AGENTS=off` or tests agents behind a fake claude), QS78 to QS83 of `test_question_server.sh`, the r10
+  cases of `test_desk_ux.sh`, `desk-test.py` (the delivery cases; the four toast cases that need the
+  real claude run only with `DESK_TEST_REAL_CLAUDE=1`), MGP of `hubkit-test.py`.
 
 ## Sagittarius 0.10.1 and MindHole Kit 0.12.3 (2026-11-25)
 

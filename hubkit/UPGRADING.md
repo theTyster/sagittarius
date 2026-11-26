@@ -102,16 +102,33 @@ step that writes.
 Each section gives, per change: the intent in one sentence, the files, the steps for a hub that
 changed those files, and a check.
 
-### 0.13.0 (the Desk gives letters by wake, Stop and confirmation; db schema 9, unchanged)
+### 0.13.0 (the Desk gives letters and starts desk agents; two migrations of spec KBs; db schema 9, unchanged)
 
-This release pairs with Sagittarius 0.11.0. The db schema is 9: no `hubflow.py migrate`. `desk.py`
-changes: a new command `ack LID` (the agent confirms a letter in its turn), `wake` (typed on the
-human's yes only), a changed hook (one letter at each Stop; a turn with no confirmation leaves the
-letter as given, not acted on), and `status` reports `delivery` and `wake_ask` for each letter. The
-hooks block that `desk.py hooks` prints is the same: no change to `.claude/settings.json`. The `hub-flow`
-skill names `ack`. A hub on 0.12.3 needs nothing but the upgrade. Restart the Desk after every joined
-hub is upgraded: a Desk of the new tool with a hub of the old `desk.py` shows no delivery field and
-no Letters block.
+This release pairs with Sagittarius 0.11.0. The db schema is 9: no `hubflow.py migrate`. What changes in
+a hub:
+
+- `desk.py`: letters by wake, Stop and confirmation (new commands `ack LID` and `wake`; one letter at
+  each Stop; a turn with no confirmation leaves the letter as given, not acted on; `status` reports
+  `delivery` and `wake_ask`), and headless desk agents (new commands `agents on|off`, `agent-run`,
+  `agent-stop`, `agent-resume`; files in `flow/desk/agents/`). **Desk agents are on by default**: after
+  the upgrade and the restart of the Desk, a letter about a spec KB that nobody holds starts `claude -p`
+  in that hub. To keep them off, run `python3 .claude/scripts/desk.py agents off` once (the flag is in
+  the Desk's state dir), or start the Desk with `DESK_AGENTS=off`.
+- The hooks block that `desk.py hooks` prints is the same: no change to `.claude/settings.json`.
+- HUB-CORE and the `hub-flow` skill: find the spec KB that owns a finding with `orbit hub query`, and
+  give its kb ref; `hubflow` warns on a Kit thread with no kb ref (kb-query c5, c6).
+- The hub's orbit-kb: two migrations of spec KBs, `0.11.0-default-option` (a default that is none of
+  the options of its question is linked to the option it names, or kept with a step) and
+  `m_0_11_0_vote_epoch` (a KB made before 0.11.0 with a vote of the human gets `vote_epoch(N)`, so that
+  its votes and approvals keep counting). The upgrade preview opens with counts and lists the KBs that
+  change; its digest is that of the full preview, so `--seen-migrations sha256:DIGEST` is the digest
+  the preview prints. A closed ticket's KB is frozen: the migration is refused there, and the KB reads
+  as wholly from before the upgrade (no write).
+
+A hub on 0.12.3 needs nothing but the upgrade. Restart the Desk after every joined hub is upgraded:
+a Desk of the new tool with a hub of the old `desk.py` shows no delivery field, no Letters block and no
+agents. The Desk shows its running version under the title and says Restart needed while the tool
+installed in its own mindhole differs.
 
 ### 0.12.3 (Ratify of a relation on the Desk; db schema 9, unchanged)
 
