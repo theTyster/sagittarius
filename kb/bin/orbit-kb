@@ -5533,8 +5533,9 @@ serve_message_page(Status, Msg) :-
 
 % serve_kbs(-Groups): the KBs to serve now, as group(Label, ProjectDir|none, Dirs). The --dir
 % KBs in the order given, then the KBs under --root, sorted by path. A KB that a spec KB names
-% with project_kb/1, or that uses the project module and has no project_kb and no claim, is a
-% project KB: it names a group and has no section of its own.
+% with project_kb/1, or that uses the project module, has no project_kb and no claim, and does not lie
+% in <hub>/specs/ (spec-kb-store-rule c1: the place decides), is a project KB: it names a group and
+% has no section of its own.
 serve_kbs(Groups) :- serve_all_dirs(All), serve_groups(All, Groups).
 
 % serve_all_dirs(-All): the --dir KBs, the KBs under --root, and the KBs under each --hub.
@@ -5598,7 +5599,18 @@ serve_kb_project(Dir, P) :-
     ;   P = none
     ).
 
+% serve_in_specs(+Dir): the KB lies in a directory named specs (the place of a spec KB of a hub).
+% spec-kb-store-rule c1: the place decides the store of a KB, not its modules alone.
+% The place is <hub>/specs/<slug>: the parent is named specs and the directory above it is a hub root
+% (it holds flow/flow.db). A KB deeper under specs/, or in a directory specs/ that is no hub's, is not
+% in this place (limit, disclosed).
+serve_in_specs(Dir) :-
+    file_directory_name(Dir, Parent), file_base_name(Parent, specs),
+    file_directory_name(Parent, Hub),
+    directory_file_path(Hub, 'flow/flow.db', Db), exists_file(Db).
+
 serve_is_project_kb(Dir) :-
+    \+ serve_in_specs(Dir),
     serve_kb_items(Dir, Items),
     items_uses(Items, Us), memberchk(project, Us),
     \+ kb_term(Items, project_kb(_)),
@@ -11410,11 +11422,23 @@ lint_diags(KB, Diags, IssueLines, IssueErrors) :-
     discovery_end_diags(KB, Items, KbFile, D12),
     % WM1 (kb-migrations c16, c17): retired predicates, their facts and their reach
     wm_diags(Items, Ds, DM),
-    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12, DM], Diags0),
+    % W21 (spec-kb-store-rule c2): a KB in specs/ that takes the module project and names no project KB
+    store_diags(KB, Dir, KbFile, Items, DS),
+    append([D1, D10, DD, DA, DF, D5, D15, DR, D17, D18, D11, DW, D12, DM, DS], Diags0),
     % keep errors in a stable order; drop exact repeats
     list_to_set(Diags0, Diags),
     lint_issues(Eng, Ds, IssueLines, IssueErrors).
 
+
+% store_diags(+KB, +Dir, +KbFile, +Items, -Diags) (spec-kb-store-rule c2): W21 for a KB that lies in a directory
+% specs/ (a spec KB), takes the module project, and has no project_kb fact: no project KB is named for it.
+store_diags(KB, Dir, KbFile, Items, Diags) :-
+    kb_uses(KB, Uses), memberchk(project, Uses),
+    serve_in_specs(Dir),
+    \+ ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = project_kb(_) ), !,
+    (   member(it(kb, _, L, U, _, _), Items), nonvar(U), U = uses(_) -> true ; L = 0 ),
+    Diags = [diag('W21', KbFile, L, "This KB lies in specs/ and takes the module project, but names no project KB. The Desk shows it as a spec KB, and a repo group and the pins need the link. Add it: orbit-kb add \"project_kb('../../project-kb')\" (the path of the project KB from this directory), and repo(Name, Path) for its repo. It blocks nothing.")].
+store_diags(_, _, _, _, []).
 
 % discovery_end_diags(+KB, +Items, +KbFile, -Diags) (D41, review of K-C/K-D, item 2): lint error
 % ED12 for a discovery_end(A) whose approval A is a human approval, but where, in the KB as it

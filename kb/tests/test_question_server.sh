@@ -52,6 +52,7 @@
 #   c14 q7 who holds what; question -> KB -> project KB; Orphaned with fixes Ty sends          : QS46
 #   c15 project KB items for Ty (a proposed fact, Ratify)                                     : QS47
 #   c15 Ratify of a proposed relation (excludes): the review, the human add, the warning      : QS77
+# hub spec KB spec-kb-store-rule (2026-11-25): c1 c2 c3 the place decides the store; lint W21     : QS82
 #   c16 one Desk for every mindhole that joined, in one step; the service unit                : QS48
 #   c18 q8 each check in words (fact, else script docstring), how it runs, its last run       : QS49
 #   c19 the owner session as one badge in the heading                                         : QS50
@@ -2409,6 +2410,55 @@ t_QS81() {  # desk-version-marker c1 c2 c3 c4 (H-0186; c4: Ty q1): the page show
     done
 }
 
+t_QS82() {  # spec-kb-store-rule c1 c2 c3: a KB in specs/ is a spec KB whatever modules it takes; the project KB of the hub stays the project KB; lint W21 names a spec KB that takes project and names no project KB
+    desk_hub "$T/h"
+    local s
+    for s in aa-plain bb-project-nolink cc-project-linked; do mkdir -p "$T/h/specs/$s"; done
+    kb_new "$T/h/specs/aa-plain" <<'EOF2'
+uses([discovery]).
+request(r1, 'aa plain').
+EOF2
+    kb_new "$T/h/specs/bb-project-nolink" <<'EOF2'
+uses([discovery, project]).
+request(r1, 'bb takes project, names none').
+EOF2
+    kb_new "$T/h/specs/cc-project-linked" <<'EOF2'
+uses([discovery, project]).
+project_kb('../../project-kb').
+request(r1, 'cc takes project and names it').
+EOF2
+    srvd --hub "$T/h" || return; page_ok || return
+    python3 -I - "$T/page.html" <<'PY' || note "a KB of specs/ stands under Project KB, or the project KB left it"
+import re, sys
+t = open(sys.argv[1]).read()
+st = [(m.start(), m.group(1)) for m in re.finditer(r'<details class="store" id="store-([a-z]+)"', t)]
+def sec(text):
+    out = set()
+    for m in re.finditer(re.escape(text), t):
+        cur = None
+        for pos, n in st:
+            if pos < m.start(): cur = n
+        out.add(cur)
+    return out
+for text in ("aa-plain", "bb-project-nolink", "cc-project-linked"):
+    if "project" in sec(text) or "spec" not in sec(text): sys.exit(1)
+if "project" not in sec("project-kb"): sys.exit(1)
+PY
+    wr process --dir "$T/h/specs/bb-project-nolink" lint; echo "$out $err" | grep -q 'W21' || note "lint of bb: no W21 ($(snip "$out $err"))"
+    echo "$out $err" | grep -q "project_kb('../../project-kb')" || note "the W21 message does not give the line to add"
+    wr process --dir "$T/h/specs/cc-project-linked" lint; echo "$out $err" | grep -q 'W21' && note "lint of cc (it names its project KB): W21"
+    # the place is <hub>/specs/<slug>: a KB deeper under specs/ is no spec KB of the hub, and a hub dir that is itself named specs does not turn its project KB into a spec KB
+    mkdir -p "$T/h/specs/deep/inner" "$T/sp/specs"; kb_new "$T/h/specs/deep/inner" <<'EOF2'
+uses([discovery, project]).
+request(r1, 'deep one').
+EOF2
+    wr process --dir "$T/h/specs/deep/inner" lint; echo "$out $err" | grep -q 'W21' && note "W21 for a KB deeper under specs/ (not in the place)"
+    cp -r "$T/h/project-kb" "$T/sp/specs/project-kb"; wr process --dir "$T/sp/specs/project-kb" lint; echo "$out $err" | grep -q 'W21' && note "W21 for a project KB whose parent is named specs but is no hub's specs/"
+    wr process --dir "$T/h/specs/aa-plain" lint; echo "$out $err" | grep -q 'W21' && note "lint of aa (no project module): W21"
+    wr process --dir "$T/h/project-kb" lint; echo "$out $err" | grep -q 'W21' && note "lint of the project KB itself: W21"
+    true
+}
+
 run_one() {  # run_one ID
     local id=$1 fn=t_$1 i
     [ -n "${ONLY:-}" ] && ! [[ $id =~ $ONLY ]] && return 0
@@ -2422,6 +2472,6 @@ run_one() {  # run_one ID
     else fail=$((fail+1)); failed+=("$id"); echo "FAIL $id"; for i in "${FAILS[@]}"; do echo "     - $i"; done; fi
 }
 [ -n "${QS_LIB_ONLY:-}" ] && return 0   # test_desk_records.sh reads the harness above, and runs its own tests
-for n in $(seq 1 81); do run_one QS$n; done
+for n in $(seq 1 82); do run_one QS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
