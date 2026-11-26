@@ -331,6 +331,9 @@ def delta(before, after, roots):
         al, bl = a.splitlines(), b.splitlines()
         added = [x for x in bl if x not in set(al)]
         removed = [x for x in al if x not in set(bl)]
+        # kb-crud c9 (0.11.0): a fact that a human writes carries by_human(Fact, Time). The 0.9.1 Desk writes the fact only.
+        # Only that new mark is left out; the fact itself is still compared.
+        added = [x for x in added if not x.startswith("by_human(")]
         name = norm_paths(p, roots)
         for x in added:
             out.append("+ " + name + " " + LID.sub("LID", HEX.sub("HEX", SIG.sub("SIG", TS.sub("TS", norm_ver(norm_paths(x, roots)))))))
