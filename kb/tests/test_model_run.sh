@@ -6,6 +6,7 @@
 #   c3 a model run cannot be recorded by hand                              : MR3
 #   c4 orbit repo-map is the repo-map beside it                            : MR8
 #   c5 the old name is the same program                                    : MR11
+#   c7 orbit migrate answers as orbit-kb migrate                            : MR21
 #   a model file that changed since its subject is refused                 : MR7
 #   the verdict follows the exit code (z3, TLC); TLC runs in a temp dir; --spec --cfg --with; batch gate; cvc5; log not refreshed : MR12-MR17
 set -u
@@ -130,7 +131,13 @@ t_MR20() { fixture tla || return; fake tlc 'echo "Error: Deadlock reached."; ech
     PATH=$T/bin:$PATH "$ORB" --dir "$K" model-run m1 >/dev/null 2>&1; rc=$?
     [ $rc = 0 ] && grep -q 'class=tlc_violated' "$K"/runs/1-m1.log || note "a plain TLC deadlock (exit 11) is not a decided result: exit $rc"
     "$ORB" help model-run 2>&1 | grep -qi 'deadlock' || note "the help does not say that a deadlock is a result"; }
-for id in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+t_MR21() { fixture smt || return   # c7: orbit migrate answers as orbit-kb migrate (check, plan)
+    a=$("$ORB" --dir "$K" migrate check 2>&1); ra=$?; b=$("$OKB" --dir "$K" migrate check 2>&1); rb=$?
+    [ "$ra" = "$rb" ] && [ "$a" = "$b" ] || note "migrate check differs: $ra $rb"
+    printf '%s' "$a" | grep -qi 'unknown command' && note "orbit does not know migrate"
+    a=$("$ORB" --dir "$K" migrate plan 2>&1); ra=$?; b=$("$OKB" --dir "$K" migrate plan 2>&1); rb=$?
+    [ "$ra" = "$rb" ] && [ "$a" = "$b" ] || note "migrate plan differs: $ra $rb"; }
+for id in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21; do
     [ -n "${ONLY:-}" ] && ! [[ MR$id =~ $ONLY ]] && continue
     FAILS=(); "t_MR$id" </dev/null >/dev/null 2>&1 || true
     if [ ${#FAILS[@]} -eq 0 ]; then pass=$((pass+1)); echo "PASS MR$id"; else fail=$((fail+1)); failed+=("MR$id"); echo "FAIL MR$id"; printf '     - %s\n' "${FAILS[@]}"; fi
