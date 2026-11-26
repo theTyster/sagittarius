@@ -1433,7 +1433,8 @@
         "universal",
         "due",
         "ticket",
-        "actor"
+        "actor",
+        "by_human"
       ]
     },
     {
@@ -1465,7 +1466,8 @@
         "reason",
         "model_result",
         "lean_result",
-        "lean_proof"
+        "lean_proof",
+        "model_run_file"
       ]
     },
     {
@@ -1479,7 +1481,11 @@
         "behavior_conflict",
         "could_change",
         "location",
-        "confirmation"
+        "confirmation",
+        "struck",
+        "struck_disclosure",
+        "replaced",
+        "erased"
       ]
     },
     {
@@ -1512,7 +1518,8 @@
         "migration_added",
         "writer_takeover",
         "budget",
-        "lap_done"
+        "lap_done",
+        "vote_epoch"
       ]
     },
     {
