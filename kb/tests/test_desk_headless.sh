@@ -21,6 +21,8 @@
 #   DH13 a run gets nothing of the session that sent the letter: no CLAUDECODE, AI_AGENT, CLAUDE_CODE_SESSION_ID,
 #        CLAUDE_PANE_*, CLAUDE_CODE_MESSAGING_*, CLAUDE_SESSION_ID, TMUX_PANE; ORBIT_KB_ROLE is the agent's own role;
 #        CLAUDE_CODE_OAUTH_TOKEN and CLAUDE_CONFIG_DIR (the login) still reach it (c21; review H-0283 f_h5)
+#   DH14 a Desk started with an unknown DESK_AGENTS word names it at its start and on its views; a Desk with no
+#        DESK_AGENTS shows no such banner (c23; review H-0285 f_h6; review's p15 case U2 also sends an answer)
 set -u
 ROOT=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}
 T=$(mktemp -d "${TMPDIR:-/tmp}/desk-headless-test.XXXXXX")
@@ -196,5 +198,14 @@ $D agent-resume "$n6" >/dev/null 2>&1; rr=$?
 check "DH11 runner killed, claude alive: the lock stays and a resume is refused" '[ -n "$cp" ] && kill -0 "$cp" 2>/dev/null && [ "$(lock t6)" = "$sid6" ] && [ $rr != 0 ] && [ "$(pgrep -fc "$T/bin/claude")" -le 1 ]'
 $D agent-stop "$n6" >/dev/null 2>&1; sleep 1
 check "DH11 a stop then ends that claude" '! kill -0 "$cp" 2>/dev/null'
+# DH14 (c23, f_h6): a Desk with an unknown word
+P2=$(python3 -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1])")
+( cd "$h" && DESK_AGENTS='<i>ofdesk</i>' XDG_CACHE_HOME="$T/cache" exec timeout 300 "$ROOT/kb/bin/orbit-kb" serve desk --port $P2 ) >"$T/srv2.out" 2>"$T/srv2.err" </dev/null &
+SRV2=$!; U2=""; for _ in $(seq 300); do U2=$(grep -oE 'http://127\.0\.0\.1:[0-9]+' "$T/srv2.out" 2>/dev/null | head -1); [ -n "$U2" ] && break; sleep 0.1; done
+check "DH14 the Desk names the unknown word at its start" 'grep -q "DESK_AGENTS=.*ofdesk.* is not a known value" "$T/srv2.err"'
+pv=""; for v in waits agents; do pv="$pv$(curl -s -m 30 "$U2/?mh=alpha&view=$v" | grep -c "banner error\">This Desk runs with DESK_AGENTS=&lt;i&gt;ofdesk&lt;/i&gt;")"; done
+check "DH14 and on the default view and the view Agents, escaped ($pv)" '[ "$pv" = 11 ]'
+kill $SRV2 2>/dev/null
+check "DH14 the Desk of DH9 (no DESK_AGENTS) shows no such banner and says nothing at its start" '[ -n "$pg" ] && ! grep -q "This Desk runs with DESK_AGENTS" <<<"$pg" && ! grep -q "not a known value" "$T/srv.err"'
 echo "desk_headless: $PASS passed, $FAIL failed"
 [ $FAIL = 0 ]

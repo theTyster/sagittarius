@@ -6211,7 +6211,11 @@ cmd_serve(Dirs0, Args, Code) :-
             die(2, ["Cannot listen on 127.0.0.1:" + Port + ": " + M,
                     "Fix: give another port with --port N."] >> fix_lines) )),
     (   desk_mode
-    ->  format("Serving the Desk at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer])
+    ->  format("Serving the Desk at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer]),
+        (   desk_agents_env_unknown(DAV)
+        ->  format(user_error, "desk: DESK_AGENTS=~q is not a known value (on, 1, true, yes; off, 0, false, no): it counts as not set, and desk agents start unless desk.py agents off was run~n", [DAV])
+        ;   true
+        )
     ;   format("Serving the questions at http://127.0.0.1:~w/ . Answers are written as ~w. Ctrl-C stops.~n", [BindPort, Writer])
     ),
     flush_output(user_output),
@@ -6782,6 +6786,13 @@ desk_py(Hub, Exe, Py) :-
     absolute_file_name(path(python3), Exe, [access(execute), file_errors(fail)]).
 
 % desk_cmd(+Hub, +Args, -Out, -R): run desk.py in the hub; R is ok or error(Message).
+% desk_agents_env_unknown(-V): the Desk's own DESK_AGENTS is set and is none of the words that desk.py knows
+% (desk-agents c22, c23; the lists of agents_env() in desk.py: keep them the same). desk.py, a child of the
+% Desk, reads it as not set and runs agents; the Desk says so on every page and once at its start (f_h6).
+desk_agents_env_unknown(V) :-
+    getenv('DESK_AGENTS', V0), split_string(V0, "", " \t\r\n", [V]), V \== "",
+    string_lower(V, L), \+ memberchk(L, ["on", "1", "true", "yes", "off", "0", "false", "no"]).
+
 desk_cmd(Hub, Args, Out, R) :-
     (   desk_py(Hub, Exe, Py)
     ->  catch(( process_create(Exe, ['-I', Py, '--hub', Hub|Args],
@@ -6789,7 +6800,9 @@ desk_cmd(Hub, Args, Out, R) :-
                 set_stream(O, encoding(utf8)), set_stream(E, encoding(utf8)),
                 read_string(O, _, Out), read_string(E, _, Err), close(O), close(E),
                 process_wait(P, St) ), X, ( err_text(X, Err), St = exit(2), Out = "" )),
-        (   St == exit(0) -> R = ok
+        (   St == exit(0)
+        ->  R = ok,     % desk-agents c23 (review f_h6): what desk.py said on stderr goes to the output of the Desk
+            ( split_string(Err, "", " \t\r\n", [ET]), ET \== "" -> format(user_error, "~w~n", [ET]), flush_output(user_error) ; true )
         ;   split_string(Err, "\n", " \t\r", Ls), exclude(==(""), Ls, Ls1),
             ( Ls1 = [E1|_] -> true ; E1 = "desk.py failed" ), R = error(E1)
         )
@@ -9014,7 +9027,11 @@ desk_page_(Msg0, Tab0, View0, Page) :-
                  dk_f("<p class=\"banner error\">~w: ~w</p>", [NH, MH], E) ), Es),
     dk_cat(Es, ErrH0),
     desk_version_marker(HDs0, VerH, StaleH), string_concat(StaleH, ErrH0, ErrH), SumH = SumH0,   % every joined mindhole, not the tab's: the Desk is one process for all tabs
-    ( HDs == [] -> NoneH = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH = "" ),
+    ( HDs == [] -> NoneH0 = "<p class=\"banner\">No mindhole has joined the Desk. In a mindhole, run: python3 .claude/scripts/desk.py join</p>" ; NoneH0 = "" ),
+    ( desk_agents_env_unknown(DAV) -> esc(DAV, DAVH),
+      dk_f("<p class=\"banner error\">This Desk runs with DESK_AGENTS=~w, which is not a known value (on, 1, true, yes; off, 0, false, no). It counts as not set: desk agents start unless desk.py agents off was run. To keep them off, restart the Desk with DESK_AGENTS=off.</p>", [DAVH], DAH)
+    ; DAH = "" ),
+    string_concat(NoneH0, DAH, NoneH),
     esc(Token, TokH), esc(Tab, TabAH), atom_string(View, ViewS), desk_early_js(EarlyJs),
     desk_newreq_html(HDs0, HDs, Token, NrBtnH, NrDlgH),
     format(string(Page),
