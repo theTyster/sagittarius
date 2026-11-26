@@ -9360,8 +9360,9 @@ desk_kb_agent_html(HD, K, Html) :-
         findall(L, ( member(E, Evs), is_dict(E), desk_ag(E, kind, EK), desk_ag(E, text, ET), esc(EK, EKH), esc(ET, ETH),
                      dk_f("<li><span class=\"quiet small\">~w</span> ~w</li>", [EKH, ETH], L) ), Ls),
         dk_cat(Ls, LsH), ( nb_current(desk_here, _-Tab) -> true ; Tab = "" ), desk_view_href(Tab, agents, AHr),
-        dk_f("<div class=\"kbagent\" data-agent=\"~w\"><p><b>Desk agent ~w</b>: <span class=\"astate state-~w\">~w</span> <span class=\"quiet small\">since ~w</span>. Now: ~w <a href=\"~w#agent-~w\">See it in Agents</a></p><ol class=\"aevents small\">~w</ol></div>",
-             [NmH, NmH, StH, StH, SiH, LaH, AHr, Key, LsH], Html)
+        desk_agent_state_cls(St, SCl), ( St == "failed", desk_ag(A, why, Why), Why \== "" -> esc(Why, WhH), dk_f(" (~w)", [WhH], WhyH) ; WhyH = "" ),
+        dk_f("<div class=\"kbagent\" data-agent=\"~w\"><p><b>Desk agent ~w</b>: <span class=\"astate state-~w~w\">~w~w</span> <span class=\"quiet small\">since ~w</span>. Now: ~w <a href=\"~w#agent-~w\">See it in Agents</a></p><ol class=\"aevents small\">~w</ol></div>",
+             [NmH, NmH, StH, SCl, StH, WhyH, SiH, LaH, AHr, Key, LsH], Html)
     ;   Html = ""
     ).
 
@@ -9612,8 +9613,13 @@ desk_agent_row(HD, A, Tab, Token, Html) :-
     dk_f("<form class=\"agentwrite\" method=\"post\" action=\"/agent\">~w<input type=\"hidden\" name=\"intent\" value=\"write\"><textarea name=\"text\" aria-label=\"Your words to ~w\" placeholder=\"Write to ~w\"></textarea><div class=\"foot\">~w<button class=\"btn go\" type=\"submit\">Send to the agent</button> <span class=\"small quiet\">~w</span></div></form>", [Hid, NmH, NmH, StopBox, WriteHint], WrH),
     ( Run == true -> Op = " open" ; Op = "" ),
     ( St == "ended" -> StWord = "ended" ; StWord = StH ),
-    dk_f("<details class=\"agent\" id=\"agent-~w\" data-agent=\"~w ~w ~w ~w\"~w><summary><b class=\"aname\">~w</b> <span class=\"akb\">specs/~w</span> <span class=\"astate state-~w\">~w~w</span><span class=\"quiet small\">~w</span> <span class=\"anow\">~w</span></summary><div class=\"agentbody\"><p class=\"small quiet\">Role: ~w.</p>~w~w~w</div></details>",
-         [Key, NmH, KbH, StH, RoleH, Op, NmH, KbH, StH, StWord, WhyH, SinceH, LastH, RoleH, EvH, CtlH, WrH], Html).
+    desk_agent_state_cls(St, SCl),
+    dk_f("<details class=\"agent\" id=\"agent-~w\" data-agent=\"~w ~w ~w ~w\"~w><summary><b class=\"aname\">~w</b> <span class=\"akb\">specs/~w</span> <span class=\"astate state-~w~w\">~w~w</span><span class=\"quiet small\">~w</span> <span class=\"anow\">~w</span></summary><div class=\"agentbody\"><p class=\"small quiet\">Role: ~w.</p>~w~w~w</div></details>",
+         [Key, NmH, KbH, StH, RoleH, Op, NmH, KbH, StH, SCl, StWord, WhyH, SinceH, LastH, RoleH, EvH, CtlH, WrH], Html).
+
+% desk_agent_state_cls(+State, -Cls) (desk-agents c20): a run that failed is shown in the colour of a burn.
+desk_agent_state_cls(St, " loud") :- St == "failed", !.
+desk_agent_state_cls(_, "").
 
 % desk_agent_act(+Form): POST /agent: intent stop (desk.py agent-stop), resume (desk.py agent-resume) or
 % write (a letter to the agent: desk.py send with the item {"type": "agent", ...}; with stop, a stop first).

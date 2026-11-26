@@ -619,6 +619,25 @@ def agents_on():
     return e != "off" and (e == "on" or not os.path.exists(agents_off_flag()))
 
 
+# desk-agents c21 (review H-0279): a desk agent gets nothing of the session that started the Desk or sent the
+# letter. A Desk started from inside a Claude Code session carries that session's id, role prompt, pane,
+# messaging socket and token, and the mark that it runs inside Claude Code; each child would inherit them.
+AGENT_ENV_DROP = ("CLAUDECODE", "AI_AGENT", "HUB_SESSION", "TMUX", "TMUX_PANE")
+AGENT_ENV_DROP_PREFIX = ("CLAUDE_CODE_", "CLAUDE_PANE_")
+AGENT_ENV_KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+                  "CLAUDE_CODE_USE_FOUNDRY")   # how claude logs in and which provider: the user's, not the session's
+
+
+def agent_env(**extra):
+    """The environment of a desk agent's runner, its claude and its orbit-kb: this process's, without the
+    names of the session that started it (AGENT_ENV_DROP, and the prefixes but AGENT_ENV_KEEP), plus extra."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in AGENT_ENV_DROP and (k in AGENT_ENV_KEEP or not k.startswith(AGENT_ENV_DROP_PREFIX))
+           and k not in ("CLAUDE_PID", "CLAUDE_EFFORT")}
+    env.update(extra)
+    return env
+
+
 def mindhole_of(hub):
     name = os.path.basename(hub)
     try:
@@ -820,8 +839,7 @@ def claude_found():
 def kb_note(hub, kbdir, sid, fact):
     """Write one fact to the KB as the agent (orbit-kb takes the writer lock for sid)."""
     k = os.path.join(hub, ".claude", "orbit-kb", "bin", "orbit-kb")
-    env = dict(os.environ, ORBIT_KB_WRITER=sid)
-    env.pop("HUB_SESSION", None)
+    env = agent_env(ORBIT_KB_WRITER=sid)
     try:
         r = subprocess.run([k, "--dir", kbdir, "add", fact], capture_output=True, text=True, env=env, timeout=60)
     except (OSError, subprocess.SubprocessError) as e:
@@ -926,8 +944,7 @@ def agent_plan(hub, letter):
 
 def spawn_runner(hub, name):
     me = os.path.abspath(__file__)
-    env = dict(os.environ)
-    env.pop("HUB_SESSION", None)
+    env = agent_env()
     subprocess.Popen([sys.executable, me, "--hub", hub, "agent-run", name], start_new_session=True, cwd=hub, env=env,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, close_fds=True)
 
@@ -1005,10 +1022,18 @@ def cmd_agent_run(hub, a):
                 return False
             q = ag.get("queue") or []
             if not q:
-                ag.update(state="stopped" if ag.get("state") == "stopping" else ("ended" if ag.get("runs") else ag.get("state")),
+                fail = ag.get("failed")
+                ag.update(state="stopped" if ag.get("state") == "stopping" else
+                          (("failed" if fail else "ended") if ag.get("runs") else ag.get("state")),
                           runner=None, claude=None, since=now_ts())
+                if fail and ag["state"] == "failed":
+                    ag["why"] = fail
                 return True
             job.update(q.pop(0), agent=dict(ag))
+            if ag.get("failed"):   # c20: a new run clears the failure of the last one
+                if ag.get("why") == ag["failed"]:
+                    ag.pop("why", None)
+                ag.pop("failed", None)
             ag.update(state="running", runner=me, since=now_ts(), runs=int(ag.get("runs") or 0) + 1)
             return True
         with_agents(hub, take)
@@ -1027,8 +1052,7 @@ def cmd_agent_run(hub, a):
         args = [claude_prog(), "-p", "--name", name, "--permission-mode", mode, "--output-format", "stream-json",
                 "--verbose", "--append-system-prompt", system_prompt(hub, name, ag["role"], ag["kb"]),
                 "--session-id" if first else "--resume", sid, "--", job["prompt"]]
-        env = dict(os.environ, ORBIT_KB_WRITER=sid, DESK_AGENT=name)
-        env.pop("HUB_SESSION", None)
+        env = agent_env(ORBIT_KB_WRITER=sid, DESK_AGENT=name)
         agent_event(hub, name, "start", ("Started" if first else "Resumed") + f" with: {job['prompt']}")
         if job.get("letter"):
             try:
@@ -1077,6 +1101,12 @@ def cmd_agent_run(hub, a):
             continue
         release_lock(kbdir, sid)
         agent_event(hub, name, "end", f"the run ended (exit {rc})")
+        stopped = with_agents(hub, lambda o: (False, o["agents"][name].get("state") == "stopping"))
+        failed = None
+        if rc != 0 and not stopped:
+            # c20 (Ty, q11: "Show failed, with the reason"): the last line of its stderr, else of its events
+            lines = [x.strip() for x in err.splitlines() if x.strip()]
+            failed = agent_event(hub, name, "error", lines[-1] if lines else f"claude ended with exit {rc} and wrote no error line")
         if job.get("letter"):
             try:
                 st = Store(hub)
@@ -1089,6 +1119,8 @@ def cmd_agent_run(hub, a):
         def done(o):
             g = o["agents"][name]
             g.update(claude=None, ended=now_ts())
+            if failed:
+                g["failed"] = failed
             return True
         with_agents(hub, done)
 

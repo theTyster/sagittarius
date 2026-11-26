@@ -15,6 +15,10 @@
 #       live review session is not diverted (review gets it by its hook)
 #   DH10 POST /agent write, then a stop: every view answers 200
 #   DH11 the runner killed while claude runs: the lock stays, a resume is refused (one process per session)
+#   DH12 a run that fails (exit 1, one line on stderr) leaves the agent failed, with that line, and no lock; the next
+#        run that ends normally clears it; the Desk's view Agents says failed with the line (desk-agents c20)
+#   DH13 a run gets nothing of the session that sent the letter: no CLAUDECODE, AI_AGENT, CLAUDE_CODE_SESSION_ID,
+#        CLAUDE_PANE_*, CLAUDE_CODE_MESSAGING_*, TMUX_PANE; CLAUDE_CODE_OAUTH_TOKEN (the login) still reaches it (c21)
 set -u
 ROOT=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}
 T=$(mktemp -d "${TMPDIR:-/tmp}/desk-headless-test.XXXXXX")
@@ -31,6 +35,9 @@ def val(n):
     return next((a[i + 1] for i, x in enumerate(a) if x == n and i + 1 < len(a)), "")
 sid = val("--session-id") or val("--resume")
 open(os.environ["FAKE_LOG"], "a").write("START " + json.dumps(a) + "\n")
+open(os.environ["FAKE_LOG"], "a").write("ENV " + json.dumps({k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "AI_", "TMUX", "HUB_"))}) + "\n")
+if os.environ.get("FAKE_FAIL"):
+    sys.stderr.write("first line\nFAILLINE-61 Invalid API key - please run /login\n"); sys.exit(1)
 def bye(*_):
     open(os.environ["FAKE_LOG"], "a").write("STOPPED\n"); sys.exit(143)
 signal.signal(signal.SIGTERM, bye)
@@ -47,7 +54,7 @@ h=$T/alpha
 python3 "$ROOT/hubkit/tools/hubkit.py" install --hub "$h" >/dev/null 2>&1 || { echo "setup: no hub"; exit 2; }
 ( cd "$h" && { [ -f flow/flow.db ] || python3 .claude/scripts/hubflow.py --hub "$h" init --seed flow/seed.json; } ) >/dev/null 2>&1
 K="$h/.claude/orbit-kb/bin/orbit-kb"; D="python3 $h/.claude/scripts/desk.py --hub $h"
-for s in t1 t2 t3 t4 t5 t6 t7; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
+for s in t1 t2 t3 t4 t5 t6 t7 t8 t9; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
 ( cd "$h" && python3 .claude/scripts/desk.py join --name alpha ) >/dev/null 2>&1
 # DH6 (on by default: no flag, no DESK_AGENTS, no `agents on`)
 check "DH6 setup: no switch is set" '[ ! -e "$DESK_STATE/agents-on" ] && [ ! -e "$DESK_STATE/agents-off" ] && [ -z "${DESK_AGENTS+x}" ]'
@@ -85,6 +92,7 @@ check "DH2 after the first run the words run with --resume of the same session" 
 $D agent-stop "$nm" >/dev/null 2>&1; waitfor 'grep -q "^STOPPED" "$FAKE_LOG"' 50; sleep 1
 a=$(agent "$nm")
 check "DH3 a stopped agent holds no lock" '[ -z "$(lock t1)" ] && [ "$(field "$a" state)" = stopped ]'
+check "DH3 a stop is not a failure: no error event, not failed" '! grep -q "\"kind\": \"error\"" "$h/flow/desk/agents/$nm.jsonl" && [ -z "$(field "$a" why)" ]'
 check "DH3 and shows cd HUB && claude --resume SID" '[ "$(field "$a" resume_command)" = "cd $h && claude --resume $sid" ]'
 # DH4
 n0=$(starts); FAKE_SECS=6 $D agent-resume "$nm" >/dev/null 2>&1; waitfor '[ "$(starts)" -gt '"$n0"' ]' 80; sleep 0.5
@@ -119,6 +127,23 @@ n0=$(starts); FAKE_SECS=1 send "$(kbi t4)" "$(printf 'Bad\003byte CTLPROBE.')" >
 check "DH7 no control byte in the prompt" 'grep -q CTLPROBE <<<"$(nth $((n0+1)))" && ! grep -q "\\\\u0003" <<<"$(nth $((n0+1)))"'
 # DH8
 check "DH8 a letter to an unknown agent is refused" '! send "{\"type\": \"agent\", \"agent\": \"alpha-review-agent_999\"}" "x" >/dev/null 2>&1'
+# DH12 (c20): a failed run
+out=$(FAKE_FAIL=1 send "$(kbi t8)" "Letter eight."); n8=$(field "$out" agent)
+waitfor '[ "$(field "$(agent "$n8")" state)" = failed ]' 100; a8=$(agent "$n8")
+check "DH12 a run that exits 1 leaves the agent failed" '[ -n "$n8" ] && [ "$(field "$a8" state)" = failed ]'
+check "DH12 with the last line of its stderr" '[ "$(field "$a8" why)" = "FAILLINE-61 Invalid API key - please run /login" ] && grep -q "FAILLINE-61" "$h/flow/desk/agents/$n8.jsonl"'
+check "DH12 and the failed agent holds no lock" '[ -z "$(lock t8)" ]'
+FAKE_SECS=1 send "{\"type\": \"agent\", \"agent\": \"$n8\"}" "Try again." >/dev/null
+waitfor '[ "$(field "$(agent "$n8")" state)" = ended ]' 100; a8b=$(agent "$n8")
+check "DH12 the next run that ends normally clears it" '[ "$(field "$a8b" state)" = ended ] && [ -z "$(field "$a8b" why)" ]'
+out=$(FAKE_FAIL=1 send "$(kbi t8)" "Letter eight, again."); waitfor '[ "$(field "$(agent "$n8")" state)" = failed ]' 100
+# DH13 (c21): the sender's session does not reach the run
+n0=$(starts)
+out=$(CLAUDECODE=1 AI_AGENT=LEAK-70 CLAUDE_CODE_SESSION_ID=LEAK-71 CLAUDE_PANE_ROLE_PROMPT=LEAK-72 CLAUDE_PANE_NAME=LEAK-73 TMUX_PANE=%LEAK-74 \
+      CLAUDE_CODE_MESSAGING_SOCKET=LEAK-75 CLAUDE_CODE_MESSAGING_TOKEN=LEAK-76 CLAUDE_CODE_OAUTH_TOKEN=KEEP-77 FAKE_SECS=1 send "$(kbi t9)" "Letter nine.")
+waitfor '[ "$(starts)" -gt '"$n0"' ]' 80; sleep 0.3; e9=$(grep "^ENV" "$FAKE_LOG" | tail -1)
+check "DH13 the run has no value of the sender's session" '[ -n "$e9" ] && ! grep -q "LEAK-" <<<"$e9" && ! grep -q "\"CLAUDECODE\"" <<<"$e9"'
+check "DH13 the login (CLAUDE_CODE_OAUTH_TOKEN) still reaches it" 'grep -q "KEEP-77" <<<"$e9"'
 
 # DH9, DH10: the Desk path
 cat >> "$h/specs/t5/kb.pl" <<'KB'
@@ -144,6 +169,8 @@ $HT post "$U" /agent "token=$tk" "hub=$h" "agent=$an" "intent=write" "text=DESKP
 $D agent-stop "$an" >/dev/null 2>&1; sleep 2
 codes=""; for v in waits questions answered everything agents; do codes="$codes $(curl -s -o /dev/null -w '%{http_code}' "$U/?mh=alpha&view=$v")"; done
 check "DH10 after a write and a stop every view answers 200 ($codes)" '[ "$codes" = " 200 200 200 200 200" ]'
+pa=$($HT page "$U" "mh=alpha&view=agents" | tr -s ' \n' ' ')
+check "DH12 the view Agents says failed, with the line, on the row of the failed agent" 'grep -qE "agent-[^\"]*\" data-agent=\"$n8 [^\"]*\"><summary>.{0,400}state-failed loud\">failed \(FAILLINE-61" <<<"$pa"'
 kill $SRV 2>/dev/null
 # DH11: the runner is killed while claude runs
 out=$(FAKE_SECS=30 send "$(kbi t6)" "Letter six."); n6=$(field "$out" agent); waitfor '[ -n "$(field "$(agent "$n6")" session_id)" ] && grep -q "Letter six" "$FAKE_LOG"' 100; sleep 1
