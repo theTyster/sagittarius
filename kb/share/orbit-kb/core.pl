@@ -449,6 +449,7 @@ decl(rule, question_waived(ref(question)),
 decl(rule, any_to_ask,
      'At least one question must be asked now.',
      'some question must be asked now').
+decl(rule, vote_epoch_needed(int), 'The KB has a vote of the human, has no vote_epoch/1 and was made before 0.11.0: the migration writes vote_epoch(N), N the number of its terms now. orbit-kb computes it when it reads the KB.', 'the KB needs vote_epoch(@(1))').
 decl(rule, stale(ref(attest)),
      'The approval names a digest that differs from the current digest of its subject.',
      'approval @(1) is stale').
