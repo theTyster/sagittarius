@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The Desk UX of 0.9.1 (spec KB desk-speed-orbit-door, checks k13, k14, k15; claims c3, c4, c5), in a
 # headless Chromium on scratch hubs. Nothing of a real mindhole or of the real home is read or written.
-# usage: kb/tests/test_desk_ux.sh [k13] [k14] [k15] [shots:OUTDIR:LABEL]        (no argument: k13 k14 k15)
+# usage: kb/tests/test_desk_ux.sh [k13] [k14] [k15] [r10] [shots:OUTDIR:LABEL]        (no argument: k13 k14 k15 r10)
 # env: DESK_ROOT   the checkout whose kb/bin/orbit-kb serves the Desk (default: this checkout);
 #                  set it to a tree of an older revision to see a check fail (the control)
 #      DESK_KEEP=1 keep the scratch directory and print its path
@@ -9,10 +9,10 @@
 set -u
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P); REPO=$(cd "$HERE/../.." && pwd -P)
 ROOT=${DESK_ROOT:-$REPO}
-WANT=${*:-k13 k14 k15}
+WANT=${*:-k13 k14 k15 r10}
 D=$(mktemp -d "${TMPDIR:-/tmp}/desk-ux.XXXXXX") || exit 2
 PIDS=""
-cleanup() { for p in $PIDS; do kill "$p" 2>/dev/null; done; [ "${DESK_KEEP:-}" = 1 ] && echo "kept: $D" || rm -rf "$D"; }
+cleanup() { for f in "$D"/*/srv.pid; do [ -f "$f" ] && PIDS="$PIDS $(cat "$f")"; done; for p in $PIDS; do kill -- -"$p" 2>/dev/null; kill "$p" 2>/dev/null; done; [ "${DESK_KEEP:-}" = 1 ] && echo "kept: $D" || rm -rf "$D"; }
 trap cleanup EXIT
 die() { echo "setup: $*"; exit 2; }
 CB=$(command -v chromium-browser || command -v chromium || command -v google-chrome) || die "no Chromium"
@@ -37,8 +37,8 @@ mkset() {
 }
 # start DEST: the Desk of $ROOT on the set DEST; prints its address
 start() {
-  ( cd "$1/alpha" && HOME="$1/home" DESK_STATE="$1/state" XDG_CACHE_HOME="$1/cache" exec timeout 900 "$ROOT/kb/bin/orbit-kb" serve desk --port 0 ) >"$1/srv.out" 2>"$1/srv.err" </dev/null &
-  PIDS="$PIDS $!"
+  ( cd "$1/alpha" && HOME="$1/home" DESK_STATE="$1/state" XDG_CACHE_HOME="$1/cache" exec setsid timeout 900 "$ROOT/kb/bin/orbit-kb" serve desk --port 0 ) >"$1/srv.out" 2>"$1/srv.err" </dev/null &
+  echo "$!" >"$1/srv.pid"   # start runs in a command substitution: the cleanup finds the server by this file
   local i=0 u
   while [ "$i" -lt 300 ]; do
     u=$(grep -oE 'http://127\.0\.0\.1:[0-9]+' "$1/srv.out" 2>/dev/null | head -n1)
@@ -85,6 +85,10 @@ for w in $WANT; do
   case $w in
   k13) echo "== k13 (c3): a pair of buttons in each lane and sheet"; browse "$U" k13 && report "$D/br.json" ;;
   k14) echo "== k14 (c4): the folds and the place kept after a reload"; browse "$U" k14 && report "$D/br.json" ;;
+  r10) echo "== r10 (c18 to c23, H-0259): the view and the place after an action, the last view, a cold load, the Send in place"; browse "$U" r10 && report "$D/br.json"
+    # H-0259: the scenario posted one Send twice with the same send id (text dedup-probe-text): one letter
+    nd=$(cat "$SET"/*/flow/desk/letters.jsonl 2>/dev/null | grep -c 'dedup-probe-text')
+    if [ "$nd" = 1 ]; then check "H-0259: one send id posted twice writes one letter" ok; else check "H-0259: one send id posted twice writes one letter" fail "$nd letters with the probe text"; fi ;;
   k15)
     echo "== k15 (c5): New requirement"
     browse "$U" k15a && report "$D/br.json"
