@@ -32,7 +32,7 @@ off_re='export DESK_AGENTS=off|"DESK_AGENTS": "off"'
 fake_re='claude resolves outside the fake'
 for f in $harness; do
   if grep -qE "$off_re" "$f"; then ok "DG2 $f sets DESK_AGENTS=off"
-  elif grep -q "$fake_re" "$f" && grep -q 'unset .*DESK_AGENTS\|DESK_AGENTS' "$f"; then ok "DG2 $f tests agents behind the fake-claude guard"
+  elif grep -q "$fake_re" "$f" && grep -qE '^[^#]*unset [^#]*DESK_AGENTS' "$f"; then ok "DG2 $f tests agents (it unsets DESK_AGENTS) behind the fake-claude guard"
   else no "DG2 $f starts a Desk or runs desk.py with no guard (DESK_AGENTS=off, or a fake claude and the refusal)"; fi
 done
 h=kb/tests/test_desk_headless.sh
