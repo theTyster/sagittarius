@@ -8,7 +8,9 @@ state dir and the systemd unit dir are never the real ones.
 usage: python3 -I desk-test.py [--case NAME ...] [--mutants]
   --case NAME  run only that case (repeatable), e.g. --case case_hook
   --mutants    also run the suite on mutated copies of desk.py; each mutant must make a case fail
-Prints `PASS name` or `FAIL name: why` per check; the last line is `N passed, M failed`.
+Prints `PASS name`, `FAIL name: why` or `SKIP name: why` per check; the last line is `N passed, M failed`
+(`, K skipped` added when a check was skipped). The toast cases that need the real `claude plugin test` run
+only with DESK_TEST_REAL_CLAUDE=1 (or DESK_TEST_CLAUDE naming a claude); else they are skipped (H-0261).
 Exit 0 only if every check passes.
 """
 import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
@@ -78,7 +80,12 @@ MUTANTS = [
 
 class Run:
     def __init__(self, desk, quiet=False):
-        self.desk, self.quiet, self.results = desk, quiet, []
+        self.desk, self.quiet, self.results, self.skips = desk, quiet, [], []
+
+    def skip(self, name, why):
+        self.skips.append(name)
+        if not self.quiet:
+            print(f"SKIP {name}: {why}")
 
     def check(self, name, ok, detail=""):
         self.results.append(bool(ok))
@@ -90,7 +97,10 @@ def env_base(extra=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith(SCRUB)}
     root = CUR["root"]
     env.update({"HOME": os.path.join(root, "home"), "DESK_STATE": os.path.join(root, "desk-state"),
-                "XDG_STATE_HOME": os.path.join(root, "xdg-state"), "XDG_CONFIG_HOME": os.path.join(root, "xdg-config")})
+                "XDG_STATE_HOME": os.path.join(root, "xdg-state"), "XDG_CONFIG_HOME": os.path.join(root, "xdg-config"),
+                # the Desk guard (desk-agents q9: agents on by default): no case starts a desk agent, so none
+                # can reach the real claude; a case that tests agents must pass its own DESK_AGENTS and a fake
+                "DESK_AGENTS": "off"})
     for k, v in (extra or {}).items():
         if v is None:
             env.pop(k, None)
@@ -969,8 +979,15 @@ def in_kit():
     return os.path.isfile(os.path.join(HERE, "..", "..", "..", "kit.json"))
 
 
+REAL_CLAUDE_WHY = "needs the real claude (claude plugin test); run by hand with DESK_TEST_REAL_CLAUDE=1"
+
+
 def claude_cli():
-    return os.environ.get("DESK_TEST_CLAUDE") or shutil.which("claude")
+    """A claude CLI for the toast cases only when asked for: DESK_TEST_CLAUDE, or DESK_TEST_REAL_CLAUDE=1 and claude
+    on the PATH. Else None: the test harnesses keep the real claude out of reach (H-0261)."""
+    if os.environ.get("DESK_TEST_CLAUDE"):
+        return os.environ["DESK_TEST_CLAUDE"]
+    return shutil.which("claude") if os.environ.get("DESK_TEST_REAL_CLAUDE") == "1" else None
 
 
 def plugin_test(mod, cli):
@@ -992,19 +1009,20 @@ def case_toast_mod(r, root):
     r.check("toast-mod-beside-desk", mod is not None, f"no desk-toast mod beside {HERE}")
     if mod is None:
         return
-    if not cli:
-        print("SKIP toast-mod-tests: no claude CLI on the PATH (DESK_TEST_CLAUDE names one); the mod's tests did not run")
-        return
-    code, out, passed, failed = plugin_test(mod, cli)
     want = ("in the discovery session > a stored letter with no seen event gives no toast",
             "in the build session > a stored letter with no seen event gives no toast",
             "the toast line is 📨, the Claude Code session name and saw:",
             "a session with no Claude Code name shows the Desk addressee",
             "a seen event from before the session started gives no toast",
             "the help says saw means given to the agent, not acted on")
-    r.check("toast-mod-tests-pass", code == 0 and passed > 0 and failed == 0, out[-1500:])
-    r.check("toast-mod-tests-named", all(f"(pass) {w}" in out for w in want),
-            [w for w in want if f"(pass) {w}" not in out])
+    if cli:
+        code, out, passed, failed = plugin_test(mod, cli)
+        r.check("toast-mod-tests-pass", code == 0 and passed > 0 and failed == 0, out[-1500:])
+        r.check("toast-mod-tests-named", all(f"(pass) {w}" in out for w in want),
+                [w for w in want if f"(pass) {w}" not in out])
+    else:
+        r.skip("toast-mod-tests-pass", REAL_CLAUDE_WHY)
+        r.skip("toast-mod-tests-named", REAL_CLAUDE_WHY)
     readme = os.path.join(mod, "README.md")
     text = open(readme, encoding="utf-8").read() if os.path.isfile(readme) else ""
     r.check("toast-readme-says-saw-is-given-not-acted-on",
@@ -1034,7 +1052,8 @@ def case_toast_read_only(r, root):
     r.check("toast-source-calls-no-writer", not any(w in src for w in TOAST_WRITES),
             [w for w in TOAST_WRITES if w in src])
     if not cli:
-        print("SKIP toast-read-only-engine: no claude CLI on the PATH (DESK_TEST_CLAUDE names one)")
+        r.skip("toast-engine-sees-only-reads", REAL_CLAUDE_WHY)
+        r.skip("toast-desk-files-byte-identical", REAL_CLAUDE_WHY)
         return
     p = subprocess.run([cli, "plugin", "validate", mod], capture_output=True, text=True, timeout=300)
     calls = re.search(r"calls: (.*)", p.stdout)
@@ -1317,7 +1336,7 @@ def main():
             killed = not all(m.results)
             passed += killed
             print(("PASS" if killed else "FAIL") + f" mutant {name}: " + ("KILLED" if killed else "SURVIVED"))
-    print(f"{passed} passed, {total - passed} failed")
+    print(f"{passed} passed, {total - passed} failed" + (f", {len(r.skips)} skipped" if r.skips else ""))
     sys.exit(0 if passed == total else 1)
 
 

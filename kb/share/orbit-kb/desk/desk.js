@@ -25,7 +25,7 @@
   var qs = new URLSearchParams(location.search);
   if (!qs.has('view') && !location.hash && !qs.has('did')) {
     var lv = lastRead();
-    if (lv && lv.boot === bootId && /^(waits|questions|answered|everything)$/.test(lv.view || '') && lv.view !== thisView) {
+    if (lv && lv.boot === bootId && /^(waits|questions|answered|everything|agents)$/.test(lv.view || '') && lv.view !== thisView) {
       qs.set('view', lv.view);
       location.replace(location.pathname + '?' + qs.toString());
       return;
@@ -530,5 +530,17 @@
       }).catch(function () {
         openReview('<div class="review"><div class="dh"><h2>The Desk server does not answer</h2><p>Nothing was sent. Start the Desk again, then reload the page.</p></div><div class="df"><button class="btn" data-cancel>Close</button></div></div>', f);
       });
+  });
+})();
+
+// desk-agents c19: the filter of the view Agents narrows the rows as Ty types (the address ?q= does it too)
+(function () {
+  var f = document.querySelector('input[data-agent-filter]');
+  if (!f) return;
+  f.addEventListener('input', function () {
+    var q = f.value.trim().toLowerCase();
+    document.querySelectorAll('details.agent').forEach(function (d) {
+      d.hidden = q !== '' && (d.getAttribute('data-agent') || '').toLowerCase().indexOf(q) < 0;
+    });
   });
 })();
