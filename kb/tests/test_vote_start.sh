@@ -17,6 +17,8 @@
 #   VS9 c13: a KB made by 0.10.1 with a vote and a change after it: ED12 and hold before the migration; after migrate
 #       (vote_epoch(N)) the gate is go and lint has no ED12; a change after the upgrade takes the vote back
 #   VS10 c6, c13: the edge is the place of vote_epoch; a withdraw of old lines above it does not move it
+#   VS11 c6, c13 (the 0.11.0 gather of kb-crud and vote-start): a strike or an erase of an old line above the marker
+#       keeps the edge; strike, erase and replace of the marker itself are refused, by an agent and by the human
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -284,6 +286,32 @@ t_VS10() {  # c6, c13 (review H-0250): the edge is the place of vote_epoch in kb
     gate_is "$d" hold "after a withdraw of old lines above the marker"
     grep -q "^vote_epoch(" "$d/kb.pl" || note "the withdraw dropped the marker"
 }
-for n in 1 2 2b 3 4 5 6 7 8 9 10; do run_one VS$n; done
+t_VS11() {  # c6, c13 (gather of kb-crud and vote-start): strike and erase above the marker keep the edge; the marker itself is refused
+    # the old tool with its own library (the harness exports ORBIT_KB_LIB of the tool under test)
+    local OLD=${OLD:-/home/ty/Projects/mine/sagittarius/kb/bin/orbit-kb} d="$T/m" c by
+    [ -x "$OLD" ] || { SKIPPED=1; return; }
+    oldw() { ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" --dir "$d" "$@" ) >"$T/.out" 2>"$T/.err" </dev/null; rc=$?; out=$(<"$T/.out"); err=$(<"$T/.err"); }
+    ( cd "$T" && env -u ORBIT_KB_LIB ORBIT_KB_WRITER=build "$OLD" init "$d" --request "a request" --uses discovery ) >/dev/null 2>&1 || { note "setup: the old tool made no KB"; return; }
+    oldw add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)"
+    oldw add "cited(c1, 'a typo kind')" --doc "a typo of cites"; oldw add "cited(c1, 'a second fact of it')"
+    oldw run k1 -- false; oldw add "discovery_evidence(k1, system)"; oldw attest vote r1 'vote(1, go)'; oldw attest vote r1 'vote(1, go)' --by human; oldw release
+    gate_is "$d" go "the old KB with the human GO"
+    wr build --dir "$d" add "example(c1, 'A case after the upgrade.')"; wr build --dir "$d" release
+    mk=$(grep -m1 "^vote_epoch(" "$d/kb.pl"); [ -n "$mk" ] || { note "setup: the first write of the new tool wrote no vote_epoch (rc $rc: $(snip "$err"))"; return; }
+    gate_is "$d" hold "a new example after the vote"
+    for c in strike erase replace; do for by in agent human; do
+        if [ $c = replace ]; then wr build --dir "$d" replace "${mk%.}#1" 'vote_epoch(100000)' --why test --by $by --note 'Ty asked'
+        else wr build --dir "$d" $c "${mk%.}#1" --why test --by $by --note 'Ty asked'; fi
+        [ "$rc" != 0 ] || note "$c of the marker by the $by was accepted"
+        [ "$(grep -c '^vote_epoch(' "$d/kb.pl")" = 1 ] && grep -qx "$mk" "$d/kb.pl" || note "$c of the marker by the $by changed it: $(grep '^vote_epoch(' "$d/kb.pl" | tr '\n' ' ')"
+        wr build --dir "$d" release; gate_is "$d" hold "after a $c of the marker by the $by"
+    done; done
+    wr build --dir "$d" strike 'cited(c1)#1' --why 'a typo'; [ "$rc" = 0 ] || note "setup: strike of an old line refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" hold "after a strike of an old line above the marker"
+    wr build --dir "$d" erase 'cited(c1)#2' --why 'a typo'; [ "$rc" = 0 ] || note "setup: erase of an old line refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" hold "after an erase of an old line above the marker"
+    [ "$(grep -c '^vote_epoch(' "$d/kb.pl")" = 1 ] || note "the marker is gone or doubled after the erase above it"
+}
+for n in 1 2 2b 3 4 5 6 7 8 9 10 11; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]

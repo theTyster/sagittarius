@@ -580,7 +580,7 @@ discovery module reserves must not appear in the core or the build module:
 
 - Facts: `budget/2`, `lap_done/1` (D40: `model/2`, `model_run/3`, `encodes/2` and the attestation type `model_result` are core now),
   `property/3` (D31 B5; D42: `derived_from/2` is core now), `finding/3`, `reason/3`,
-  `raised_by/2`, `discovery_evidence/2`, `vote_epoch/1` (vote-start c13: written by the migration m_0_11_0_vote_epoch only).
+  `raised_by/2`, `discovery_evidence/2`, `vote_epoch/1` (vote-start c13: written by orbit-kb only, by the migration m_0_11_0_vote_epoch or the first write to a KB made before 0.11.0; add refuses it, and strike, replace and erase refuse it, since its place in kb.pl is the edge of the votes).
 - Gates: `discovery_ready/0` (clean) and `discovery_decide/0` (ready, or the
   budget is spent).
 - Rules: every name that starts with `model_` (for example `model_mutation/4`,

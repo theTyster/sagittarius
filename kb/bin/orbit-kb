@@ -4804,6 +4804,11 @@ crud_guard(KB, LTs, Target, By, Opts) :-
     ->  term_text(BT, BTT),
         fmt(M, "~w is a record of strike, replace or erase (~w). It is permanent: it is not struck, replaced or erased.", [Target, BTT]),
         reject([M])
+    ;   member(_-ET, LTs), nonvar(ET), ET = vote_epoch(_)
+    % vote-start c6, c13: the place of vote_epoch is the edge of the votes. An erase would let the next write put a new
+    % marker below a change made after the upgrade, and the vote of the human would count over it again.
+    ->  fmt(M, "~w is the marker vote_epoch/1: orbit-kb writes it (the migration m_0_11_0_vote_epoch, or the first write to a KB made before 0.11.0), and its place in kb.pl is the edge of the votes. It is not struck, replaced or erased.", [Target]),
+        reject([M])
     ;   By == agent, member(LT-T, LTs), crud_human_record(Items, LT, T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
         fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
