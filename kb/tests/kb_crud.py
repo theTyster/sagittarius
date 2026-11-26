@@ -337,6 +337,117 @@ def t_other_pane():
     ck("show open lists it as a disclosure (it does not block)", "disclosure" in opens(d2) and "DISC-1" in opens(d2), opens(d2)[-400:])
 
 
+def _two_sessions():
+    d = fixture()
+    run(d, "release")
+    sa = dict(ENV, ORBIT_KB_WRITER="sess-A"); sb = dict(ENV, ORBIT_KB_WRITER="sess-B")
+    sa.pop("ORBIT_KB_ROLE", None); sb.pop("ORBIT_KB_ROLE", None)
+    subprocess.run([OK, "--dir", d, "run", "--as", "build", "k1", "--", "false"], capture_output=True, text=True, env=sa)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=sa)
+    rid = re.search(r"attest\((a\d+), test_result, k1", text(d)).group(1)
+    return d, sa, sb, rid
+
+
+def _as(env, d, *args):
+    r = subprocess.run([OK, "--dir", d, *args], capture_output=True, text=True, env=env)
+    subprocess.run([OK, "--dir", d, "release"], capture_output=True, env=env)
+    return r.returncode, r.stdout + r.stderr
+
+
+def t_c10_by_address():
+    """H-0262: the owner rule holds for an address of the record, and for its attachments (actor/3 too)."""
+    d, sa, sb, rid = _two_sessions()
+    t0 = text(d)
+    for cmd in (["strike", "attest(%s)#1" % rid, "--why", "x"], ["erase", "attest(%s)#1" % rid, "--why", "x"],
+                ["replace", "attest(%s)#1" % rid, "attest(a90, disclosure, k1, other('x'), agent, '2026-11-26T00:00:00Z')", "--why", "x"],
+                ["erase", "actor(%s)#1" % rid, "--why", "x"], ["strike", "actor(%s)#1" % rid, "--why", "x"]):
+        code, out = _as(sb, d, *cmd)
+        ck("another session: %s %s with no disclosure is refused, kb.pl unchanged" % (cmd[0], cmd[1]), code != 0 and text(d) == t0, out)
+    code, out = _as(sb, d, "strike", "attest(%s)#1" % rid, "--why", "x", "--disclose", "the run tested an old tree")
+    ck("with a disclosure, by address: accepted, and the disclosure names the owner", code == 0 and re.search(r"struck_disclosure\(at\(attest, %s, 1\).*build \(session sess-A\)" % rid, text(d)) is not None, text(d)[-300:])
+    code, out = _as(sa, d, "erase", "actor(%s)#1" % rid, "--why", "x")
+    ck("the session that wrote it may change its own actor line", code == 0, out)
+
+
+def t_c10_no_actor():
+    """H-0262 1j: a run with no actor/3 (an old tool) has no known writer: it is nobody's own; it needs a disclosure."""
+    d = fixture()
+    with open(os.path.join(d, "kb.pl"), "a") as f:
+        f.write("attest(a80, test_result, k1, result(k1, 1, fail), script, '2026-01-01T00:00:00Z').\n")
+    t0 = text(d)
+    code, out = run(d, "strike", "a80", "--why", "x")
+    ck("a run with no actor, struck with no disclosure: refused", code != 0 and text(d) == t0, out)
+    code, out = run(d, "strike", "a80", "--why", "x", "--disclose", "an old run of no known session")
+    ck("with a disclosure: accepted", code == 0, out)
+
+
+def t_bookkeeping_gates():
+    """H-0262: add refuses the records of strike, replace and erase; a disclosure is permanent; supersedes cannot hide a
+    record of another session or of the human."""
+    d, sa, sb, rid = _two_sessions()
+    for fact in ["struck(%s, agent, '2026-11-26T00:00:00Z', 'x')" % rid, "struck_disclosure(%s, agent, '2026-11-26T00:00:00Z', 'x')" % rid,
+                 "erased(k9, agent, '2026-11-26T00:00:00Z', 'x')", "replaced(k1, agent, '2026-11-26T00:00:00Z', 'x')"]:
+        code, out = _as(sb, d, "add", fact)
+        ck("add refuses %s" % fact.split("(")[0], code != 0 and fact not in text(d), out)
+    code, out = _as(sb, d, "add", "attest(a91, disclosure, k1, other('y'), agent, '2026-11-26T00:00:00Z')", "supersedes(a91, %s)" % rid)
+    ck("add refuses supersedes(_, a run of another session)", code != 0 and "supersedes(a91" not in text(d), out)
+    run(d, "release")
+    run(d, "add", "note(g1, 'of Ty')", "--by", "human")
+    code, out = run(d, "add", "question(q8, g1, 'q')", "--by", "human")
+    run(d, "release")
+    code, out = run(d, "add", "question(q9, g1, 'mine')", "supersedes(q9, q8)")
+    ck("add refuses supersedes(_, a question of the human)", code != 0 and "supersedes(q9, q8)" not in text(d), out)
+    run(d, "release")
+    code, out = run(d, "replace", "q8", "question(q10, g1, 'better')", "--why", "w", "--disclose", "Ty asked for the new wording")
+    ck("replace with a disclosure still writes supersedes", code == 0 and "supersedes(q10, q8)" in text(d), out)
+    run(d, "release")
+    _as(sb, d, "strike", rid, "--why", "x", "--disclose", "an old tree")
+    t0 = text(d)
+    for cmd in (["erase", "struck_disclosure(%s)#1" % rid, "--why", "x", "--disclose", "y"], ["strike", "struck_disclosure(%s)#1" % rid, "--why", "x", "--disclose", "y"],
+                ["erase", "struck(%s)#1" % rid, "--why", "x", "--disclose", "y"]):
+        code, out = _as(sb, d, *cmd)
+        ck("a record of strike is permanent: %s %s refused" % (cmd[0], cmd[1]), code != 0 and text(d) == t0, out)
+    d2, sa2, sb2, rid2 = _two_sessions()
+    t2 = text(d2)
+    code, out = _as(sb2, d2, "strike", rid2, "--why", "x", "--disclose", "\u00a0")
+    ck("a no-break space is not a disclosure", code != 0 and text(d2) == t2, out)
+
+
+def t_mark_any_first_arg():
+    """H-0262 5n: --by human marks a fact whatever its first argument (a number)."""
+    d = fixture()
+    code, out = run(d, "add", "measure(7, 'seven, of Ty')", "--by", "human")
+    ck("measure(7, ...) --by human is marked", code == 0 and "by_human(at(measure, 7, 1)" in text(d), text(d)[-300:])
+    run(d, "release")
+    code, out = run(d, "strike", "measure(7)#1", "--why", "x")
+    ck("an agent's strike of it with no disclosure is refused", code != 0, out)
+
+
+def t_withdraw_human():
+    """H-0262 5o: an agent withdraws a kind that holds a fact of the human only with a disclosure; the marks leave with it."""
+    d = fixture()
+    run(d, "add", "tag(g1, 'of Ty')", "--by", "human")
+    run(d, "add", "tag(g1, 'of the agent')")
+    run(d, "release")
+    t0 = text(d)
+    code, out = run(d, "withdraw", "tag/2")
+    ck("withdraw of a kind with a fact of the human, no disclosure: refused, nothing written", code != 0 and text(d) == t0, out)
+    code, out = run(d, "withdraw", "tag/2", "--disclose", "Ty said the tags go")
+    t = text(d)
+    ck("with a disclosure: accepted, the mark leaves, the disclosure stays", code == 0 and not re.search(r"^by_human\(at\(tag", t, re.M) and "Ty said the tags go" in t, out + t[-300:])
+    run(d, "release")
+    run(d, "add", "tag(g1, 'a new agent tag')", "--doc", "a tag")
+    run(d, "release")
+    ck("a later fact of the kind is not the human's", run(d, "strike", "tag(g1)#1", "--why", "x")[0] == 0)
+
+
+def t_refused_keeps_lease():
+    """H-0262: a refused strike does not leave the writer lease with the refused session."""
+    d, sa, sb, rid = _two_sessions()
+    r = subprocess.run([OK, "--dir", d, "strike", rid, "--why", "x"], capture_output=True, text=True, env=sb)
+    ck("the refused strike leaves no writer lock", r.returncode != 0 and not os.path.exists(os.path.join(d, "writer.lock")), os.listdir(d))
+
+
 def t_unchanged():
     d = fixture()
     a = opens(d)

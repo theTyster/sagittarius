@@ -611,11 +611,15 @@ top(Argv0, Code) :-
             ->  cmd_help([Cmd], Code)
             ;   lib_dir(Lib),
                 resolve_kb(DirOpt, Dir),
+                ( catch(lock_state(Dir, Prior0), _, Prior0 = unknown) -> Prior = Prior0 ; Prior = unknown ),
                 (   lock_command(Cmd)
                 ->  take_role(Args, ArgsR), writer_gate(Dir, ArgsR, Args1), apply_pending(Dir)
                 ;   Args1 = Args
                 ),
-                (   writer_command(Cmd)
+                (   memberchk(Cmd, [strike, replace, erase])     % kb-crud: a refused change leaves the lease as it was
+                ->  catch(with_kb_lock(Dir, ( load_kb(Dir, Lib, KB), kb_cmd(Cmd, KB, Args1, Code) )), E,
+                          ( ( Prior == none -> ignore(catch(with_output_to(string(_), with_kb_lock(Dir, cmd_release(Dir, _))), _, true)) ; true ), throw(E) ))
+                ;   writer_command(Cmd)
                 ->  with_kb_lock(Dir, ( load_kb(Dir, Lib, KB),
                                         kb_cmd(Cmd, KB, Args1, Code) ))
                 ;   load_kb(Dir, Lib, KB),
@@ -4233,7 +4237,7 @@ cmd_init(Args, Code) :-
 % is never withdrawn. The fix for E19 needs no edit of kb.pl by hand.
 
 cmd_withdraw(KB, Args, Code) :-
-    parse_opts(Args, ['--by'-value], Pos, Opts),
+    parse_opts(Args, ['--by'-value, '--disclose'-value], Pos, Opts),
     (   Pos = [PIA], atomic_list_concat([NA, AA], '/', PIA), NA \== '',
         catch(atom_number(AA, Ar), _, fail), integer(Ar), Ar >= 0
     ->  N = NA
@@ -4256,10 +4260,24 @@ cmd_withdraw(KB, Args, Code) :-
     findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T),
                    ( T = first_use(N/Ar, _, _) ; pos_fact(T), \+ T = decl(_, _, _, _), functor(T, N, Ar) ) ), Others),
     findall(x, ( member(_-T, Others), \+ T = first_use(_, _, _) ), Fs), length(Fs, NF),
-    append(Decls, Others, LTs0), sort(LTs0, LTs),
+    % kb-crud c9: a kind that holds a fact of the human is withdrawn by an agent only with a disclosure, and the marks
+    % of the human on that kind leave with its facts (no mark points at a later fact of the kind).
+    (   memberchk('--disclose'-WD0, Opts), crud_blank(WD0) -> reject(["--disclose is empty."]) ; true ),
+    (   By == agent, member(HL-HT, Others), \+ HT = first_use(_, _, _), crud_human_record(Items, HL, HT), \+ memberchk('--disclose'-_, Opts)
+    ->  term_text(HT, HTT),
+        fmt(HM, "~w/~w holds a record of the human (~w). An agent withdraws it only with a disclosure that says what the human said and where.", [N, Ar, HTT]),
+        reject([HM, "Fix: add --disclose TEXT."] >> fix_lines)
+    ;   true
+    ),
+    findall(ML-MT, ( member(it(kb, _, ML, MT, _, _), Items), nonvar(MT), MT = by_human(at(MK, _, _), _), MK == N ), Marks),
+    append([Decls, Others, Marks], LTs0), sort(LTs0, LTs),
     kb_lines_commented(KbFile, LTs, Out0),
     utc_now(Now),
-    clause_line(withdrawn(N/Ar, By, Now, NF), [], Rec),
+    clause_line(withdrawn(N/Ar, By, Now, NF), [], Rec0),
+    (   By == agent, memberchk('--disclose'-WD, Opts)
+    ->  clause_line(struck_disclosure(kind(N/Ar), By, Now, WD), [], WDL), atomic_list_concat([Rec0, "\n", WDL], Rec)
+    ;   Rec = Rec0
+    ),
     (   sub_string(Out0, _, 1, 0, "\n") -> Sep = "" ; Sep = "\n" ),
     atomic_list_concat([Out0, Sep, Rec, "\n"], Out),
     write_kb_text(KbFile, Out),
@@ -4344,7 +4362,8 @@ crud_target(KB, Text0, Target, LTs) :-
     Re = "^([a-z_][A-Za-z0-9_]*)\\(([^()]+)\\)#([0-9]+)$",
     (   re_match(Re, Text)
     ->  re_matchsub(Re, Text, Sub, []),
-        atom_string(K, Sub.1), atom_string(I, Sub.2), number_string(N, Sub.3),
+        atom_string(K, Sub.1), number_string(N, Sub.3),
+        ( catch(term_string(I, Sub.2), _, fail), atomic(I) -> true ; atom_string(I, Sub.2) ),   % note(g1)#1, measure(7)#1
         (   N >= 1, crud_address_line(Items, K, I, N, L), member(it(kb, _, L, T, _, _), Items)
         ->  Target = at(K, I, N), LTs = [L-T]
         ;   fmt(M, "~w names no record: kb.pl has no ~w(~w, ...) fact number ~w (counted in the order of kb.pl).", [Text, K, I, N]),
@@ -4356,7 +4375,8 @@ crud_target(KB, Text0, Target, LTs) :-
         build_env(Facts, Ds, env(_, _, IdA, _)),
         (   get_assoc(Id, IdA, _)
         ->  Target = Id,
-            findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), compound(T), arg(1, T, A), A == Id ), LTs0),
+            findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), compound(T), arg(1, T, A), A == Id,
+                           \+ crud_bookkeeping(T) ), LTs0),      % the strike, the disclosure, ... of Id stay: they are history
             findall(L-T, ( member(it(kb, _, L, T, _, _), Items), nonvar(T), T = supersedes(_, O), O == Id ), LTs1),
             append(LTs0, LTs1, LTs2), sort(LTs2, LTs)
         ;   fmt(M, "~w is not the id of an item of this KB (a claim, a check, a question, a finding, an attestation, ...), and not an address such as note(g1)#2.", [Text]),
@@ -4373,35 +4393,61 @@ crud_human_record_plain(T) :-
 % crud_human_record(+Items, +Fact): the request, a fact with the argument human, or a fact with a by_human line.
 crud_human_record(_, _, T) :- crud_human_record_plain(T), !.
 crud_human_record(Items, L, T) :-
-    nonvar(T), compound(T), functor(T, K, _), arg(1, T, I), atom(I),
+    nonvar(T), compound(T), functor(T, K, _), arg(1, T, I), atomic(I),
     findall(L0, ( member(it(kb, _, L0, T0, _, _), Items), nonvar(T0), compound(T0), functor(T0, K, _), arg(1, T0, A0), A0 == I ), Ls),
     nth1(N, Ls, L),
     member(it(kb, _, _, M, _, _), Items), nonvar(M), M = by_human(at(K2, I2, N2), _), K2 == K, I2 == I, N2 == N, !.
 
-% crud_pane_owner(+Items, +Target, -Pane) (kb-crud c10, Ty: "Only my own session is free"): Target is a run or a
-% verdict (an attestation) that this session did not record itself: the writer of its actor/3 is not the writer of
-% this command (a writer that is unknown is not this one). The role does not matter. Pane names whose it is: its
-% role when known, else its session.
-crud_pane_owner(Items, Target, Pane) :-
-    atom(Target),
-    member(it(kb, _, _, A, _, _), Items), nonvar(A), A = attest(Target, _, _, _, _, _), !,
-    member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(Target, R, S), !,
+% crud_bookkeeping(+Fact): a record that strike, replace and erase write (and the mark of the human). Only these
+% commands write them, add refuses them, and none of them is struck, replaced or erased: a disclosure is permanent.
+crud_bookkeeping(T) :- nonvar(T), compound(T), functor(T, N, A), memberchk(N/A, [struck/4, struck_disclosure/4, erased/4, replaced/4, by_human/2]), !.
+
+% crud_record_owner(+Items, +LTs, -Writer, -Role) (kb-crud c10): the records that LTs names belong to a record of a
+% pane (an attestation: a run, a verdict, a vote, a disclosure, a location; or any record with an actor/3) when the
+% first argument of one of them is such an id: its actor (an attachment such as actor(a6) or rests_on_run(a2)
+% belongs to it too). An attestation with no actor/3 has the writer unknown.
+crud_record_owner(Items, LTs, S, R) :-
+    member(_-T, LTs), nonvar(T), compound(T), arg(1, T, A), atomic(A),
+    (   member(it(kb, _, _, Ac, _, _), Items), nonvar(Ac), Ac = actor(A0, R0, S0), A0 == A
+    ->  S = S0, R = R0
+    ;   member(it(kb, _, _, At, _, _), Items), nonvar(At), At = attest(A1, _, _, _, _, _), A1 == A
+    ->  S = unknown, R = unknown
+    ), !.
+
+% crud_pane_owner(+Items, +LTs, -Pane) (kb-crud c10, Ty: "Only my own session is free"): the record belongs to a pane
+% record that this session did not write: its writer is another, or unknown (on either side). The role does not
+% matter. Pane names whose it is: its role and session when known.
+crud_pane_owner(Items, LTs, Pane) :-
+    crud_record_owner(Items, LTs, S, R),
     actor_session(MS),
     ( S == unknown ; MS == unknown ; S \== MS ), !,
-    (   R \== unknown -> fmt(PT, "~w (session ~w)", [R, S]) ; fmt(PT, "of the session ~w", [S]) ),
+    (   R \== unknown, S \== unknown -> fmt(PT, "~w (session ~w)", [R, S])
+    ;   S \== unknown -> fmt(PT, "of the session ~w", [S])
+    ;   R \== unknown -> fmt(PT, "~w (session unknown)", [R])
+    ;   PT = "of an unknown session (no actor)"
+    ),
     atom_string(Pane, PT).
+
+% crud_blank(+Atom): empty, or only white space (Unicode spaces too: a no-break space is not a disclosure).
+crud_blank(D) :-
+    atom_string(D, S), string_codes(S, Cs),
+    forall(member(C, Cs), ( code_type(C, space) ; memberchk(C, [0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, 0x200B, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF]) )).
 
 crud_guard(KB, LTs, Target, By, Opts) :-
     kb_items(KB, Items),
-    (   memberchk('--disclose'-D0, Opts), atom_string(D0, DS0), split_string(DS0, "", " \t\r\n", [""])
+    (   memberchk('--disclose'-D0, Opts), crud_blank(D0)
     ->  reject(["--disclose is empty.", "Fix: say what the human said and where, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
     ;   true
     ),
-    (   By == agent, member(LT-T, LTs), crud_human_record(Items, LT, T), \+ memberchk('--disclose'-_, Opts)
+    (   member(_-BT, LTs), crud_bookkeeping(BT)
+    ->  term_text(BT, BTT),
+        fmt(M, "~w is a record of strike, replace or erase (~w). It is permanent: it is not struck, replaced or erased.", [Target, BTT]),
+        reject([M])
+    ;   By == agent, member(LT-T, LTs), crud_human_record(Items, LT, T), \+ memberchk('--disclose'-_, Opts)
     ->  term_text(T, TT),
         fmt(M, "~w is a record of the human (~w). An agent changes it only with a disclosure that says what the human said and where.", [Target, TT]),
         reject([M, "Fix: add --disclose TEXT, for example --disclose 'Ty said B in the chat'."] >> fix_lines)
-    ;   By == agent, crud_pane_owner(Items, Target, Pane), \+ memberchk('--disclose'-_, Opts)
+    ;   By == agent, crud_pane_owner(Items, LTs, Pane), \+ memberchk('--disclose'-_, Opts)
     ->  fmt(M, "~w is a record of the pane ~w (a run or a verdict). Another pane changes it only with a disclosure that names the pane and says why.", [Target, Pane]),
         reject([M, "Fix: add --disclose TEXT, for example --disclose 'the run tested an old build'."] >> fix_lines)
     ;   true
@@ -4425,10 +4471,10 @@ crud_by(Opts, By) :-
     opt(Opts, '--by', agent, By),
     ( memberchk(By, [human, agent]) -> true ; usage_error("--by takes human or agent. It is ~w.", [By]) ).
 
-crud_disclosure_line(KB, Target, By, Now, Opts, Lines) :-
+crud_disclosure_line(KB, Target, LTs, By, Now, Opts, Lines) :-
     (   By == agent, memberchk('--disclose'-D0, Opts)
     ->  kb_items(KB, Items),
-        (   crud_pane_owner(Items, Target, Pane)
+        (   crud_pane_owner(Items, LTs, Pane)
         ->  atom_string(D0, DS0), fmt(DT, "the record is of the pane ~w. ~w", [Pane, DS0]), atom_string(D, DT)
         ;   D = D0
         ),
@@ -4445,7 +4491,7 @@ cmd_strike(KB, Args, Code) :-
     crud_guard(KB, LTs, Target, By, Opts),
     utc_now(Now), kb_file(KB, KbFile),
     clause_line(struck(Target, By, Now, Why), [], L1),
-    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, LTs, By, Now, Opts, DLs),
     append_lines(KbFile, [L1|DLs]),
     forall(member(L, [L1|DLs]), format("~w~n", [L])),
     Code = 0.
@@ -4470,13 +4516,13 @@ cmd_replace(KB, Args, Code) :-
     KB = kb(_, _, _, _),
     ( By == human -> ByArgs = ['--by', human] ; ByArgs = [] ),
     append([NewText|MoreFacts], Extra, Facts0), append(Facts0, ByArgs, AddArgs),
-    cmd_add(KB, AddArgs, _),
+    setup_call_cleanup(nb_setval(crud_internal, true), cmd_add(KB, AddArgs, _), nb_setval(crud_internal, false)),
     utc_now(Now), kb_file(KB, KbFile),
     (   Strike == true
     ->  clause_line(struck(Target, By, Now, Why), [], L1), Ls0 = [L1]
     ;   clause_line(replaced(Target, By, Now, Why), [], L1), Ls0 = [L1]     % who, when and why are a record, not only the message
     ),
-    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, LTs, By, Now, Opts, DLs),
     append(Ls0, DLs, Ls),
     append_lines(KbFile, Ls),
     forall(member(L, Ls), format("~w~n", [L])),
@@ -4497,7 +4543,7 @@ cmd_erase(KB, Args, Code) :-
     kb_lines_without(KbFile, LTs, Out00),
     crud_fix_struck(Target, Out00, Out0),
     clause_line(erased(Target, By, Now, Why), [], L1),
-    crud_disclosure_line(KB, Target, By, Now, Opts, DLs),
+    crud_disclosure_line(KB, Target, LTs, By, Now, Opts, DLs),
     write_kb_text(KbFile, Out0),
     append_lines(KbFile, [L1|DLs]),
     forall(member(L, [L1|DLs]), format("~w~n", [L])),
@@ -4570,7 +4616,10 @@ crud_report_fact(erased(X, By, At, Why), L) :-
     fmt(L, "~w erased by ~w at ~w: ~w (its text is only in git)", [XT, By, At, W]).
 crud_report_fact(struck_disclosure(X, By, At, D), L) :-
     crud_target_text(X, XT), one_line(D, DT),
-    fmt(L, "A record of the human, ~w, was changed by ~w at ~w. Disclosure: ~w (a divergence for the human to judge)", [XT, By, At, DT]).
+    (   sub_atom(D, 0, _, _, 'the record is of the pane ')
+    ->  fmt(L, "A record of another session, ~w, was changed by ~w at ~w. Disclosure: ~w (a divergence for its pane and for the human)", [XT, By, At, DT])
+    ;   fmt(L, "A record of the human, ~w, was changed by ~w at ~w. Disclosure: ~w (a divergence for the human to judge)", [XT, By, At, DT])
+    ).
 
 crud_target_text(at(K, I, N), T) :- !, fmt(T, "~w(~w)#~w", [K, I, N]).
 crud_target_text(X, T) :- term_text(X, T).
@@ -4896,6 +4945,18 @@ cmd_add(KB, Args, Code) :-
     (   member(it(_, _, _, BT, _, _), NewItems), nonvar(BT), BT = by_human(_, _)
     ->  reject(["by_human/2 is the mark of a fact that a human wrote. orbit-kb writes it, never add: it is not typed by hand.",
                 "Fix: the human writes the fact with orbit-kb add 'FACT' --by human (or on the Desk)."] >> fix_lines)
+    ;   member(it(_, _, _, BT2, _, _), NewItems), crud_bookkeeping(BT2)
+    ->  functor(BT2, BN, BA),
+        fmt(BM, "~w/~w is a record of strike, replace or erase. Only those commands write it; add does not.", [BN, BA]),
+        reject([BM, "Fix: orbit-kb strike X --why TEXT, orbit-kb replace X NEW --why TEXT, or orbit-kb erase X --why TEXT (with --disclose TEXT for a record of the human or of another session)."] >> fix_lines)
+    ;   \+ nb_current(crud_internal, true),
+        member(it(_, _, _, ST, _, _), NewItems), nonvar(ST), ST = supersedes(_, SO), atomic(SO),
+        findall(SL-STT, ( member(it(kb, _, SL, STT, _, _), KI), nonvar(STT), compound(STT), arg(1, STT, SA), SA == SO ), SLTs), SLTs \== [],
+        (   crud_pane_owner(KI, SLTs, SPane) -> fmt(SWhy, "a record of the pane ~w", [SPane])
+        ;   member(SL1-ST1, SLTs), crud_human_record(KI, SL1, ST1) -> SWhy = "a record of the human"
+        )
+    ->  fmt(SM, "supersedes(_, ~w) would make ~w, ~w, stop counting with no disclosure.", [SO, SO, SWhy]),
+        reject([SM, "Fix: orbit-kb replace or strike it with --why TEXT --disclose TEXT."] >> fix_lines)
     ;   true
     ),
     check_words_gate(KI, NewItems),
@@ -4946,14 +5007,14 @@ human_mark_lines(human, KI, NewItems, Now, Lines) :- !,
 human_mark_lines(_, _, _, _, []).
 
 human_mark_line(KI, Now, it(_, _, _, T, _, _), Seen0-Ls0, Seen-Ls) :-
-    (   pos_fact(T), compound(T), \+ crud_human_record_plain(T), arg(1, T, I), atom(I),
+    (   pos_fact(T), compound(T), \+ crud_human_record_plain(T), arg(1, T, I), atomic(I),
         functor(T, K, _), \+ memberchk(K, [by_human, struck, struck_disclosure, erased, replaced, actor, first_use])
     ->  aggregate_all(count, ( member(it(kb, _, _, T0, _, _), KI), nonvar(T0), compound(T0), functor(T0, K, _), arg(1, T0, A0), A0 == I ), C0),
         aggregate_all(count, ( member(K2-I2, Seen0), K2 == K, I2 == I ), C1),
         N is C0 + C1 + 1,
         clause_line(by_human(at(K, I, N), Now), [], L),
         Seen = [K-I|Seen0], Ls = [L|Ls0]
-    ;   pos_fact(T), compound(T), arg(1, T, I), atom(I), functor(T, K, _)
+    ;   pos_fact(T), compound(T), arg(1, T, I), atomic(I), functor(T, K, _)
     ->  Seen = [K-I|Seen0], Ls = Ls0
     ;   Seen = Seen0, Ls = Ls0
     ).
@@ -9194,7 +9255,8 @@ desk_rec_divergence(K, Html) :-
     findall([X, By, At, D], ( member(it(kb, _, _, T, _, _), Items), nonvar(T), T = struck_disclosure(X, By, At, D) ), Dvs),
     findall(L, ( member([X, By, At, D], Dvs), crud_target_text(X, XT), esc(XT, XH), esc(By, BH), esc(D, DH),
                  crud_old_text(KB, X, Items, OT), esc(OT, OH),
-                 dk_f("<li><b>A record of yours was changed:</b> ~w, by ~w at ~w. The record said: <code>~w</code>. Disclosure: ~w</li>", [XH, BH, At, OH, DH], L) ), Ls),
+                 ( sub_atom(D, 0, _, _, 'the record is of the pane ') -> Whose = "A record of another session was changed:" ; Whose = "A record of yours was changed:" ),
+                 dk_f("<li><b>~w</b> ~w, by ~w at ~w. The record said: <code>~w</code>. Disclosure: ~w</li>", [Whose, XH, BH, At, OH, DH], L) ), Ls),
     (   Ls == [] -> Html = ""
     ;   dk_cat(Ls, LsH), dk_f("<div class=\"divergence\"><p class=\"small\">An agent changed a record that you made. This is a divergence for you to judge.</p><ul>~w</ul></div>", [LsH], Html)
     ).
@@ -12335,12 +12397,16 @@ show_section(_, Eng, stale) :- !,
            ->  say("- stale (done before the upgrade): run ~w of claim ~w is older than a change that serves the claim. It blocks nothing.", [A, C])
            ;   say("- stale: run ~w of claim ~w is older than a change that serves the claim. The claim is not fulfilled until its check runs again.", [A, C])
            )).
-show_section(_, Eng, disclosures) :-
+show_section(KB, Eng, disclosures) :-
     say("Disclosures:", []),
     eng_all(Eng, [I, S, P, B, T], attest(I, disclosure, S, P, B, T), Ds),
-    (   Ds == [] -> say("- None.", []) ; true ),
+    kb_items(KB, DItems),
+    findall([X, XB, XAt, XD], ( member(it(kb, _, _, XT, _, _), DItems), nonvar(XT), XT = struck_disclosure(X, XB, XAt, XD) ), SDs),
+    (   Ds == [], SDs == [] -> say("- None.", []) ; true ),
     forall(member([I, S, P, B, T], Ds),
-           ( term_text(P, PT), say("- ~w: ~w, about ~w, by ~w at ~w.", [I, PT, S, B, T]) )).
+           ( term_text(P, PT), say("- ~w: ~w, about ~w, by ~w at ~w.", [I, PT, S, B, T]) )),
+    forall(member([X, XB, XAt, XD], SDs),        % kb-crud: the disclosures of strike, replace and erase
+           ( crud_target_text(X, XXT), one_line(XD, XDL), say("- ~w changed by ~w at ~w (a record of another party): ~w", [XXT, XB, XAt, XDL]) )).
 % show kinds (T26): each fact kind and each rule head of the KB (the core,
 % the modules in use, kb.pl, rules.pl) with its description. A rule head is
 % marked (rule). One with no description says so.
