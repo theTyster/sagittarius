@@ -9399,7 +9399,7 @@ desk_review_html(Plan, Frag, Html) :-
     findall(N-V, ( member(N-V0, [hub-Plan.hub, item-Plan.item, key-Plan.key, intent-Plan.intent, choice-Plan.choice, text-Plan.text, tab-Plan.get(tab, ""), until-Plan.get(until, "")]), dk_str(V0, V) ), Hs0),
     desk_hidden([token-Tok|Hs0], HH),
     findall(LH, ( nth0(I, Plan.letters, L), desk_review_letter(Plan.hd, I, L, LH) ), LHs), dk_cat(LHs, LsH),
-    include([L]>>( get_dict(to, L, To), ( To \== none ; desk_letter_kbish(L) ) ), Plan.letters, Sendable), length(Sendable, NS),
+    include([L]>>( get_dict(to, L, To), ( To \== none ; desk_agent_takes(Plan.hd, L) ) ), Plan.letters, Sendable), length(Sendable, NS),
     ( NS > 1 -> EveryH = "<div class=\"letter\"><div class=\"lh\">Add a line to every letter (optional)</div><textarea name=\"every\" aria-label=\"A line for every letter\" style=\"min-height:48px\"></textarea></div>" ; EveryH = "" ),
     findall(R, ( member(R0, Plan.records), esc(R0, RH), dk_f("<li>~w</li>", [RH], R) ), Rs), dk_cat(Rs, RsH),
     ( Rs == [] -> RecH = "" ; dk_f("<h3 class=\"small quiet\">What the Desk records</h3><ul class=\"records\">~w</ul>", [RsH], RecH) ),
@@ -9413,13 +9413,10 @@ desk_review_html(Plan, Frag, Html) :-
     ).
 
 desk_review_letter(HD, I, L, Html) :-
-    (   L.to == none, desk_letter_kbish(L)
-    ->  % H-0264 (desk-agents c11): nobody holds the KB: the letter goes to a desk agent of the KB (agents on), else it
-        % is stored for the owners of its item
+    (   L.to == none, desk_agent_takes(HD, L)
+    ->  % H-0264 (desk-agents c11): nobody holds the KB and desk agents are on: a desk agent of the KB takes the letter
         esc(L.about, AH), esc(L.text, TxH),
-        ( is_dict(HD.st), get_dict(agents_on, HD.st, true)
-        -> Who = "No live session holds this KB: a desk agent of the KB takes this letter (claude -p, in the view Agents)."
-        ;  Who = "No live session holds this KB, and desk agents are off: the letter is stored for the owners of its item." ),
+        Who = "No live session holds this KB: a desk agent of the KB takes this letter (claude -p, in the view Agents).",
         dk_f("<div class=\"letter\"><div class=\"lh\"><span class=\"loud\">~w</span></div><p class=\"small quiet\">About ~w.</p><textarea name=\"letter_~w\" aria-label=\"The letter about ~w\">~w</textarea></div>", [Who, AH, I, AH, TxH], Html)
     ;   L.to == none
     ->  esc(L.about, AH),
@@ -9462,7 +9459,7 @@ desk_execute(Form, Plan, R) :-
     % each letter: Ty's text from the review, the receiving session (one of its choices)
     % H-0264 (desk-agents c11): a letter with no live receiver (nobody holds its KB) is stored too, with no --to:
     % desk.py gives it to a desk agent when agents are on, else to the owners of its item, as for an old letter
-    findall(I-L-Text, ( nth0(I, Plan.letters, L), ( L.to \== none ; desk_letter_kbish(L) ),
+    findall(I-L-Text, ( nth0(I, Plan.letters, L), ( L.to \== none ; desk_agent_takes(HD, L) ),
                         format(atom(F), "letter_~w", [I]), ( serve_field(Form, F, T0) -> true ; T0 = "" ),
                         split_string(T0, "", " \t\r\n", [T1]), T1 \== "",
                         ( Every == "" -> Text = T1 ; dk_f("~w\n\n~w", [T1, Every], Text) ) ), ToSend0),
@@ -9485,6 +9482,9 @@ desk_execute(Form, Plan, R) :-
 
 % desk_letter_kbish(+L): a letter about a spec KB (a question or a KB item): with no receiver it may go to a desk agent.
 desk_letter_kbish(L) :- get_dict(item, L, I), is_dict(I), get_dict(type, I, T), memberchk(T, ["question", "kb", question, kb]).
+% desk_agent_takes(+HD, +L): a letter with no receiver that a desk agent takes: about a spec KB, desk agents on in the
+% mindhole (desk.py status: agents_on). With agents off nothing changes: no letter goes out, as before.
+desk_agent_takes(HD, L) :- desk_letter_kbish(L), is_dict(HD.st), get_dict(agents_on, HD.st, true).
 
 % c20 (review finding, H-0039): /send builds the plan again; a letter goes only to the session that
 % the review showed. When the holder changed since the review, nothing is sent: review it again.
