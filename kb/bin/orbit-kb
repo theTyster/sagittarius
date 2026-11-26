@@ -6281,12 +6281,19 @@ desk_letter_is(L, ask(Id)) :- L.item.type == "ask", atom_string(Id, L.item.id).
 desk_letter_is(L, question(Slug, Q)) :- L.item.type == "question", atom_string(Slug, L.item.slug), atom_string(Q, L.item.q).
 desk_letter_is(L, kb(Slug, Ref)) :- L.item.type == "kb", atom_string(Slug, L.item.slug), atom_string(Ref, L.item.ref).
 
+% desk_letter_name(+L, -N): the name of a letter's item; total (H-0264: a letter of any shape names something, never a 500).
 desk_letter_name(L, N) :-
-    I = L.item,
-    (   I.type == "ask" -> format(string(N), "~w", [I.id])
-    ;   I.type == "question" -> format(string(N), "~w ~w", [I.kb, I.q])
-    ;   format(string(N), "~w ~w", [I.kb, I.ref])
+    ( is_dict(L), get_dict(item, L, I), is_dict(I) -> true ; I = _{} ),
+    ( get_dict(type, I, T0) -> dk_str(T0, T) ; T = "" ),
+    desk_li(I, kb, Kb), desk_li(I, q, Q), desk_li(I, ref, Ref), desk_li(I, id, Id), desk_li(I, agent, Ag), desk_li(I, what, Wh),
+    (   T == "ask" -> N = Id
+    ;   T == "question" -> format(string(N), "~w ~w", [Kb, Q])
+    ;   T == "agent" -> format(string(N), "the desk agent ~w", [Ag])
+    ;   T == "fix" -> format(string(N), "fix ~w", [Wh])
+    ;   Kb \== "" -> format(string(N), "~w ~w", [Kb, Ref])
+    ;   ( is_dict(L), get_dict(about, L, Ab0), dk_str(Ab0, Ab), Ab \== "" -> N = Ab ; N = "a letter" )
     ).
+desk_li(I, K, V) :- ( get_dict(K, I, V0) -> dk_str(V0, V) ; V = "" ).
 
 desk_kind_label("answer", "Answer").
 desk_kind_label("diverge", "Divergence").
@@ -8301,7 +8308,26 @@ desk_kb_sheet_(HDs, HD, K, KB, Eng, View, Open, QCs, GCs, Votes, Others, LAk, LC
     ( Open == true -> Op = " open" ; Op = "" ),
     dk_f("<details class=\"sheet kbsec\" id=\"~w\"~w><summary><div class=\"t\"><h3 class=\"title\">~w</h3><div class=\"src\"><span>~w~w</span><span title=\"~w\">~w</span><span>~w</span></div><div class=\"chips\">~w</div></div>~w</summary><div class=\"body\">",
          [A, Op, LH, KindT, HS, DH, DH, HowT, ChipsH, BH], H0),
-    dk_cat([H0, LinkH, OldH, MetaH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, "</div></details>"], Html).
+    desk_kb_agent_html(HD, K, AgH),
+    dk_cat([H0, LinkH, OldH, MetaH, AgH, ProjH, QL, GoalL, ClaimL, LedL, AnsL, NrLay, "</div></details>"], Html).
+
+% desk_kb_agent_html(+HD, +K, -Html) (desk-agents c13, H-0264): the desk agent of the KB on its sheet, in every view:
+% its name, its state and its last events (escaped), with a link to its row in the view Agents. The page is live as
+% the Desk is: each reload reads the events again.
+desk_kb_agent_html(HD, K, Html) :-
+    (   desk_agents_of(HD, As), member(A, As), desk_ag(A, kbdir, AD), AD \== "", atom_string(ADA, AD),
+        catch(serve_norm(ADA, ADN), _, ADN = ADA), ( ADN == K.dir ; ADA == K.dir ), !
+    ->  maplist(desk_ag(A), [name, state, since, last], [Nm, St, Since, Last]),
+        esc(Nm, NmH), esc(St, StH), esc(Since, SiH), esc(Last, LaH), desk_key(Nm, Key),
+        ( get_dict(events, A, Evs0), is_list(Evs0) -> true ; Evs0 = [] ),
+        length(Evs0, NE), ( NE > 6 -> N0 is NE - 6, length(Pre, N0), append(Pre, Evs, Evs0) ; Evs = Evs0 ),
+        findall(L, ( member(E, Evs), is_dict(E), desk_ag(E, kind, EK), desk_ag(E, text, ET), esc(EK, EKH), esc(ET, ETH),
+                     dk_f("<li><span class=\"quiet small\">~w</span> ~w</li>", [EKH, ETH], L) ), Ls),
+        dk_cat(Ls, LsH), ( nb_current(desk_here, _-Tab) -> true ; Tab = "" ), desk_view_href(Tab, agents, AHr),
+        dk_f("<div class=\"kbagent\" data-agent=\"~w\"><p><b>Desk agent ~w</b>: <span class=\"astate state-~w\">~w</span> <span class=\"quiet small\">since ~w</span>. Now: ~w <a href=\"~w#agent-~w\">See it in Agents</a></p><ol class=\"aevents small\">~w</ol></div>",
+             [NmH, NmH, StH, StH, SiH, LaH, AHr, Key, LsH], Html)
+    ;   Html = ""
+    ).
 
 % desk_open_first_of(+Lists, -Lists1, +QCs): the first card of the first list that holds one opens (c22),
 % unless the open questions come first (then desk_qgroups opens the first of those).
@@ -9110,7 +9136,7 @@ desk_plan_act(HD, K, Ref, Intent, Choice, Text, P) :-
         ( Choice == "" -> CT = "(see his words)" ; CT = Choice ),
         desk_act_instr(A, Instr),
         dk_f("Ty decides on ~w in the KB ~w (~w): ~w.~w\n\n~w", [Sum, K.label, K.dir, CT, WT, Instr], LT),
-        ( To == none -> Rec = "the next session that takes the KB" ; Rec = To ),
+        ( To == none -> Rec = "a desk agent of the KB (when desk agents are on), else the next session that takes the KB" ; Rec = To ),
         dk_f("Nothing is written by the Desk: ~w records it in the KB as your own word.", [Rec], R1),
         desk_lt(To, answer, About, Item, LT, L1),
         P = plan{title:"Your decision", sub:About, letters:[L1], records:[R1], effects:[none]}
@@ -9426,14 +9452,16 @@ desk_execute(Form, Plan, R) :-
     HD = Plan.hd,
     ( serve_field(Form, every, Ev0) -> split_string(Ev0, "", " \t\r\n", [Every]) ; Every = "" ),
     % each letter: Ty's text from the review, the receiving session (one of its choices)
-    findall(I-L-Text, ( nth0(I, Plan.letters, L), L.to \== none,
+    % H-0264 (desk-agents c11): a letter with no live receiver (nobody holds its KB) is stored too, with no --to:
+    % desk.py gives it to a desk agent when agents are on, else to the owners of its item, as for an old letter
+    findall(I-L-Text, ( nth0(I, Plan.letters, L), ( L.to \== none ; desk_letter_kbish(L) ),
                         format(atom(F), "letter_~w", [I]), ( serve_field(Form, F, T0) -> true ; T0 = "" ),
                         split_string(T0, "", " \t\r\n", [T1]), T1 \== "",
                         ( Every == "" -> Text = T1 ; dk_f("~w\n\n~w", [T1, Every], Text) ) ), ToSend0),
     forall(( nth0(I, Plan.letters, L), L.to == none, format(atom(F), "to_~w", [I]), serve_field(Form, F, Was), Was \== "" ),
            ( dk_f("The session that gets this letter changed since your review (it was ~w, now no live session holds the item). Nothing was sent. Review it again.", [Was], M),
              throw(desk_refused(409, M)) )),
-    findall(I-L1-Text, ( member(I-L-Text, ToSend0), desk_pick_to(Form, I, L, To), L1 = L.put(to, To) ), ToSend),
+    findall(I-L1-Text, ( member(I-L-Text, ToSend0), ( L.to == none -> L1 = L ; desk_pick_to(Form, I, L, To), L1 = L.put(to, To) ) ), ToSend),
     % c8: the letters are stored first
     findall(Lr, ( member(_-L-Text, ToSend), desk_store_letter(HD, L, Text, Lr) ), Stored),
     ( member(error(EM), Stored) -> dk_f("A letter was not stored, so nothing else was done: ~w", [EM], M0), R = refused(409, M0)
@@ -9446,6 +9474,9 @@ desk_execute(Form, Plan, R) :-
         ;   R = R1
         )
     ).
+
+% desk_letter_kbish(+L): a letter about a spec KB (a question or a KB item): with no receiver it may go to a desk agent.
+desk_letter_kbish(L) :- get_dict(item, L, I), is_dict(I), get_dict(type, I, T), memberchk(T, ["question", "kb", question, kb]).
 
 % c20 (review finding, H-0039): /send builds the plan again; a letter goes only to the session that
 % the review showed. When the holder changed since the review, nothing is sent: review it again.
@@ -9466,8 +9497,10 @@ desk_store_letter(HD, L, Text, Lr) :-
     (   \+ desk_py(HD.path, _, _) -> Lr = none
     ;   atom_json_dict(IJ, L.item, [width(0)]),
         tmp_file_stream(utf8, TF, TS), write(TS, Text), close(TS),
-        dk_str(L.to, To), dk_str(L.about, About), dk_str(L.kind, Kind),
-        desk_cmd(HD.path, [send, '--kind', Kind, '--to', To, '--about', About, '--item-json', IJ, '--text-file', TF], Out, R0),
+        dk_str(L.about, About), dk_str(L.kind, Kind),
+        ( L.to == none -> ToA = [] ; dk_str(L.to, To), ToA = ['--to', To] ),
+        append([[send, '--kind', Kind], ToA, ['--about', About, '--item-json', IJ, '--text-file', TF]], SendA),
+        desk_cmd(HD.path, SendA, Out, R0),
         catch(delete_file(TF), _, true),
         (   R0 == ok, catch(atom_json_dict(Out, D, []), _, fail), get_dict(id, D, Lid) -> Lr = ok(Lid)
         ;   R0 = error(M) -> Lr = error(M)

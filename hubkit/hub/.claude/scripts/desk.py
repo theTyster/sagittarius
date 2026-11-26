@@ -661,9 +661,15 @@ def letter_slug(letter):
 
 
 def letter_kbdir(hub, letter):
+    """The resolved KB dir of a letter when it is a spec KB of this mindhole (HUB/specs/SLUG, SLUG the item's slug);
+    else None (H-0264: a path into another mindhole, or a slug that names another KB, starts no agent)."""
     it = letter.get("item") or {}
     kb = it.get("kb") or f"specs/{it.get('slug')}"
-    return kb if os.path.isabs(kb) else os.path.join(hub, kb)
+    d = os.path.realpath(kb if os.path.isabs(kb) else os.path.join(hub, kb))
+    specs = os.path.realpath(os.path.join(hub, "specs"))
+    if os.path.dirname(d) != specs or os.path.basename(d) != it.get("slug"):
+        return None
+    return d
 
 
 def lock_of(kbdir):
@@ -815,7 +821,7 @@ def settle_dead(hub, o):
     lock is released. Returns True when o changed."""
     changed = False
     for nm, a in o["agents"].items():
-        if a.get("state") in AGENT_LIVE and not pid_alive(a.get("runner")) and \
+        if a.get("state") in AGENT_LIVE and not pid_alive(a.get("runner")) and not pid_alive(a.get("claude")) and \
                 (ts_secs(now_ts()) or 0) - (ts_secs(a.get("since")) or 0) > 5:
             release_lock(a.get("kbdir") or "", a.get("session_id") or "")
             a.update(state="stopped", since=now_ts(), why="interrupted (its runner is gone)", claude=None, runner=None)
@@ -829,6 +835,8 @@ def agent_plan(hub, letter):
     it = letter.get("item") or {}
     if it.get("type") == "agent":
         name = it.get("agent")
+        if not agents_on():
+            raise Bad("desk agents are off (desk.py agents on turns them on): no run starts, so the words are not sent")
         out = {}
 
         def f(o):
@@ -844,10 +852,10 @@ def agent_plan(hub, letter):
             raise Bad(out["err"])
         return out["plan"]
     slug = letter_slug(letter)
-    if not slug or not agents_on():
-        return None
+    if not slug or not agents_on() or letter_to(letter):
+        return None   # a letter to a receiver the Desk named is never diverted to an agent (H-0264)
     kbdir = letter_kbdir(hub, letter)
-    if not os.path.isfile(os.path.join(kbdir, "kb.pl")):
+    if not kbdir or not os.path.isfile(os.path.join(kbdir, "kb.pl")):
         return None
     out = {}
 
@@ -1001,7 +1009,7 @@ def cmd_agent_run(hub, a):
         mode = os.environ.get("DESK_AGENT_PERMISSION_MODE") or "auto"
         args = [claude_prog(), "-p", "--name", name, "--permission-mode", mode, "--output-format", "stream-json",
                 "--verbose", "--append-system-prompt", system_prompt(hub, name, ag["role"], ag["kb"]),
-                "--session-id" if first else "--resume", sid, job["prompt"]]
+                "--session-id" if first else "--resume", sid, "--", job["prompt"]]
         env = dict(os.environ, ORBIT_KB_WRITER=sid, DESK_AGENT=name)
         env.pop("HUB_SESSION", None)
         agent_event(hub, name, "start", ("Started" if first else "Resumed") + f" with: {job['prompt']}")
@@ -1010,15 +1018,19 @@ def cmd_agent_run(hub, a):
                 Store(hub).add_event(job["letter"], "seen", name)
             except OSError:
                 pass
+        errp = os.path.join(desk_dir(hub), "agents", name + ".stderr")
         try:
+            errf = open(errp, "w", encoding="utf-8")
             p = subprocess.Popen(args, cwd=hub, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                 stderr=subprocess.DEVNULL, start_new_session=True, text=True, encoding="utf-8", errors="replace")
+                                 stderr=errf, start_new_session=True, text=True, encoding="utf-8", errors="replace")
         except OSError as e:
             agent_event(hub, name, "error", f"{claude_prog()} did not start: {e}")
             release_lock(kbdir, sid)
             with_agents(hub, lambda o: (o["agents"][name].update(state="stopped", runner=None, since=now_ts(), why=str(e)), True)[1])
             return
         with_agents(hub, lambda o: (o["agents"][name].update(claude=p.pid), True)[1])
+        renew = renew_lock_while(kbdir, sid, p)
+        seen_any = False
         for line in p.stdout:
             try:
                 ev = json.loads(line)
@@ -1027,10 +1039,25 @@ def cmd_agent_run(hub, a):
             if not isinstance(ev, dict):
                 continue
             for kind, text in summarize_event(ev):
+                seen_any = True
                 t = agent_event(hub, name, kind, text)
                 if kind in ("text", "tool", "result"):
                     with_agents(hub, lambda o, t=t, k=kind: (o["agents"][name].update(last=t, last_kind=k, last_at=now_ts()), True)[1])
         rc = p.wait()
+        renew.set()
+        errf.close()
+        try:
+            err = open(errp, encoding="utf-8", errors="replace").read()
+        except OSError:
+            err = ""
+        if rc != 0 and not seen_any and mode == "auto" and "permission" in err.lower() and not job.get("retried"):
+            # c11: permission mode auto, else acceptEdits: auto was refused, so the same prompt runs again with acceptEdits
+            agent_event(hub, name, "error", "permission mode auto was refused; the run starts again with acceptEdits")
+            os.environ["DESK_AGENT_PERMISSION_MODE"] = "acceptEdits"
+            with_agents(hub, lambda o: (o["agents"][name].setdefault("queue", []).insert(0, dict(prompt=job["prompt"], letter=job.get("letter"), retried=True)), True)[1])
+            release_lock(kbdir, sid)
+            with_agents(hub, lambda o: (o["agents"][name].update(claude=None, runs=max(0, int(o["agents"][name].get("runs") or 1) - 1)), True)[1])
+            continue
         release_lock(kbdir, sid)
         agent_event(hub, name, "end", f"the run ended (exit {rc})")
         if job.get("letter"):
@@ -1049,6 +1076,25 @@ def cmd_agent_run(hub, a):
         with_agents(hub, done)
 
 
+def renew_lock_while(kbdir, sid, p):
+    """f_h2: keep the writer lock of the KB fresh while claude runs (the lease is 30 minutes). Returns an Event that stops it."""
+    import threading
+    stop = threading.Event()
+
+    def loop():
+        while not stop.wait(60):
+            if p.poll() is not None:
+                return
+            lk = lock_of(kbdir)
+            if lk and lk[0] == sid:
+                try:
+                    write_atomic_text(os.path.join(kbdir, "writer.lock"), f"{sid} {now_ts()}\n")
+                except OSError:
+                    pass
+    threading.Thread(target=loop, daemon=True).start()
+    return stop
+
+
 def cmd_agent_stop(hub, a):
     out = {}
 
@@ -1058,7 +1104,7 @@ def cmd_agent_stop(hub, a):
         if not g:
             out["err"] = f"there is no desk agent {a.name}"
             return False
-        if g.get("state") not in AGENT_LIVE:
+        if g.get("state") not in AGENT_LIVE and not pid_alive(g.get("claude")):
             out["msg"] = f"{a.name} is not running ({g.get('state')})"
             return True
         out["dropped"] = len(g.get("queue") or [])
@@ -1091,7 +1137,9 @@ def cmd_agent_resume(hub, a):
     g = with_agents(hub, lambda o: (settle_dead(hub, o), dict(o["agents"].get(a.name) or {})))
     if not g:
         raise NoHub(f"there is no desk agent {a.name}")
-    if g.get("state") in AGENT_LIVE:
+    if not agents_on():
+        raise Bad("desk agents are off (desk.py agents on turns them on): no run starts")
+    if g.get("state") in AGENT_LIVE or pid_alive(g.get("claude")):
         raise Bad(f"{a.name} is running: stop it first")
     agent_dispatch(hub, {"name": a.name, "act": "run"}, RESUME_PROMPT)
     print(f"resumed {a.name}")
@@ -1154,6 +1202,9 @@ def cmd_send(hub, a):
     plan = agent_plan(hub, letter)  # desk-agents c11, c14: a desk agent takes it (it holds the KB first)
     if plan:
         letter["agent"] = plan["name"]
+        if it["type"] == "agent" and not about:
+            kbn = with_agents(hub, lambda o: (False, (o["agents"].get(plan["name"]) or {}).get("kb")))
+            letter["about"] = f"words to the desk agent {plan['name']}" + (f" (specs/{kbn})" if kbn else "")
     append_line(os.path.join(desk_dir(hub), "letters.jsonl"), letter)  # stored before we return (c8)
     print(json.dumps({"id": lid, **({"agent": plan["name"]} if plan else {})}))
     sys.stdout.flush()
