@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Headless desk agents (desk-agents c11 to c19): desk.py on a scratch hub, with a fake claude. The PATH holds the
+# fake and /usr/bin:/bin only, so no test can reach a real claude. Usage: kb/tests/test_desk_headless.sh [ROOT]
+#   DH1 a letter about a KB that nobody holds starts one claude -p with stream-json; the agent holds the KB's lock
+#   DH2 one process per session: a second letter while the agent runs waits, then runs with --resume after the first
+#   DH3 a stopped agent: no lock, a resume command; a running agent: no resume command
+#   DH4 agent-resume starts a headless run of the same session and takes the lock again
+#   DH5 a KB held by a live lock of another writer starts no agent; the letter keeps its receiver
+#   DH6 DESK_AGENTS=off and `desk.py agents off` start no agent
+#   DH7 control bytes of a letter do not reach the prompt
+#   DH8 a letter to an unknown desk agent is refused; one to a known agent goes to no session
+set -u
+ROOT=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}
+T=$(mktemp -d "${TMPDIR:-/tmp}/desk-headless-test.XXXXXX")
+cleanup() { pkill -f "$T/bin/claude" 2>/dev/null; pkill -f "$T/alpha/.claude/scripts/desk.py" 2>/dev/null; rm -rf "$T"; }; trap cleanup EXIT
+PASS=0; FAIL=0
+ok() { echo "PASS $1"; PASS=$((PASS+1)); }; no() { echo "FAIL $1"; FAIL=$((FAIL+1)); }
+check() { if eval "$2"; then ok "$1"; else no "$1"; fi; }
+mkdir -p "$T/bin" "$T/home" "$T/state"
+cat > "$T/bin/claude" <<'FAKE'
+#!/usr/bin/env python3
+import json, os, signal, sys, time
+a = sys.argv[1:]
+def val(n):
+    return next((a[i + 1] for i, x in enumerate(a) if x == n and i + 1 < len(a)), "")
+sid = val("--session-id") or val("--resume")
+open(os.environ["FAKE_LOG"], "a").write("START " + json.dumps(a) + "\n")
+def bye(*_):
+    open(os.environ["FAKE_LOG"], "a").write("STOPPED\n"); sys.exit(143)
+signal.signal(signal.SIGTERM, bye)
+print(json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "echo T1"}}]}}), flush=True)
+time.sleep(float(os.environ.get("FAKE_SECS", "2")))
+print(json.dumps({"type": "result", "subtype": "success", "result": "DONE"}), flush=True)
+open(os.environ["FAKE_LOG"], "a").write("END\n")
+FAKE
+chmod +x "$T/bin/claude"
+export PATH="$T/bin:/usr/bin:/bin" HOME="$T/home" DESK_STATE="$T/state" FAKE_LOG="$T/claude.log"; : > "$FAKE_LOG"
+unset HUB_SESSION DESK_AGENTS
+h=$T/alpha
+python3 "$ROOT/hubkit/tools/hubkit.py" install --hub "$h" >/dev/null 2>&1 || { echo "setup: no hub"; exit 2; }
+( cd "$h" && { [ -f flow/flow.db ] || python3 .claude/scripts/hubflow.py --hub "$h" init --seed flow/seed.json; } ) >/dev/null 2>&1
+K="$h/.claude/orbit-kb/bin/orbit-kb"; D="python3 $h/.claude/scripts/desk.py --hub $h"
+for s in t1 t2 t3 t4; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
+( cd "$h" && python3 .claude/scripts/desk.py join --name alpha ) >/dev/null 2>&1
+command -v claude | grep -q "^$T/bin/claude$" || { echo "setup: claude is not the fake"; exit 2; }
+send() { printf '%s' "$2" > "$T/text"; $D send --kind note --item-json "$1" --about probe --text-file "$T/text" 2>>"$T/err"; }
+kbi() { printf '{"type": "kb", "slug": "%s", "kb": "specs/%s", "ref": "note"}' "$1" "$1"; }
+starts() { grep -c "^START" "$FAKE_LOG"; }
+nth() { grep "^START" "$FAKE_LOG" | sed -n "${1}p"; }
+waitfor() { local i=0; while [ $i -lt ${2:-100} ]; do eval "$1" && return 0; sleep 0.1; i=$((i+1)); done; return 1; }
+lock() { awk '{print $1}' "$h/specs/$1/writer.lock" 2>/dev/null; }
+agent() { $D agents | python3 -c 'import json,sys; o=json.load(sys.stdin); n=sys.argv[1]; a=[x for x in o["agents"] if x["name"]==n]; print(json.dumps(a[0] if a else {}))' "$1"; }
+field() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv[2]); print("" if v is None else v)' "$1" "$2"; }
+
+# DH1
+out=$(FAKE_SECS=6 send "$(kbi t1)" "Letter one."); nm=$(field "$out" agent)
+waitfor '[ "$(starts)" -ge 1 ]'
+s1=$(nth 1); sid=$(field "$(agent "$nm")" session_id)
+check "DH1 one claude -p for the letter ($nm)" '[ "$(starts)" = 1 ] && grep -q "\"-p\"" <<<"$s1" && grep -q "\"stream-json\"" <<<"$s1"'
+check "DH1 the agent holds the lock of t1" '[ -n "$sid" ] && [ "$(lock t1)" = "$sid" ]'
+check "DH1 the letter goes to no session (it names the agent)" 'grep -q "\"agent\": \"$nm\"" "$h/flow/desk/letters.jsonl"'
+# DH3 (running half)
+check "DH3 a running agent shows no resume command" '[ -z "$(field "$(agent "$nm")" resume_command)" ]'
+# DH2
+send "{\"type\": \"agent\", \"agent\": \"$nm\"}" "More words WAIT2." >/dev/null
+sleep 1
+check "DH2 the second letter waits: one process" '[ "$(starts)" = 1 ] && [ "$(pgrep -fc "$T/bin/claude")" -le 1 ]'
+waitfor '[ "$(starts)" -ge 2 ]' 120
+s2=$(nth 2)
+check "DH2 after the first run the words run with --resume of the same session" 'grep -q "\"--resume\", \"$sid\"" <<<"$s2" && grep -q WAIT2 <<<"$s2"'
+# DH3 (stopped half)
+$D agent-stop "$nm" >/dev/null 2>&1; waitfor 'grep -q "^STOPPED" "$FAKE_LOG"' 50; sleep 1
+a=$(agent "$nm")
+check "DH3 a stopped agent holds no lock" '[ -z "$(lock t1)" ] && [ "$(field "$a" state)" = stopped ]'
+check "DH3 and shows cd HUB && claude --resume SID" '[ "$(field "$a" resume_command)" = "cd $h && claude --resume $sid" ]'
+# DH4
+n0=$(starts); FAKE_SECS=6 $D agent-resume "$nm" >/dev/null 2>&1; waitfor '[ "$(starts)" -gt '"$n0"' ]' 80; sleep 0.5
+check "DH4 the resume starts a headless run of the same session" 'grep -q "\"--resume\", \"$sid\"" <<<"$(nth $((n0+1)))" && grep -q "\"-p\"" <<<"$(nth $((n0+1)))"'
+check "DH4 and takes the lock again" '[ "$(lock t1)" = "$sid" ]'
+$D agent-stop "$nm" >/dev/null 2>&1
+# DH5
+printf 'someone %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$h/specs/t2/writer.lock"
+n0=$(starts); out=$(send "$(kbi t2)" "Letter two."); sleep 1
+check "DH5 a KB held by another writer starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
+# DH6
+n0=$(starts); out=$(DESK_AGENTS=off send "$(kbi t3)" "Letter three."); sleep 0.5
+check "DH6 DESK_AGENTS=off starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
+$D agents off >/dev/null; out=$(send "$(kbi t3)" "Letter three."); sleep 0.5; $D agents on >/dev/null
+check "DH6 desk.py agents off starts no agent" '[ "$(starts)" = "$n0" ] && [ -z "$(field "$out" agent)" ]'
+# DH7
+n0=$(starts); FAKE_SECS=1 send "$(kbi t4)" "$(printf 'Bad\003byte CTLPROBE.')" >/dev/null; waitfor '[ "$(starts)" -gt '"$n0"' ]' 80
+check "DH7 no control byte in the prompt" 'grep -q CTLPROBE <<<"$(nth $((n0+1)))" && ! grep -q "\\\\u0003" <<<"$(nth $((n0+1)))"'
+# DH8
+check "DH8 a letter to an unknown agent is refused" '! send "{\"type\": \"agent\", \"agent\": \"alpha-review-agent_999\"}" "x" >/dev/null 2>&1'
+echo "desk_headless: $PASS passed, $FAIL failed"
+[ $FAIL = 0 ]
