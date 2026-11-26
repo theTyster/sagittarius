@@ -577,7 +577,8 @@ def find_letter(store, lid):
 # stopped or ended agent starts a new run at once. desk.py agent-stop ends the run (SIGTERM); agent-resume
 # starts a new headless run of the same session. Desk agents are ON by default (Ty, desk-agents q9: "On by
 # default"). `desk.py agents off` (a flag agents-off in the Desk's state dir) or DESK_AGENTS=off turns them off;
-# DESK_AGENTS=on wins over the flag; DESK_AGENTS=off wins over everything. A test or a copy of a hub that starts a
+# DESK_AGENTS=on wins over the flag; DESK_AGENTS=off wins over everything (any case; 0, false, no and any unknown value
+# are off too). A test or a copy of a hub that starts a
 # Desk or runs desk.py must set DESK_AGENTS=off, or put a fake claude first on its PATH: else a letter of its
 # scratch hub starts a real, paid claude. kb/tests/test_desk_guard.sh checks the harnesses of the repo for that.
 
@@ -599,8 +600,22 @@ def agents_off_flag():
     return os.path.join(state_dir(), "agents-off")
 
 
+AGENTS_OFF_WORDS = ("off", "0", "false", "no")
+AGENTS_ON_WORDS = ("on", "1", "true", "yes")
+
+
+def agents_env():
+    """DESK_AGENTS as the switch reads it: "off", "on", or None (not set, or empty). Case does not matter; 0, false
+    and no are off, 1, true and yes are on. Any other value is off (review H-0274, f_h4): a guard with a typo must
+    not start a paid claude."""
+    e = (os.environ.get("DESK_AGENTS") or "").strip().lower()
+    if not e:
+        return None
+    return "on" if e in AGENTS_ON_WORDS else "off"
+
+
 def agents_on():
-    e = os.environ.get("DESK_AGENTS")
+    e = agents_env()
     return e != "off" and (e == "on" or not os.path.exists(agents_off_flag()))
 
 
@@ -1154,7 +1169,7 @@ def cmd_agents(hub, a):
         except OSError:
             pass
         print("desk agents are on: a letter about a spec KB that nobody holds starts claude -p"
-              + (" (but DESK_AGENTS=off in this environment)" if os.environ.get("DESK_AGENTS") == "off" else ""))
+              + (" (but DESK_AGENTS=off in this environment)" if agents_env() == "off" else ""))
         return
     if a.switch == "off":
         ensure_dir(state_dir())
@@ -1164,7 +1179,7 @@ def cmd_agents(hub, a):
         except OSError:
             pass
         print("desk agents are off: a letter about a KB that nobody holds keeps its receiver"
-              + (" (but DESK_AGENTS=on in this environment)" if os.environ.get("DESK_AGENTS") == "on" else ""))
+              + (" (but DESK_AGENTS=on in this environment)" if agents_env() == "on" else ""))
         return
     print(json.dumps({"on": agents_on(), "agents": agents_view(hub)}, ensure_ascii=False, indent=1))
 

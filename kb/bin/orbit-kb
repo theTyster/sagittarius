@@ -2087,7 +2087,7 @@ vote_epoch_mask(Dir, Ts, Ts1) :-
     ;   kb_made_before_reset(Dir) -> length(Ts, E)
     ;   E = 0
     ),
-    (   E > 0 -> findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1) ; Ts1 = Ts ), !.
+    (   E > 0 -> findall(X, ( nth1(I, Ts, T0), ( I =< E, spec_change(Ts, T0) -> X = '$grandfathered' ; X = T0 ) ), Ts1) ; Ts1 = Ts ), !.
 
 kb_made_before_reset(Dir) :-
     Dir \== none, atom(Dir), directory_file_path(Dir, 'kb.pl', F), exists_file(F),
@@ -2128,7 +2128,7 @@ vote_epoch_needed_derived(_, _, []).
 % A note, a run, a finding or an answer is no part of the specification: the vote stays.
 vote_spec_changed(Ts, Tks, Pv, After) :-
     \+ ( member(E, After), nonvar(E), E = discovery_end(A), valid_end(Ts, Tks, A) ),
-    append(_, [C|After2], After), spec_change(C),
+    append(_, [C|After2], After), spec_change(Ts, C),
     \+ vote_carried(C, Pv, After2), !.
 
 % vote_carried(+Change, +VotePred, +AfterChange) (vote-start c11, Ty r4): the human voted on this change
@@ -2141,7 +2141,7 @@ vote_carried(C, vote(_, Ch), After2) :-
 
 % vote_carry_subject(+Ts, +S): S is the id of a record of the specification: a vote that names it is a
 % vote on that record (a carry vote), not a vote on the ticket; it is no round of votes (vote_carry/1).
-vote_carry_subject(Ts, S) :- atom(S), member(C, Ts), spec_change(C), spec_ids(C, Ids), memberchk(S, Ids), !.
+vote_carry_subject(Ts, S) :- atom(S), member(C, Ts), spec_change(Ts, C), spec_ids(C, Ids), memberchk(S, Ids), !.
 
 spec_ids(claim(C, _, _), [C]).
 spec_ids(example(C, _), [C]).
@@ -2151,7 +2151,13 @@ spec_ids(hypothesis(H, _, _), [H]).
 spec_ids(goal(G, _, _, _), [G]).
 spec_ids(supersedes(N, _), [N]).
 spec_ids(attest(_, retirement, H, _, _, _), [H]).
-spec_ids(struck(_, I, _, _), [I]).
+spec_ids(struck(X, _, _, _), Ids) :- crud_target_item(X, Ids).
+spec_ids(erased(X, _, _, _), Ids) :- crud_target_item(X, Ids).
+
+% crud_target_item(+X, -Ids): the item that a struck/4 or erased/4 record names (kb-crud: the record X is an id,
+% or an address at(KIND, ITEM, N)): a carry vote names that item.
+crud_target_item(at(_, I, _), [I]) :- !.
+crud_target_item(X, [X]).
 
 % vote_carry_derived(+KbItems, -Facts): vote_carry(V) for each vote V that names a record of the specification.
 vote_carry_derived(KbItems, Facts) :-
@@ -2160,16 +2166,27 @@ vote_carry_derived(KbItems, Facts) :-
     findall(vote_carry(V), ( member(X, Ts), nonvar(X), X = attest(V, Ty, S, _, _, _), Ty == vote, ground(V), vote_carry_subject(Ts, S) ), Fs0),
     sort(Fs0, Facts).
 vote_carry_derived(_, []).
-spec_change(C) :- nonvar(C), C = attest(_, retirement, _, _, _, _), !.
-spec_change(C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
+% spec_change(+Ts, +C) (vote-start c5, c6): C is a change of the specification. A struck/4 or erased/4 record
+% (kb-crud) and a supersedes/2 count only when they name a record of the specification (spec_target/2): a strike,
+% replace or erase of a note, a run, a finding or an answer leaves the vote as it is (c5; review H-0274: before
+% the gather fix every struck/4 counted, and the item was read from the second argument, the party).
+spec_change(_, C) :- nonvar(C), C = attest(_, retirement, _, _, _, _), !.
+spec_change(Ts, C) :- nonvar(C), ( C = struck(X, _, _, _) ; C = erased(X, _, _, _) ), !, spec_target(Ts, X).
+spec_change(Ts, C) :- nonvar(C), C = supersedes(N, O), !, ( spec_target(Ts, N) -> true ; spec_target(Ts, O) ).
+spec_change(_, C) :- nonvar(C), functor(C, F, N), spec_change_pi(F, N).
 spec_change_pi(goal, 4).
 spec_change_pi(hypothesis, 3).
 spec_change_pi(hypothesis, 4).
 spec_change_pi(claim, 3).
 spec_change_pi(check, 2).
 spec_change_pi(example, 2).
-spec_change_pi(supersedes, 2).
-spec_change_pi(struck, 4).
+
+% spec_target(+Ts, +X): X names a record of the specification: an address of a goal, hypothesis, claim, check or
+% example (at(KIND, ITEM, N)), or the id of a goal, hypothesis, claim or check, or of a retirement attestation.
+spec_target(_, at(K, _, _)) :- !, memberchk(K, [goal, hypothesis, claim, check, example]).
+spec_target(Ts, X) :- atom(X), member(T, Ts), nonvar(T), spec_item(T, X), !.
+spec_item(T, X) :- compound(T), functor(T, F, N), F \== example, spec_change_pi(F, N), arg(1, T, X0), X0 == X, !.
+spec_item(T, X) :- T = attest(A, Ty, _, _, _, _), Ty == retirement, A == X.
 
 is_back(B) :- nonvar(B), B = attest(_, Ty, _, _, _, _), Ty == back.
 valid_end(Ts, Tks, A) :-
@@ -8282,7 +8299,7 @@ desk_vote_changes(Dir, Lines) :-
     catch(( lib_dir(Lib), load_kb(Dir, Lib, KB), kb_items(KB, Items), findall(T, kb_term(Items, T), Ts0), vote_epoch_mask(Dir, Ts0, Ts),
             (   append(_, [V|After], Ts), nonvar(V), V = attest(_, vote, Sv, Pv, human, _), \+ vote_carry_subject(Ts0, Sv),
                 \+ ( member(V2, After), nonvar(V2), V2 = attest(_, vote, Sv2, _, human, _), \+ vote_carry_subject(Ts0, Sv2) )
-            ->  findall(L, ( append(_, [C|After2], After), spec_change(C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
+            ->  findall(L, ( append(_, [C|After2], After), spec_change(Ts0, C), \+ vote_carried(C, Pv, After2), desk_change_words(C, L) ), Lines0), list_to_set(Lines0, Lines)
             ;   Lines = []
             ) ), _, Lines = ["(the list of changes could not be read: the KB file did not load)"]).
 
@@ -8294,7 +8311,8 @@ desk_change_words(hypothesis(H, _, _), W) :- dk_f("hypothesis ~w added", [H], W)
 desk_change_words(goal(G, _, _, _), W) :- dk_f("goal ~w added", [G], W).
 desk_change_words(supersedes(N, O), W) :- dk_f("~w replaces ~w", [N, O], W).
 desk_change_words(attest(_, retirement, H, _, _, _), W) :- dk_f("hypothesis ~w retired", [H], W).
-desk_change_words(struck(K, I, _, _), W) :- dk_f("~w of ~w struck", [K, I], W).
+desk_change_words(struck(X, _, _, _), W) :- crud_target_text(X, T), dk_f("~w struck", [T], W).
+desk_change_words(erased(X, _, _, _), W) :- crud_target_text(X, T), dk_f("~w erased", [T], W).
 
 desk_premises_html(Ps, None, Mode, Html) :-
     (   Ps \== []

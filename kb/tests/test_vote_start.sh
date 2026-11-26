@@ -19,6 +19,8 @@
 #   VS10 c6, c13: the edge is the place of vote_epoch; a withdraw of old lines above it does not move it
 #   VS11 c6, c13 (the 0.11.0 gather of kb-crud and vote-start): a strike or an erase of an old line above the marker
 #       keeps the edge; strike, erase and replace of the marker itself are refused, by an agent and by the human
+#   VS12 c5, c6 (review H-0274, the gather of kb-crud and vote-start): a strike or replace of a note and a strike
+#       of a run keep the vote; a strike of a claim takes it back; a vote of Ty that names the struck claim carries it
 #   VS5 c6: the engine rule alone (orbit-kb query): each kind of change voids; each other record keeps the vote;
 #       a vote after a valid approval of the ticket (closed discovery) is not taken back
 QS_LIB_ONLY=1
@@ -332,6 +334,31 @@ t_VS11() {  # c6, c13 (gather of kb-crud and vote-start): strike and erase above
     wr build --dir "$d" release; gate_is "$d" hold "after an erase of an old line above the marker"
     [ "$(grep -c '^vote_epoch(' "$d/kb.pl")" = 1 ] || note "the marker is gone or doubled after the erase above it"
 }
-for n in 1 2 2b 3 4 5 6 7 8 9 10 11; do run_one VS$n; done
+t_VS12() {  # c5, c6 (review H-0274): kb-crud records of a note or a run keep the vote; of a claim they take it back
+    local d="$T/s"
+    wr build init "$d" --request "a request" --uses discovery || { note "setup: no KB: $(snip "$err")"; return; }
+    wr build --dir "$d" add "goal(g1, feature, agent, 'A goal.')" "no_premises(g1)" "hypothesis(hy1, g1, agent, 'An avenue.')" "defeating_case(hy1, agent, 'A case.')" "no_premises(hy1)" \
+        "claim(c1, introduce, 'A claim.')" "cites(c1, 'a request')" "example(c1, 'A case.')" "check(k1, c1)" "checks_that(k1, 'it checks')" "predicts(hy1, c1)" \
+        "claim(c2, introduce, 'A second claim.')" "cites(c2, 'a request')" "example(c2, 'A case.')" "check(k2, c2)" "checks_that(k2, 'it checks two')" "predicts(hy1, c2)" \
+        "note(c1, 'A note.')" || { note "setup: facts refused: $(snip "$err")"; return; }
+    wr build --dir "$d" run k1 -- false; wr build --dir "$d" run k2 -- false; wr build --dir "$d" run k1 -- false
+    wr build --dir "$d" add "discovery_evidence(k1, system)" "discovery_evidence(k2, system)"
+    wr build --dir "$d" attest vote r1 'vote(1, go)'; wr build --dir "$d" attest vote r1 'vote(1, go)' --by human || { note "setup: the human vote was refused: $(snip "$err")"; return; }
+    wr build --dir "$d" release; gate_is "$d" go "the fixture: a ready KB with the GO of the human"
+    local r1; r1=$(grep -o "^test_result([a-z0-9_]*, k1" "$d/kb.pl" | head -1 | sed 's/^test_result(\([^,]*\),.*/\1/')
+    [ -n "$r1" ] || r1=$(grep -o "^attest([a-z0-9_]*, test_result, k1" "$d/kb.pl" | head -1 | sed 's/^attest(\([^,]*\),.*/\1/')
+    [ -n "$r1" ] || { note "setup: no run of k1 found in kb.pl"; return; }
+    wr build --dir "$d" strike 'note(c1)#1' --why 'a test'; [ "$rc" = 0 ] || note "strike of a note refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" go "after a strike of a note (c5: a note leaves the vote)"
+    wr build --dir "$d" add "note(c2, 'Another note.')"; wr build --dir "$d" replace 'note(c2)#1' "note(c2, 'A better note.')" --why 'a test'; [ "$rc" = 0 ] || note "replace of a note refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" go "after a replace of a note"
+    wr build --dir "$d" strike "$r1" --why 'a test'; [ "$rc" = 0 ] || note "strike of the run $r1 refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_is "$d" go "after a strike of one of two runs of k1 (c5: a run leaves the vote)"
+    wr build --dir "$d" strike c2 --why 'a test'; [ "$rc" = 0 ] || note "strike of claim c2 refused: $(snip "$err")"
+    wr build --dir "$d" release; gate_not "$d" go "a strike of claim c2 takes the vote back (c6)"
+    wr build --dir "$d" attest vote c2 'vote(2, go)' --by human; wr build --dir "$d" release
+    gate_is "$d" go "a vote of the human that names the struck claim c2 carries it (c11)"
+}
+for n in 1 2 2b 3 4 5 6 7 8 9 10 11 12; do run_one VS$n; done
 echo "orbit-kb=$OKB lib=$LIB pass=$pass fail=$fail skip=$skip ${failed[*]:-}"
 [ "$fail" -eq 0 ]
