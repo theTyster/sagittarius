@@ -575,7 +575,9 @@ def find_letter(store, lid):
 # process per session (probe f13: claude does not refuse a second one): a letter for a running agent waits
 # in its queue and the runner starts the next run (--resume) when the current one ends; a letter for a
 # stopped or ended agent starts a new run at once. desk.py agent-stop ends the run (SIGTERM); agent-resume
-# starts a new headless run of the same session. Off: DESK_AGENTS=off, or `desk.py agents off`.
+# starts a new headless run of the same session. Desk agents are OFF until Ty turns them on: `desk.py agents on`
+# (a flag in the Desk's state dir) or DESK_AGENTS=on; DESK_AGENTS=off wins. Off by default because a letter of any
+# scratch hub (a test, a copy) would otherwise start a real, paid claude.
 
 AGENT_LEASE = 30 * 60          # a writer lock older than this is lapsed (orbit-kb's lease)
 AGENT_EVENTS_SHOWN = 40        # events of one agent in desk.py status
@@ -591,12 +593,13 @@ def short_name(mindhole):
     return mindhole[:-len("-mindhole")] if mindhole.endswith("-mindhole") and len(mindhole) > len("-mindhole") else mindhole
 
 
-def agents_off_flag():
-    return os.path.join(state_dir(), "agents-off")
+def agents_on_flag():
+    return os.path.join(state_dir(), "agents-on")
 
 
 def agents_on():
-    return os.environ.get("DESK_AGENTS") != "off" and not os.path.exists(agents_off_flag())
+    e = os.environ.get("DESK_AGENTS")
+    return e != "off" and (e == "on" or os.path.exists(agents_on_flag()))
 
 
 def mindhole_of(hub):
@@ -1095,17 +1098,18 @@ def cmd_agent_resume(hub, a):
 
 
 def cmd_agents(hub, a):
-    if a.switch == "off":
-        ensure_dir(state_dir())
-        open(agents_off_flag(), "w").close()
-        print("desk agents are off: a letter about a KB that nobody holds keeps its receiver")
-        return
     if a.switch == "on":
+        ensure_dir(state_dir())
+        open(agents_on_flag(), "w").close()
+        print("desk agents are on: a letter about a spec KB that nobody holds starts claude -p"
+              + (" (but DESK_AGENTS=off in this environment)" if os.environ.get("DESK_AGENTS") == "off" else ""))
+        return
+    if a.switch == "off":
         try:
-            os.remove(agents_off_flag())
+            os.remove(agents_on_flag())
         except OSError:
             pass
-        print("desk agents are on" + (" (but DESK_AGENTS=off in this environment)" if os.environ.get("DESK_AGENTS") == "off" else ""))
+        print("desk agents are off: a letter about a KB that nobody holds keeps its receiver")
         return
     print(json.dumps({"on": agents_on(), "agents": agents_view(hub)}, ensure_ascii=False, indent=1))
 

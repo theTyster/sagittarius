@@ -6,7 +6,7 @@
 #   DH3 a stopped agent: no lock, a resume command; a running agent: no resume command
 #   DH4 agent-resume starts a headless run of the same session and takes the lock again
 #   DH5 a KB held by a live lock of another writer starts no agent; the letter keeps its receiver
-#   DH6 DESK_AGENTS=off and `desk.py agents off` start no agent
+#   DH6 desk agents are off until `desk.py agents on` (or DESK_AGENTS=on); DESK_AGENTS=off wins
 #   DH7 control bytes of a letter do not reach the prompt
 #   DH8 a letter to an unknown desk agent is refused; one to a known agent goes to no session
 set -u
@@ -43,6 +43,10 @@ K="$h/.claude/orbit-kb/bin/orbit-kb"; D="python3 $h/.claude/scripts/desk.py --hu
 for s in t1 t2 t3 t4; do ORBIT_KB_WRITER=probe "$K" init "$h/specs/$s" --request "request of $s" --uses discovery >/dev/null 2>&1; ORBIT_KB_WRITER=probe "$K" --dir "$h/specs/$s" release >/dev/null 2>&1; done
 ( cd "$h" && python3 .claude/scripts/desk.py join --name alpha ) >/dev/null 2>&1
 command -v claude | grep -q "^$T/bin/claude$" || { echo "setup: claude is not the fake"; exit 2; }
+# DH6 (off by default)
+printf 'x' > "$T/text"; out0=$($D send --kind note --item-json '{"type": "kb", "slug": "t3", "kb": "specs/t3", "ref": "note"}' --about probe --text-file "$T/text" 2>/dev/null); sleep 0.5
+check "DH6 desk agents are off by default: no agent" '[ "$(grep -c "^START" "$FAKE_LOG")" = 0 ] && ! grep -q "\"agent\"" <<<"$out0"'
+$D agents on >/dev/null
 send() { printf '%s' "$2" > "$T/text"; $D send --kind note --item-json "$1" --about probe --text-file "$T/text" 2>>"$T/err"; }
 kbi() { printf '{"type": "kb", "slug": "%s", "kb": "specs/%s", "ref": "note"}' "$1" "$1"; }
 starts() { grep -c "^START" "$FAKE_LOG"; }

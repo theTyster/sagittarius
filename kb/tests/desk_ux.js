@@ -421,7 +421,7 @@ async function shots() {
 }
 
 // ---- the Desk by store (r8, r9): k14 at each depth, k16, k20, shots2. SPEC: {tab, kbask, kbthr, closed, kb}
-const VIEW_NAMES = ['Waits on you', 'Questions', 'Answered', 'Everything'];
+const VIEW_NAMES = ['Waits on you', 'Questions', 'Answered', 'Everything', 'Agents'];  // Agents: desk-agents c15 (0.11.0)
 const dups = xs => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
 const STORE_LIB = PAGE_LIB + `
   const itemOf = f => { const i = f.querySelector('input[name=item]'); return i ? i.value : ''; };
@@ -486,7 +486,7 @@ async function k16() {
   check('the main sections are exactly the stores Ledger, Spec KBs, Project KB', JSON.stringify(r0.secs) === JSON.stringify(['Ledger', 'Spec KBs', 'Project KB']), JSON.stringify(r0.secs));
   const LANES = ['Your action', 'Questions', 'Running on a guess', 'Orphaned', 'Answered', 'KBs', 'Ledger asks'];
   check('no lane of 0.9.1 is a main section (and no element is a lane)', r0.lanes.length === 0 && !r0.secs.some(x => LANES.includes(x)), JSON.stringify(r0.lanes.slice(0, 8)));
-  check('the row of views is Waits on you, Questions, Answered, Everything', JSON.stringify(r0.views.map(v => v.name)) === JSON.stringify(VIEW_NAMES), JSON.stringify(r0.views.map(v => v.name)));
+  check('the row of views is Waits on you, Questions, Answered, Everything, Agents', JSON.stringify(r0.views.map(v => v.name)) === JSON.stringify(VIEW_NAMES), JSON.stringify(r0.views.map(v => v.name)));
   check('the page loads with the view Waits on you on', (r0.views.find(v => v.on) || {}).name === 'Waits on you', JSON.stringify(r0.views.filter(v => v.on)));
   const kb = SPEC.kb;
   const res = {};
