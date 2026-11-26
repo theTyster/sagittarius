@@ -412,6 +412,8 @@ signature(visual/1).
 signature(vote_carry/1).
 signature(vote_cast/3).
 signature(vote_changed/1).
+signature(check_changed/1).
+signature(run_input/3).
 signature(vote_epoch/1).
 signature(vote_epoch_needed/1).
 signature(vote_round/1).
